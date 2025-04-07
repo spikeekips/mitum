@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+
 	"github.com/spikeekips/mitum/base"
 	dop5 "github.com/spikeekips/mitum/example/test364_5"
 	jsonenc "github.com/spikeekips/mitum/example/test364_5/encoder/json"
@@ -14,7 +16,7 @@ type baseTestDB struct {
 }
 
 func (t *baseTestDB) SetupSuite() {
-	t.enc = jsonenc.NewEncoder(1 << 9)
+	t.enc = jsonenc.NewEncoder(context.Background(), 1<<9)
 	t.NoError(jsonenc.AddDecode(t.enc, base.MPublickeyHint, &base.MPublickey{}, dop5.DecodeJSONMPublickey))
 	t.NoError(jsonenc.AddDecode(t.enc, dop5.AccountOpFactHint, &dop5.AccountOpFact{}, dop5.AccountOpFactDecodeJSON))
 }

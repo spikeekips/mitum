@@ -13,7 +13,6 @@ import (
 
 type testManagerCollectOwners struct {
 	dutil.BaseSuite
-	baseTestWorkers
 }
 
 func (t *testManagerCollectOwners) TestCancel() {

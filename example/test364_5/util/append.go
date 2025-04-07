@@ -11,9 +11,9 @@ type AppendSliceAddFunc[T any] func(...T) (added, left uint64)
 func TrueFilter[T any](T) bool { return true }
 
 func newBaseAppendSlice[T any](size, grow uint64, filter func(T) bool) (
-	add AppendSliceAddFunc[T],
-	done OutFunc[[]T],
-	_ error,
+	AppendSliceAddFunc[T],
+	OutFunc[[]T],
+	error,
 ) {
 	if size < 1 && grow < 1 {
 		return nil, nil, errors.Errorf("size and grow under 1")
@@ -42,7 +42,7 @@ func newBaseAppendSlice[T any](size, grow uint64, filter func(T) bool) (
 		}
 	default:
 		growf = func() bool {
-			s = append(s, make([]T, grow)...)
+			s = append(s, make([]T, grow)...) //nolint:makezero
 
 			return true
 		}
@@ -50,10 +50,12 @@ func newBaseAppendSlice[T any](size, grow uint64, filter func(T) bool) (
 
 	var closed bool
 
-	return func(ts ...T) (added, left uint64) {
+	return func(ts ...T) (uint64, uint64) {
 			if closed {
 				return 0, 0
 			}
+
+			var added, left uint64
 
 		end:
 			for i := range ts {
@@ -75,8 +77,8 @@ func newBaseAppendSlice[T any](size, grow uint64, filter func(T) bool) (
 				added++
 			}
 
-			switch {
-			case s == nil:
+			switch s {
+			case nil:
 				left = size - next
 			default:
 				left = slen() - next
@@ -168,7 +170,7 @@ func NewLockAppendSlice[T any](size, grow uint64) (
 
 	var l sync.Mutex
 
-	return func(ts ...T) (added, left uint64) {
+	return func(ts ...T) (uint64, uint64) {
 			l.Lock()
 			defer l.Unlock()
 
@@ -195,7 +197,7 @@ func NewLockUniqueAppendSlice[T any, K comparable](size, grow uint64, keyf func(
 
 	var l sync.Mutex
 
-	return func(ts ...T) (added, left uint64) {
+	return func(ts ...T) (uint64, uint64) {
 			l.Lock()
 			defer l.Unlock()
 

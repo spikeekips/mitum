@@ -74,7 +74,7 @@ func WriteFixeds(w io.Writer, bs ...[]byte) error {
 
 	_, err := w.Write(buf.Bytes())
 
-	return err
+	return errors.WithStack(err)
 }
 
 func ReadFixedSlice(r io.Reader) (uint32, iter.Seq2[[]byte, error], error) {
@@ -90,9 +90,8 @@ func ReadFixedSlice(r io.Reader) (uint32, iter.Seq2[[]byte, error], error) {
 	}
 
 	return size, func(yield func([]byte, error) bool) {
-			for i := uint32(0); i < size; i++ {
+			for range size {
 				b, n, err := ReadFixed(r)
-
 				if n < 1 && errors.Is(err, io.EOF) {
 					err = ErrInsufficientRead
 				}

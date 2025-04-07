@@ -13,7 +13,7 @@ do
     ts=$(find $i -maxdepth 1 -name '*_test.go' -exec grep 'func Test.*' {} \; | sed -e 's/.*func //g' -e 's/(.*//g' | sort)
     for t in $ts
     do
-        time go test -race -coverprofile=/tmp/cov.out -tags 'test redis' -v -timeout 20m -failfast ./$i -run "^$t$"
+        time go test -race -coverprofile=/tmp/cov.out -tags 'test' -v -timeout 20m -failfast ./$i -run "^$t$"
         e=$?
         if [ $e -ne 0 ];then
             exit $e

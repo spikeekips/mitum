@@ -158,6 +158,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 		cancel(nil)
 
 		insert, insertDone, err := insertf("w0")
+		t.NoError(err)
 		err = insert(0)
 		t.ErrorIs(err, context.Canceled)
 		err = insertDone(nil)
@@ -247,6 +248,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 
 		for worker := range slices.Values(workers) {
 			insert, insertDone, err := insertf(worker)
+			t.NoError(err)
 
 			for i := range 3 {
 				if worker == workers[1] && i == 1 {
@@ -295,6 +297,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 		}()
 
 		unmerged, reasons, err := wait()
+		t.NoError(err)
 		t.Empty(unmerged)
 		t.Empty(reasons)
 
@@ -363,6 +366,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 		}()
 
 		unmerged, reasons, err := wait()
+		t.NoError(err)
 		t.Empty(unmerged)
 		t.Empty(reasons)
 
@@ -466,6 +470,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 		}()
 
 		unmerged, reasons, err := wait()
+		t.NoError(err)
 		t.Empty(unmerged)
 		t.Empty(reasons)
 
@@ -537,6 +542,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 		}()
 
 		unmerged, reasons, err := wait()
+		t.NoError(err)
 		t.Empty(unmerged)
 		t.Empty(reasons)
 
@@ -587,6 +593,7 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 		}()
 
 		unmerged, reasons, err := wait()
+		t.NoError(err)
 		t.Empty(unmerged)
 		t.Empty(reasons)
 
@@ -660,6 +667,7 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 		}()
 
 		unmerged, reasons, err := wait()
+		t.NoError(err)
 		t.Empty(unmerged)
 		t.Empty(reasons)
 
@@ -737,6 +745,7 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 		}()
 
 		unmerged, reasons, err := wait()
+		t.NoError(err)
 		t.Empty(unmerged)
 		t.Empty(reasons)
 
@@ -762,8 +771,8 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 
 func TestWorkerPhaseMerger(t *testing.T) {
 	defer goleak.VerifyNone(t,
-		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewContextUnlimitedChans[...].func2"),
-		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewContextUnlimitedChans[...].func4"),
+		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewUnlimitedChans[...].func2"),
+		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewUnlimitedChans[...].func4"),
 	)
 
 	suite.Run(t, new(testWorkerPhaseMerger))

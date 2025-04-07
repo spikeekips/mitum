@@ -127,6 +127,7 @@ func TestFixedSlice(tt *testing.T) {
 		t.ErrorContains(err, "less size")
 
 		size, seq, err := ReadFixedSlice(&eofBuffer{Buffer: buf})
+		t.NoError(err)
 		t.EqualValues(3, size)
 
 		var i int

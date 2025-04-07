@@ -5,7 +5,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        go: ["1.23.x" ]
+        go: ["1.24.x" ]
     runs-on: ubuntu-latest
     name: "Lint (Go ${{matrix.go}})"
     steps:
@@ -19,7 +19,7 @@ jobs:
         run: go mod tidy
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v7
         with:
           version: v1.61.0
           args: -v

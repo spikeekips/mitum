@@ -88,7 +88,7 @@ func NewFuncPrefixRequest(request RequestFunc, p ...[]byte) RequestFunc {
 		return request(ctx, addr, tlsConfig, quicConfig,
 			func(ctx context.Context, stream quic.Stream) (context.Context, error) {
 				if _, err := stream.Write(prefix); err != nil {
-					return ctx, err
+					return ctx, errors.WithStack(err)
 				}
 
 				return h(ctx, stream)
@@ -101,15 +101,15 @@ func newStreamHandlerPrefix(b []byte) HandlerPrefix {
 	return sha3.Sum224(b)
 }
 
-func readStreamHandlerPrefix(r io.Reader) (v HandlerPrefix, _ error) {
+func readStreamHandlerPrefix(r io.Reader) (HandlerPrefix, error) {
 	var p HandlerPrefix
 
 	switch n, err := r.Read(p[:]); {
 	case err != nil && errors.Is(err, io.EOF):
-		return v, err
+		return p, err //nolint:wrapcheck
 	case n != len(p):
-		return v, errors.Errorf("invalid handler prefix length")
+		return p, errors.Errorf("invalid handler prefix length")
 	default:
-		return p, err
+		return p, errors.WithStack(err)
 	}
 }

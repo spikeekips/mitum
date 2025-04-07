@@ -20,10 +20,10 @@ func newFuncUnmerger(
 	getSMVs opindexGetSMVsFunc,
 	getMergers mergerGetSVMsFunc,
 ) (
-	unmerge dutil.InErrorFunc[uint64],
-	done func(),
-	wait unmergedErrorFunc,
-	_ error,
+	dutil.InErrorFunc[uint64], /* unmerge */
+	func(), /* done */
+	unmergedErrorFunc, /* wait */
+	error,
 ) {
 	log := dutil.NewModuleLoggerFromContext(ctx, "unmerger", nil)
 
@@ -31,7 +31,7 @@ func newFuncUnmerger(
 	var jobDone func()
 	var jobWait dutil.InErrorFunc[error]
 
-	switch n, d, w, err := newJobWorker(ctx, maxOpsSize); {
+	switch n, d, w, err := newJobWorker(ctx, dutil.SafeUint64toInt64(maxOpsSize)); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -48,7 +48,7 @@ func newFuncUnmerger(
 		addOps, doneOps = a, d
 	}
 
-	unmergef := func(opindex uint64) (committed bool, _ error) {
+	unmergef := func(opindex uint64) (bool, error) {
 		switch c, nextMergeOps, err := unmergeValues(getSMVs, getMergers, opindex); {
 		case err != nil:
 			return false, err
@@ -96,9 +96,9 @@ func newFuncOpindexFilter(
 	getSMVs opindexGetSMVsFunc,
 	localUnmerged []uint64,
 ) (
-	_ opindexFilterFunc,
-	closef func(),
-	_ error,
+	opindexFilterFunc,
+	func(), /* close */
+	error,
 ) {
 	var m dutil.LockedMap[uint64, struct{}]
 
@@ -114,7 +114,9 @@ func newFuncOpindexFilter(
 	}
 
 	return func(opindex uint64, f dutil.InErrorFunc[uint64]) (bool, error) {
-			switch created, err := m.Set(opindex, func(_ struct{}, found bool) (v struct{}, _ error) {
+			switch created, err := m.Set(opindex, func(_ struct{}, found bool) (struct{}, error) {
+				var v struct{}
+
 				if found {
 					return v, dutil.ErrLockedSetIgnore
 				}

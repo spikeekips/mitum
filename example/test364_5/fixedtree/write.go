@@ -22,7 +22,7 @@ type (
 	GenerateNodesHashFunc = func(context.Context, []Node, NodeWriteFunc) error
 )
 
-func WriteTree(ctx context.Context, semSize uint64, tr *Tree, w NodeWriteFunc, g GenerateNodesHashFunc) error {
+func WriteTree(ctx context.Context, semSize int64, tr *Tree, w NodeWriteFunc, g GenerateNodesHashFunc) error {
 	switch {
 	case tr.Len() < 1:
 		return nil
@@ -33,7 +33,7 @@ func WriteTree(ctx context.Context, semSize uint64, tr *Tree, w NodeWriteFunc, g
 	}
 }
 
-func WriteNodes(ctx context.Context, semSize uint64, nodes []Node, w NodeWriteFunc, g GenerateNodesHashFunc) error {
+func WriteNodes(ctx context.Context, semSize int64, nodes []Node, w NodeWriteFunc, g GenerateNodesHashFunc) error {
 	switch {
 	case len(nodes) < 1:
 		return nil
@@ -50,7 +50,7 @@ func WriteNodes(ctx context.Context, semSize uint64, nodes []Node, w NodeWriteFu
 	}
 }
 
-func baseWriteNodes(ctx context.Context, semSize uint64, nodes []Node, w NodeWriteFunc) error {
+func baseWriteNodes(ctx context.Context, semSize int64, nodes []Node, w NodeWriteFunc) error {
 	if w == nil {
 		return nil
 	}
@@ -72,7 +72,7 @@ func baseWriteNodes(ctx context.Context, semSize uint64, nodes []Node, w NodeWri
 		}
 
 		if err := newJob(func(context.Context) error {
-			return w(uint64(i), n)
+			return w(dutil.SafeIntToUint64(i), n)
 		}); err != nil {
 			return err
 		}
@@ -159,16 +159,16 @@ func asyncGenerateNodeHash(
 	}
 }
 
-func AsyncGenerateNodesHashByFollowingParent(
+func AsyncGenerateNodesHashByFollowingParent( //nolint:funlen
 	ctx context.Context,
 	nodes []Node,
-	semSize uint64,
+	semSize int64,
 	w NodeWriteFunc,
 ) error {
 	switch {
 	case len(nodes) < 1:
 		return nil
-	case len(nodes) < 2:
+	case len(nodes) < 2: //nolint:mnd
 		_, err := asyncGenerateNodeHash(0, nodes, nil, w)
 
 		return err
@@ -177,7 +177,7 @@ func AsyncGenerateNodesHashByFollowingParent(
 	nnodes := uint64(len(nodes))
 
 	last := indexHeight(nnodes - 1)
-	if last < 2 {
+	if last < 2 { //nolint:mnd
 		return SyncronousGenerateNodesHash(ctx, nodes, w)
 	}
 
@@ -188,18 +188,18 @@ func AsyncGenerateNodesHashByFollowingParent(
 		ln := lenNodesInHeight(nnodes, last)
 		ncc = nnodes - ln - lenNodesInHeight(nnodes, last-1)
 
-		switch {
-		case ln%2 == 1:
-			ncc += ((ln - 1) / 2) + 1
+		switch ln % 2 {
+		case 1:
+			ncc += ((ln - 1) / 2) + 1 //nolint:mnd
 		default:
-			ncc += (ln) / 2
+			ncc += (ln) / 2 //nolint:mnd
 		}
 
 		cc = make([]uint32, ncc)
 	}
 
 	wctx, cancel := dutil.ContextWithCancelCause(ctx)
-	defer cancel(nil)
+	defer func() { _ = cancel(nil) }()
 
 	var newJob dutil.JobWorkerNewJobFunc
 	var jobDone func()
@@ -246,7 +246,7 @@ func AsyncGenerateNodesHashByFollowingParent(
 			case p < index:
 				go func() {
 					if err := gen(p); err != nil {
-						cancel(err)
+						_ = cancel(err)
 					}
 				}()
 			}
@@ -277,7 +277,7 @@ func AsyncGenerateNodesHashByHeight(
 	switch {
 	case len(nodes) < 1:
 		return nil
-	case len(nodes) < 2:
+	case len(nodes) < 2: //nolint:mnd
 		_, err := asyncGenerateNodeHash(0, nodes, nil, w)
 
 		return err
@@ -285,7 +285,7 @@ func AsyncGenerateNodesHashByHeight(
 
 	nnodes := uint64(len(nodes))
 
-	if last := indexHeight(nnodes - 1); last < 2 {
+	if last := indexHeight(nnodes - 1); last < 2 { //nolint:mnd
 		return SyncronousGenerateNodesHash(ctx, nodes, w)
 	}
 
@@ -312,21 +312,20 @@ func generateNodesHash(ctx context.Context, nodes []Node, w NodeWriteFunc, is it
 	var jobDone func()
 	var jobWait dutil.InErrorFunc[error]
 
-	var once sync.Once
+	once := sync.OnceValue(func() error {
+		switch n, d, w, err := dutil.NewFuncJobWorker(ctx, min(int64(len(nodes)), 1<<9)); { //nolint:mnd
+		case err != nil:
+			return err
+		default:
+			newJob, jobDone, jobWait = n, d, w
+
+			return nil
+		}
+	})
 
 	for i := range is {
-		var gerr error
-
-		once.Do(func() {
-			switch n, d, w, err := dutil.NewFuncJobWorker(ctx, 1<<9); {
-			case err != nil:
-				gerr = err
-			default:
-				newJob, jobDone, jobWait = n, d, w
-			}
-		})
-		if gerr != nil {
-			return gerr
+		if err := once(); err != nil {
+			return err
 		}
 
 		if err := newJob(func(context.Context) error {
@@ -345,7 +344,7 @@ func generateNodesHash(ctx context.Context, nodes []Node, w NodeWriteFunc, is it
 	return jobWait(nil)
 }
 
-func NewFuncAsyncGenerateNodesHashByFollowingParent(semSize uint64) GenerateNodesHashFunc {
+func NewFuncAsyncGenerateNodesHashByFollowingParent(semSize int64) GenerateNodesHashFunc {
 	return func(ctx context.Context, nodes []Node, w NodeWriteFunc) error {
 		return AsyncGenerateNodesHashByFollowingParent(
 			ctx,

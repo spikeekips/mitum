@@ -2,6 +2,7 @@ package frame
 
 import (
 	"io"
+	"math"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -11,29 +12,26 @@ func NewStreamingReader(r io.Reader) (
 	ioReadFunc,
 	error,
 ) {
-	var chunkSize int
-	var c uint32
+	var chunkSize uint32
 
-	switch _, err := ReadSize(r, &c); {
+	switch n, err := ReadSize(r, &chunkSize); {
 	case err != nil && !errors.Is(err, io.EOF):
 		return nil, err
-	case errors.Is(err, io.EOF) && c != 0:
+	case n < 1 && errors.Is(err, io.EOF):
 		return nil, err
-	case c == 0:
+	case chunkSize == 0:
 		return func([]byte) (int, error) { return 0, io.EOF }, nil
-	default:
-		chunkSize = int(c)
 	}
 
 	var gerr error
 	var left []byte
 	var isEOF bool
 
-	var l sync.Mutex
+	var lock sync.Mutex
 
 	return func(p []byte) (int, error) {
-			l.Lock()
-			defer l.Unlock()
+			lock.Lock()
+			defer lock.Unlock()
 
 			switch {
 			case gerr != nil:
@@ -42,7 +40,8 @@ func NewStreamingReader(r io.Reader) (
 				return 0, nil
 			}
 
-			nleft, np, l := len(left), len(p), 0
+			var l int
+			nleft, np := len(left), len(p)
 
 			copy(p, left)
 
@@ -97,7 +96,7 @@ func NewStreamingReader(r io.Reader) (
 		nil
 }
 
-func readStreamingChunk(r io.Reader, chunkSize int) ([]byte, error) {
+func readStreamingChunk(r io.Reader, chunkSize uint32) ([]byte, error) {
 	var t streamingChunkType
 
 	switch i, n, err := readStreamingChunkType(r); {
@@ -110,7 +109,7 @@ func readStreamingChunk(r io.Reader, chunkSize int) ([]byte, error) {
 
 	switch t {
 	case bodyStreamingChunkType:
-		switch p, _, err := ReadSized(r, uint32(chunkSize)); {
+		switch p, _, err := ReadSized(r, chunkSize); {
 		case err != nil:
 			return nil, errors.Errorf("insufficient body chunk")
 		default:
@@ -129,18 +128,18 @@ func readStreamingChunk(r io.Reader, chunkSize int) ([]byte, error) {
 	}
 }
 
-func readStreamingChunkType(r io.Reader) (t streamingChunkType, _ int, _ error) {
+func readStreamingChunkType(r io.Reader) (streamingChunkType, int, error) {
 	switch i, n, err := readFrameTypeByte(r); {
 	case err != nil && !errors.Is(err, io.EOF):
-		return t, n, errors.Wrap(err, "read chunk type")
+		return 0, n, errors.Wrap(err, "read chunk type")
 	case n < 1 && errors.Is(err, io.EOF):
-		return t, n, err
+		return 0, n, err
 	default:
 		return streamingChunkType(i), n, err
 	}
 }
 
-func NewStreamingWriter(w io.Writer, chunkSize int) (
+func NewStreamingWriter(w io.Writer, chunkSize uint32) (
 	func([]byte) (int, error),
 	func() error,
 	error,
@@ -176,7 +175,7 @@ func NewStreamingWriter(w io.Writer, chunkSize int) (
 
 			switch i, _, err := streamingWriterWrite(w, chunkSize, left, b); {
 			case err != nil:
-				defer clearSlice(left)
+				defer clearSlice(&left)
 
 				return 0, err
 			default:
@@ -199,20 +198,20 @@ func NewStreamingWriter(w io.Writer, chunkSize int) (
 				return gerr
 			}
 
-			gerr = streamingWriterClose(w, chunkSize, left)
+			gerr = streamingWriterClose(w, left)
 
 			return gerr
 		},
 		nil
 }
 
-func streamingWriterWriteHeader(w io.Writer, chunkSize int) error {
-	c := make([]byte, 5)
-	defer clearSlice(c)
+func streamingWriterWriteHeader(w io.Writer, chunkSize uint32) error {
+	c := make([]byte, 5) //nolint:mnd
+	defer clearSlice(&c)
 
 	c[0] = byte(streamingFrameType)
 
-	switch i, err := sizeToBytes(uint32(chunkSize)); {
+	switch i, err := sizeToBytes(chunkSize); {
 	case err != nil:
 		return err
 	default:
@@ -224,12 +223,17 @@ func streamingWriterWriteHeader(w io.Writer, chunkSize int) error {
 	}
 }
 
-func streamingWriterWrite(w io.Writer, chunkSize int, left, b []byte) ([]byte, int, error) {
-	var l int
-	var c []byte
-	defer clearSlice(c)
+func streamingWriterWrite(w io.Writer, chunkSize uint32, left, b []byte) ([]byte, int, error) {
+	if len(b) > math.MaxUint32 {
+		return nil, 0, errors.Errorf("too big; over uint32")
+	}
 
-	for len(b)-l >= chunkSize {
+	var l int
+
+	var c []byte
+	defer clearSlice(&c)
+
+	for uint32(len(b)-l) >= chunkSize { //nolint:gosec
 		c = make([]byte, 1+chunkSize)
 		c[0] = byte(bodyStreamingChunkType)
 
@@ -257,11 +261,11 @@ func streamingWriterWrite(w io.Writer, chunkSize int, left, b []byte) ([]byte, i
 	return left, l, nil
 }
 
-func streamingWriterClose(w io.Writer, chunkSize int, left []byte) error {
+func streamingWriterClose(w io.Writer, left []byte) error {
 	nleft := len(left)
 
-	c := make([]byte, nleft+5) // NOTE <chunk type>(1) + <uint32 bytes size>(4) = 5
-	defer clearSlice(c)
+	c := make([]byte, nleft+5) //nolint:mnd // NOTE <chunk type>(1) + <uint32 bytes size>(4) = 5
+	defer clearSlice(&c)
 
 	c[0] = byte(eofStreamingChunkType)
 

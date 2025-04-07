@@ -46,8 +46,8 @@ func NewManagerOptions() *ManagerOptions {
 		// size. The acting workers size will be <workers size> *
 		// <WorkerSizeMultiplier>. 0 will workers will be acting workers
 		WorkersSizeMultiplier: 0,
-		JobWorkerMaxSemSize:   1 << 9,
-		GenerateNodesHashFunc: fixedtree.NewFuncAsyncGenerateNodesHashByFollowingParent(1 << 9),
+		JobWorkerMaxSemSize:   1 << 9,                                                           //nolint:mnd
+		GenerateNodesHashFunc: fixedtree.NewFuncAsyncGenerateNodesHashByFollowingParent(1 << 9), //nolint:mnd
 	}
 }
 
@@ -59,12 +59,12 @@ func NewFuncManager(
 	opsShare, statesShare uint64,
 	ophs [][2]util.Hash,
 ) (
-	_ dutil.In2ErrorFunc[ManagerStartWorkerFunc, NewManagerWorkerSendOpFunc],
-	workerOwners dutil.In2ErrorFunc[string, []string],
-	_ ManagerInsertWorkerResultFunc,
-	workerErr dutil.In2ErrorFunc[string, error],
-	wait ManagerWaitFunc,
-	_ error,
+	dutil.In2ErrorFunc[ManagerStartWorkerFunc, NewManagerWorkerSendOpFunc], /* start workers */
+	dutil.In2ErrorFunc[string, []string], /* workerOwners */
+	ManagerInsertWorkerResultFunc,
+	dutil.In2ErrorFunc[string, error], /* workerErr */
+	ManagerWaitFunc,
+	error,
 ) {
 	wctx, wctxCancel := dutil.ContextWithCancelCause(ctx)
 
@@ -87,10 +87,11 @@ func NewFuncManager(
 		Uint64("states_share", statesShare).
 		Msg("new")
 
-	newJobWorker := dutil.NewFuncNewJobWorkerFunc(options.JobWorkerMaxSemSize)
+	newJobWorker := dutil.NewFuncNewJobWorkerFunc(dutil.SafeUint64toInt64(options.JobWorkerMaxSemSize))
 
 	var workerPool *failedWorkerPool
 	var sendOps dutil.InErrorFunc[newWorkerSendOpFunc]
+	var workerOwners dutil.In2ErrorFunc[string, []string]
 	var workerResult ManagerInsertWorkerResultFunc
 	var processWait managerProcessWaitFunc
 
@@ -158,6 +159,7 @@ func NewFuncManager(
 			defer func() {
 				_ = wctxCancel(nil)
 				_ = bgJobDone(nil)
+
 				workerPool.Close()
 			}()
 
@@ -284,7 +286,7 @@ func newFuncManagerWorkerInsertDone(
 	var jobDone func()
 	var jobWait dutil.InErrorFunc[error]
 
-	switch n, d, w, err := newJobWorker(ctx, uint64(len(workerPool.workers()))); {
+	switch n, d, w, err := newJobWorker(ctx, int64(len(workerPool.workers()))); {
 	case err != nil:
 		return nil, err
 	default:
@@ -313,9 +315,9 @@ func newFuncManagerWorkerInsertDone(
 			}
 		}); {
 		case err != nil:
-			jobWait(err)
+			_ = jobWait(err)
 		case failed, gerr != nil:
-			jobWait(errWorkersFailed.WithMessage(gerr, "insert done"))
+			_ = jobWait(errWorkersFailed.WithMessage(gerr, "insert done"))
 		}
 	}()
 
@@ -346,7 +348,7 @@ func managerStartWorkers(
 	var jobDone func()
 	var jobWait dutil.InErrorFunc[error]
 
-	switch n, d, w, err := newJobWorker(ctx, uint64(len(workerPool.workers()))); {
+	switch n, d, w, err := newJobWorker(ctx, int64(len(workerPool.workers()))); {
 	case err != nil:
 		return err
 	default:
@@ -359,14 +361,15 @@ func managerStartWorkers(
 	default:
 		for worker := range seq {
 			if err := newJob(func(ctx context.Context) error {
-				switch err := f(
+				err := f(
 					ctx,
 					worker,
 					workers, opsWorkers,
 					opsShare, statesShare,
 					maxOpsSize,
-				); {
-				case slices.Index(opsWorkers, worker) >= 0:
+				)
+
+				if slices.Index(opsWorkers, worker) >= 0 {
 					if _, _, failed := checkWorker(worker, err); failed != nil {
 						return failed
 					}
@@ -398,7 +401,7 @@ func managerCancelWorks(
 	var jobDone func()
 	var jobWait dutil.InErrorFunc[error]
 
-	switch n, d, w, err := newJobWorker(ctx, uint64(len(workerPool.workers()))); {
+	switch n, d, w, err := newJobWorker(ctx, int64(len(workerPool.workers()))); {
 	case err != nil:
 		return err
 	default:
@@ -463,7 +466,7 @@ func managerCloseWork(
 	var jobDone func()
 	var jobWait dutil.InErrorFunc[error]
 
-	switch n, d, w, err := newJobWorker(ctx, uint64(len(workerPool.workers()))); {
+	switch n, d, w, err := newJobWorker(ctx, int64(len(workerPool.workers()))); {
 	case err != nil:
 		return err
 	default:

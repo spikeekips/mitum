@@ -193,6 +193,7 @@ func TestStateTreeNodeEncode(tt *testing.T) {
 		n, err := NewStateTreeNode(util.UUID().String(), valuehash.RandomSHA256())
 		t.NoError(err)
 		_, f, err := n.SetHash(nil, nil)
+		t.NoError(err)
 		t.NoError(f())
 
 		b, err := util.MarshalJSON(n)
@@ -231,6 +232,7 @@ func TestOperationTreeNodeEncode(tt *testing.T) {
 		n, err := NewOperationTreeNode(valuehash.RandomSHA256(), valuehash.RandomSHA256(), util.UUID().String())
 		t.NoError(err)
 		_, f, err := n.SetHash(nil, nil)
+		t.NoError(err)
 		t.NoError(f())
 
 		b, err := util.MarshalJSON(n)

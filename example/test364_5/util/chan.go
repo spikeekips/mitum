@@ -10,7 +10,7 @@ import (
 
 var ErrContextUnlimitedChansInsertDone = util.NewIDError("insert done")
 
-func NewContextUnlimitedChans[T any](ctx context.Context, bufSize, outBufSize uint64) (
+func NewUnlimitedChans[T any](ctx context.Context, bufSize, outBufSize uint64) (
 	InErrorFunc[T],
 	func(),
 	iter.Seq[T],
@@ -80,12 +80,4 @@ func NewContextUnlimitedChans[T any](ctx context.Context, bufSize, outBufSize ui
 				}
 			}
 		}
-}
-
-func NewUnlimitedChans[T any](bufSize, outBufSize uint64) (
-	InErrorFunc[T],
-	func(),
-	iter.Seq[T],
-) {
-	return NewContextUnlimitedChans[T](context.Background(), bufSize, outBufSize)
 }

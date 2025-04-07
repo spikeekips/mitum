@@ -14,8 +14,9 @@ import (
 
 type (
 	DialFunc      = func(context.Context, net.Addr, *tls.Config, *quic.Config) (quic.Connection, error)
-	DialCloseFunc = func(context.Context, net.Addr, *tls.Config, *quic.Config) (quic.Connection, dutil.InErrorFunc[error], error)
-	RequestFunc   = func(context.Context, net.Addr, *tls.Config, *quic.Config, StreamHandler) (context.Context, error)
+	DialCloseFunc = func(context.Context, net.Addr, *tls.Config, *quic.Config) (
+		quic.Connection, dutil.InErrorFunc[error], error)
+	RequestFunc = func(context.Context, net.Addr, *tls.Config, *quic.Config, StreamHandler) (context.Context, error)
 )
 
 func DefaultDial(
@@ -47,6 +48,7 @@ func DialWithPacketConn(
 }
 
 func NewDialPool(
+	ctx context.Context,
 	pool dutil.LockedMap[string, quic.Connection],
 	dial DialFunc,
 	cleanInterval time.Duration,
@@ -67,7 +69,9 @@ func NewDialPool(
 			tr = &quic.Transport{Conn: c}
 		}
 
-		dial = func(ctx context.Context, addr net.Addr, tlsConfig *tls.Config, quicConfig *quic.Config) (quic.Connection, error) {
+		dial = func(ctx context.Context, addr net.Addr, tlsConfig *tls.Config, quicConfig *quic.Config) (
+			quic.Connection, error,
+		) {
 			c, err := tr.DialEarly(ctx, addr, tlsConfig, quicConfig)
 
 			return c, errors.WithStack(err)
@@ -80,9 +84,13 @@ func NewDialPool(
 		cleanInterval = time.Minute
 	}
 
-	gctx, gctxCancel := context.WithCancel(context.Background())
+	gctx, gctxCancel := context.WithCancel(ctx)
 
-	closef = append(closef, func() error { gctxCancel(); return nil })
+	closef = append(closef, func() error {
+		gctxCancel()
+
+		return nil
+	})
 
 	go func() {
 		ticker := time.NewTicker(cleanInterval)
@@ -99,8 +107,8 @@ func NewDialPool(
 	}()
 
 	newCloseConnf := func(saddr string) dutil.InErrorFunc[error] {
-		return func(err error) (gerr error) {
-			gerr = err
+		return func(err error) error {
+			gerr := err
 
 			_ = pool.GetOrRemove(saddr, func(conn quic.Connection, found bool) (bool, error) {
 				if conn == nil {
@@ -122,8 +130,10 @@ func NewDialPool(
 			ctx context.Context,
 			addr net.Addr,
 			tlsConfig *tls.Config, quicConfig *quic.Config,
-		) (conn quic.Connection, _ dutil.InErrorFunc[error], _ error) {
+		) (quic.Connection, dutil.InErrorFunc[error], error) {
 			saddr := addr.String()
+
+			var conn quic.Connection
 
 			if _, _, err := pool.SetOrRemove(saddr, func(prev quic.Connection, found bool) (quic.Connection, bool, error) {
 				if prev != nil && prev.Context().Err() == nil {
@@ -146,7 +156,9 @@ func NewDialPool(
 
 			return conn, newCloseConnf(saddr), nil
 		},
-		func() (gerr error) {
+		func() error {
+			var gerr error
+
 			for f := range slices.Values(closef) {
 				if err := f(); err != nil && gerr == nil {
 					gerr = err
@@ -158,7 +170,9 @@ func NewDialPool(
 		nil
 }
 
-func NewFuncRequest(dial DialCloseFunc, defaultTLSConfig *tls.Config, defaultQuicConfig *quic.Config) (RequestFunc, error) {
+func NewFuncRequest(dial DialCloseFunc, defaultTLSConfig *tls.Config, defaultQuicConfig *quic.Config) (
+	RequestFunc, error,
+) {
 	if defaultTLSConfig == nil {
 		return nil, errors.Errorf("nil tls config")
 	}
@@ -167,7 +181,9 @@ func NewFuncRequest(dial DialCloseFunc, defaultTLSConfig *tls.Config, defaultQui
 		return nil, errors.Errorf("nil quic config")
 	}
 
-	return func(ctx context.Context, addr net.Addr, tlsConfig *tls.Config, quicConfig *quic.Config, h StreamHandler) (context.Context, error) {
+	return func(ctx context.Context, addr net.Addr, tlsConfig *tls.Config, quicConfig *quic.Config, h StreamHandler) (
+			context.Context, error,
+		) {
 			if tlsConfig == nil {
 				tlsConfig = defaultTLSConfig
 			}

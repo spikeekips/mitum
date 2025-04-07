@@ -25,12 +25,12 @@ func newFuncManagerProcess(
 	opsShare, statesShare uint64,
 	ophs [][2]util.Hash,
 ) (
-	workerPool *failedWorkerPool,
-	_ dutil.InErrorFunc[newWorkerSendOpFunc],
-	workerOwners dutil.In2ErrorFunc[string, []string],
-	_ ManagerInsertWorkerResultFunc,
-	_ managerProcessWaitFunc,
-	_ error,
+	*failedWorkerPool,
+	dutil.InErrorFunc[newWorkerSendOpFunc],
+	dutil.In2ErrorFunc[string, []string], /* workerOwners */
+	ManagerInsertWorkerResultFunc,
+	managerProcessWaitFunc,
+	error,
 ) {
 	log := dutil.NewModuleLoggerFromContext(ctx, "manager-process", nil)
 
@@ -47,7 +47,7 @@ func newFuncManagerProcess(
 		opsWorkers, sendOps, opsWait = ow, f, w
 	}
 
-	workerPool = newFailedWorkerPool(workers, opsWorkers, opsShare, statesShare)
+	workerPool := newFailedWorkerPool(workers, opsWorkers, opsShare, statesShare)
 
 	log.Debug().
 		Strs("workers", workers).
@@ -70,7 +70,8 @@ func newFuncManagerProcess(
 	var ownersReady managerCollectResultOwnersReadyFunc
 	var resultWait managerCollectRersultWaitFunc
 
-	switch wr, r, w, err := newFuncManagerCollectResult(ctx, workersSize, uint64(len(ophs))*2, ophs); { // NOTE approximate states size
+	switch wr, r, w, err := newFuncManagerCollectResult(
+		ctx, uint64(len(ophs))*2, ophs); { //nolint:mnd // NOTE approximate states size
 	case err != nil:
 		return nil, nil, nil, nil, nil, err
 	default:

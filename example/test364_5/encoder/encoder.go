@@ -12,9 +12,9 @@ type errorFunc = func() error
 type Encoder interface {
 	Marshal(any) ([]byte, error)
 	Unmarshal([]byte) (any, error)
-	UnmarshalString([]byte, int) (any, error)
+	UnmarshalString(_ []byte, typeSize int) (any, error)
 	Decode(any) (any, error)
-	DecodeString(string, int) (any, error)
+	DecodeString(_ string, typeSize int) (any, error)
 }
 
 func Assign[T any](v any, t *T) error {

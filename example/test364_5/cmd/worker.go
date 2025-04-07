@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"iter"
 	"net"
 	"slices"
@@ -67,7 +66,7 @@ func (cmd *workerCommand) Run(log *zerolog.Logger) error {
 func (cmd *workerCommand) prepare() error {
 	switch addr, err := net.ResolveUDPAddr("udp", cmd.Manager); {
 	case err != nil:
-		return err
+		return errors.WithStack(err)
 	case addr.Port < 1:
 		return errors.Errorf("invalid manager addr, %q", cmd.Manager)
 	default:
@@ -78,8 +77,8 @@ func (cmd *workerCommand) prepare() error {
 
 	cmd.getStateCache, _ = newFuncWorkersAwareStateCache(
 		cmd.ctx,
-		int(cmd.CapOpsSize),
-		1<<9, 1<<9, // NOTE will be enough :)
+		dutil.SafeUint64toInt(cmd.CapOpsSize),
+		1<<9, 1<<9, //nolint:mnd // NOTE will be enough :)
 	)
 
 	return nil
@@ -118,8 +117,10 @@ func (cmd *workerCommand) ready() (dutil.ErrorFunc, error) {
 		return nil
 	}))
 
-	createFactPool := sync.OnceValue(func() (err error) {
-		cmd.factPool, err = dutil.NewLockedMap[string, dop5.OperationFact](nil, cmd.CapOpsSize)
+	createFactPool := sync.OnceValue(func() error {
+		factPool, err := dutil.NewLockedMap[string, dop5.OperationFact](nil, cmd.CapOpsSize)
+
+		cmd.factPool = factPool
 
 		return err
 	})
@@ -131,7 +132,6 @@ func (cmd *workerCommand) ready() (dutil.ErrorFunc, error) {
 				return err
 			}
 
-			fmt.Println(">", fact.Hash())
 			_ = cmd.factPool.SetValue(fact.Hash().String(), fact)
 
 			return nil
@@ -197,7 +197,7 @@ func (cmd *workerCommand) startWorker(
 	case err != nil:
 		return nil, err
 	default:
-		defer c(nil)
+		defer func() { _ = c(nil) }()
 
 		initialInsert, workerInsertSMVs, workerUnmerged, wait, workerClose = ii, wi, wu, w, c
 	}
@@ -230,6 +230,7 @@ func (cmd *workerCommand) startWorker(
 	mustAddWorkHandler("worker_unmerged", acceptHandlerWorkerUnmerged(workerUnmerged))
 
 	workClosedDone, workClosedWait := dutil.NewContextDone(ctx)
+
 	mustAddWorkHandler("manager_close_work", acceptHandlerCloseWork(func() error {
 		if err := workerClose(nil); err != nil {
 			return workClosedDone(err)
@@ -244,7 +245,7 @@ func (cmd *workerCommand) startWorker(
 	}))
 
 	return func() error {
-			switch f, err := cmd.pprof(fmt.Sprintf("worker-work-%s", workID)); {
+			switch f, err := cmd.pprof("worker-work-" + workID); {
 			case err != nil:
 				return err
 			default:
@@ -269,14 +270,16 @@ func (cmd *workerCommand) newFuncGetState(workers []string, statesShare uint64, 
 ) {
 	get, set, lazySet := cmd.getStateCache(workers, statesShare, height)
 
-	return func(stateKey string) (st base.State, _ bool, _ error) {
+	return func(stateKey string) (base.State, bool, error) {
 			if i, found := get(stateKey); found {
 				if i != nil {
-					return i.(base.State), true, nil
+					return i, true, nil
 				}
 
 				return nil, false, nil
 			}
+
+			var st base.State
 
 			found, err := cmd.db.getState(cmd.ctx, stateKey, &st)
 			if err == nil && found {
@@ -343,7 +346,10 @@ func (cmd *workerCommand) newHandlerInitialInsert(
 	)
 }
 
-func (cmd *workerCommand) newFuncWorkerDistributeSMVs(workID string, maxItemsPerWorker uint64) dop5.NewWorkerDistributeSMVsFunc {
+func (cmd *workerCommand) newFuncWorkerDistributeSMVs(
+	workID string,
+	maxItemsPerWorker uint64,
+) dop5.NewWorkerDistributeSMVsFunc {
 	request := cmd.requestWorkWorker(workID, "worker_distribute_smvs")
 
 	return func(ctx context.Context, worker string) (
@@ -357,9 +363,9 @@ func (cmd *workerCommand) newFuncWorkerDistributeSMVs(workID string, maxItemsPer
 		requestDone, requestWait := dutil.NewContextDone(ctx)
 
 		l := dutil.ElapsedLogMsg(func() *zerolog.Event {
-			return cmd.log.Debug().
-				Uint64("max_items_per_worker", maxItemsPerWorker).
-				Str("worker", worker)
+			return cmd.log.Debug(). //nolint:zerologlint
+						Uint64("max_items_per_worker", maxItemsPerWorker).
+						Str("worker", worker)
 		}, "cmd/distribute smvs done")
 
 		go func() {
@@ -381,10 +387,10 @@ func (cmd *workerCommand) newFuncWorkerDistributeSMVs(workID string, maxItemsPer
 }
 
 func (cmd *workerCommand) getOperationFact(ctx context.Context, opindex uint64, oph, facth util.Hash) (
-	fact dop5.OperationFact,
-	_ bool,
-	_ string,
-	_ error,
+	dop5.OperationFact,
+	bool,
+	string,
+	error,
 ) {
 	if cmd.factPool != nil {
 		i, found := cmd.factPool.Value(facth.String())
@@ -392,6 +398,7 @@ func (cmd *workerCommand) getOperationFact(ctx context.Context, opindex uint64, 
 		return i, found, "", nil
 	}
 
+	var fact dop5.OperationFact
 	found, err := cmd.db.getOperationFact(ctx, facth, &fact)
 
 	return fact, found, "", err
@@ -449,7 +456,7 @@ func (cmd *workerCommand) newFuncReportResult(workID string) dop5.WorkerReportRe
 }
 
 func (cmd *workerCommand) pingManager() error {
-	handler := requestHandlerWorkerPingManager(cmd.local, time.Second)
+	handler := requestHandlerWorkerPingManager(cmd.local)
 
 	connected := make(chan error)
 
@@ -457,7 +464,7 @@ func (cmd *workerCommand) pingManager() error {
 	defer ticker.Stop()
 
 	reset := sync.OnceFunc(func() {
-		ticker.Reset(time.Millisecond * 333)
+		ticker.Reset(time.Millisecond * 333) //nolint:mnd
 	})
 
 	go func() {
@@ -487,13 +494,13 @@ func (cmd *workerCommand) pingManager() error {
 func (cmd *workerCommand) newFuncSaveStates(setStates func([]base.State)) dop5.WorkerSaveStatesFunc {
 	return func(sts []base.State) error {
 		defer dutil.ElapsedLogMsg(func() *zerolog.Event {
-			return cmd.log.Debug().
-				Int("size", len(sts))
+			return cmd.log.Debug(). //nolint:zerologlint
+						Int("size", len(sts))
 		}, "cmd/save states")()
 
 		setStates(sts)
 
-		return cmd.db.saveStates(cmd.ctx, 1<<9, 1<<9, sts)
+		return cmd.db.saveStates(cmd.ctx, 1<<9, 1<<9, sts) //nolint:mnd
 	}
 }
 
@@ -512,16 +519,18 @@ func newFuncWorkersAwareStateCache(ctx context.Context, cacheSize int, bufSize, 
 	var isOld func(h base.Height) bool
 
 	getCur := func() (stateCacheGetFunc, stateCacheSetFunc, stateCacheSetFunc) {
-		return cur[0].(func(string) (base.State, bool)),
-			cur[1].(func(base.State)),
-			cur[2].(func(base.State))
+		return cur[0].(func(string) (base.State, bool)), //nolint:forcetypeassert
+			cur[1].(func(base.State)), //nolint:forcetypeassert
+			cur[2].(func(base.State)) //nolint:forcetypeassert
 	}
 
-	return func(workers []string, statesShare uint64, height base.Height) (stateCacheGetFunc, stateCacheSetFunc, stateCacheSetFunc) {
+	return func(workers []string, statesShare uint64, height base.Height) (
+			stateCacheGetFunc, stateCacheSetFunc, stateCacheSetFunc,
+		) {
 			switch {
 			case lastWorkers[0] == nil:
-			case lastWorkers[1].(uint64) != statesShare:
-			case !slices.Equal(lastWorkers[0].([]string), workers):
+			case lastWorkers[1].(uint64) != statesShare: //nolint:forcetypeassert
+			case !slices.Equal(lastWorkers[0].([]string), workers): //nolint:forcetypeassert
 			default:
 				return getCur()
 			}

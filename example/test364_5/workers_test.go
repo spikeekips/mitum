@@ -181,7 +181,7 @@ func (t *baseTestWorkers) newWorkerDistributeSMVsContextChans(ctx context.Contex
 	func(),
 	iter.Seq[interface{}],
 ) {
-	return dutil.NewContextUnlimitedChans[interface{}](ctx, 1<<9, 1<<9)
+	return dutil.NewUnlimitedChans[interface{}](ctx, 1<<9, 1<<9)
 }
 
 func (t *baseTestWorkers) newWorkersDistributeSMVsContextChans(ctx context.Context) (
@@ -189,7 +189,7 @@ func (t *baseTestWorkers) newWorkersDistributeSMVsContextChans(ctx context.Conte
 	func(),
 	iter.Seq[interface{}],
 ) {
-	return dutil.NewContextUnlimitedChans[interface{}](ctx, 1<<9, 1<<9)
+	return dutil.NewUnlimitedChans[interface{}](ctx, 1<<9, 1<<9)
 }
 
 type testCheckEnoughFailedWorkers struct {
@@ -628,7 +628,7 @@ func (t *testSetStateOps) Test() {
 			}
 		}
 
-		newJob, jobDone, jobWait, err := dutil.NewFuncJobWorker(context.Background(), nops)
+		newJob, jobDone, jobWait, err := dutil.NewFuncJobWorker(context.Background(), int64(nops))
 		t.NoError(err)
 
 		go func() {
@@ -647,7 +647,7 @@ func (t *testSetStateOps) Test() {
 
 		t.NoError(jobWait(nil))
 
-		newJob, jobDone, jobWait, err = dutil.NewFuncJobWorker(context.Background(), nops)
+		newJob, jobDone, jobWait, err = dutil.NewFuncJobWorker(context.Background(), int64(nops))
 		t.NoError(err)
 
 		go func() {

@@ -60,9 +60,9 @@ func DecodeBool(i []byte) (bool, error) {
 	switch {
 	case len(i) < 1:
 		return false, errors.Errorf("insufficient")
-	case i[0] == 0x1:
+	case i[0] == 0x1: //nolint:mnd
 		return true, nil
-	case i[1] == 0x0:
+	case i[1] == 0x0: //nolint:mnd
 		return false, nil
 	default:
 		return false, errors.Errorf("unknown byte")

@@ -369,6 +369,7 @@ func (t *testManagerProcess) TestOpsTree() {
 			opsShare, 3,
 			ophs,
 		)
+		t.NoError(err)
 
 		t.T().Logf("workers=%d ophs=%d ops workers=%v ops share=%d states share=%d",
 			len(workers), len(ophs), p, opsShare, 3)

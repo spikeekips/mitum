@@ -582,7 +582,7 @@ type testHandlerWorkerDistributeSMVs struct {
 func (t *testHandlerWorkerDistributeSMVs) SetupSuite() {
 	t.BaseTest.SetupSuite()
 
-	t.enc = jsonenc.NewEncoder(1 << 9)
+	t.enc = jsonenc.NewEncoder(context.Background(), 1<<9)
 	t.NoError(jsonenc.AddDecode(t.enc, base.DummyPublickeyHint, base.DummyPublickey{}, dop5.DecodeJSONDummyPublickey))
 	t.NoError(jsonenc.AddDecode(t.enc, dop5.AccountSVHint, &dop5.AccountSV{}, dop5.AccountSVDecodeJSON))
 	t.NoError(jsonenc.AddDecode(t.enc, dop5.AccountSMVHint, &dop5.AccountSMV{}, dop5.AccountSMVDecodeJSON))
@@ -765,8 +765,8 @@ func (t *testHandlerWorkerDistributeSMVs) doHandler(
 func (t *testHandlerWorkerDistributeSMVs) TestOK() {
 	run := func(name string, f func()) {
 		t.RunWithGoLeak(name, f,
-			goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewContextUnlimitedChans[...].func2"),
-			goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewContextUnlimitedChans[...].func4"),
+			goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewUnlimitedChans[...].func2"),
+			goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewUnlimitedChans[...].func4"),
 		)
 	}
 
@@ -829,8 +829,8 @@ func (t *testHandlerWorkerDistributeSMVs) TestOK() {
 
 func (t *testHandlerWorkerDistributeSMVs) TestNilFuncs() {
 	defer goleak.VerifyNone(t.T(),
-		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewContextUnlimitedChans[...].func2"),
-		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewContextUnlimitedChans[...].func4"),
+		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewUnlimitedChans[...].func2"),
+		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewUnlimitedChans[...].func4"),
 	)
 
 	ops := make([][2]interface{}, 3333)
@@ -981,12 +981,12 @@ type testHandlerPreloadOps struct {
 func (t *testHandlerPreloadOps) SetupSuite() {
 	t.BaseTest.SetupSuite()
 
-	t.enc = jsonenc.NewEncoder(1 << 9)
+	t.enc = jsonenc.NewEncoder(context.Background(), 1<<9)
 	t.NoError(jsonenc.AddDecode(t.enc, base.DummyPublickeyHint, base.DummyPublickey{}, dop5.DecodeJSONDummyPublickey))
 	t.NoError(jsonenc.AddDecode(t.enc, dop5.AccountOpFactHint, &dop5.AccountOpFact{}, dop5.AccountOpFactDecodeJSON))
 }
 
-func (t *testHandlerPreloadOps) TeardownSuite() {
+func (t *testHandlerPreloadOps) TearDownSuite() {
 	t.enc.Close()
 }
 
@@ -1074,8 +1074,8 @@ func (t *testHandlerPreloadOps) run(name string, n int) {
 				base.EqualFact(t.Assert(), fact, rops[i])
 			}
 		},
-		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewContextUnlimitedChans[...].func2"),
-		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewContextUnlimitedChans[...].func4"),
+		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewUnlimitedChans[...].func2"),
+		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewUnlimitedChans[...].func4"),
 	)
 }
 

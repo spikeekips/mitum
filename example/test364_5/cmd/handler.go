@@ -9,7 +9,6 @@ import (
 	"slices"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/pkg/errors"
 	"github.com/quic-go/quic-go"
@@ -133,7 +132,7 @@ func requestHandlerSendOps(
 	seq := func(func([3]interface{}) bool) {}
 
 	if maxItems > 0 {
-		add, addDone, seq = dutil.NewContextUnlimitedChans[[3]interface{}](ctx, maxItems, maxItems)
+		add, addDone, seq = dutil.NewUnlimitedChans[[3]interface{}](ctx, maxItems, maxItems)
 	}
 
 	done, wait := dutil.NewContextDone(ctx)
@@ -174,11 +173,11 @@ func requestHandlerSendOps(
 			for i, v := range dutil.SeqAll(seq) {
 				sub := nstreams[i%len(nstreams)]
 
-				if err := dutil.WriteInt(sub, v[0].(uint64)); err != nil {
+				if err := dutil.WriteInt(sub, v[0].(uint64)); err != nil { //nolint:forcetypeassert
 					return err
 				}
 
-				if err := writeFixedFrameHashes(sub, v[1].(util.Hash), v[2].(util.Hash)); err != nil {
+				if err := writeFixedFrameHashes(sub, v[1].(util.Hash), v[2].(util.Hash)); err != nil { //nolint:forcetypeassert
 					return err
 				}
 			}
@@ -236,7 +235,7 @@ func acceptHandlerSendOps(
 			subStreams = s
 		}
 
-		add, addDone, seq := dutil.NewContextUnlimitedChans[[3]interface{}](ctx, maxItems, maxItems)
+		add, addDone, seq := dutil.NewUnlimitedChans[[3]interface{}](ctx, maxItems, maxItems)
 
 		done, wait := dutil.NewContextDone(ctx)
 
@@ -248,7 +247,7 @@ func acceptHandlerSendOps(
 
 				return jobsSubStreams(ctx, nstreams, func(_ context.Context, sub quic.Stream) error {
 					return readSendOpStream(sub, func(opindex uint64, oph, fact util.Hash) error {
-						add([3]interface{}{opindex, oph, fact})
+						_ = add([3]interface{}{opindex, oph, fact})
 
 						return nil
 					})
@@ -260,7 +259,7 @@ func acceptHandlerSendOps(
 
 		if err := w(maxItems, func(yield func(uint64, [2]util.Hash) bool) {
 			for v := range seq {
-				if !yield(v[0].(uint64), [2]util.Hash{v[1].(util.Hash), v[2].(util.Hash)}) {
+				if !yield(v[0].(uint64), [2]util.Hash{v[1].(util.Hash), v[2].(util.Hash)}) { //nolint:forcetypeassert
 					return
 				}
 			}
@@ -392,7 +391,7 @@ func requestHandlerWorkerResult(
 		end:
 			for sub := range slices.Values(nstreams) {
 				writehead := sync.OnceValue(func() error {
-					return frame.WriteFixed(sub, []byte{0x01}) // start reason
+					return frame.WriteFixed(sub, []byte{workResultDelmReason}) // start reason
 				})
 
 				for range rn {
@@ -434,7 +433,7 @@ func requestHandlerWorkerResult(
 						return struct{}{}, dutil.ErrLockedSetIgnore
 					}
 
-					return struct{}{}, frame.WriteFixed(sub, []byte{0x02}) // start states
+					return struct{}{}, frame.WriteFixed(sub, []byte{workResultDelmStates}) // start states
 				}); err != nil {
 					return err
 				}
@@ -492,7 +491,7 @@ func acceptHandlerWorkerResult(f dop5.ManagerInsertWorkerResultFunc) quicstream.
 		}
 
 		return ctx, subStreams(func(streams []quic.Stream) error {
-			defer setDone(nil)
+			defer func() { _ = setDone(nil) }()
 
 			nstreams := make([]quic.Stream, len(streams)+1)
 			copy(nstreams, streams)
@@ -512,6 +511,11 @@ func acceptHandlerWorkerResult(f dop5.ManagerInsertWorkerResultFunc) quicstream.
 	}
 }
 
+const (
+	workResultDelmReason = 0x01
+	workResultDelmStates = 0x02
+)
+
 func readSubStreamWorkResult(
 	stream quic.Stream,
 	setReason func(uint64, string) bool,
@@ -529,7 +533,7 @@ func readSubStreamWorkResult(
 	default:
 		delm = b[0]
 
-		if delm != 0x01 && delm != 0x02 {
+		if delm != workResultDelmReason && delm != workResultDelmStates {
 			return errors.Errorf("wrong delm")
 		}
 
@@ -538,7 +542,7 @@ func readSubStreamWorkResult(
 		}
 	}
 
-	if delm == 0x01 {
+	if delm == workResultDelmReason {
 	end0:
 		for {
 			var reason string
@@ -551,7 +555,7 @@ func readSubStreamWorkResult(
 			case len(b) < 1:
 				return errors.Errorf("empty delm")
 			case len(b) == 1:
-				if b[0] != 0x02 {
+				if b[0] != workResultDelmStates {
 					return errors.Errorf("wrong delm; states")
 				}
 
@@ -726,10 +730,10 @@ func requestHandlerWorkerDistributeSMVs(
 ) {
 	chansize := maxItems
 	if maxItems < 1 {
-		chansize = 1 << 9
+		chansize = maxSubStreamItems
 	}
 
-	addValues, addValuesDone, seq := dutil.NewContextUnlimitedChans[[3]interface{}](ctx, chansize, chansize)
+	addValues, addValuesDone, seq := dutil.NewUnlimitedChans[[3]interface{}](ctx, chansize, chansize)
 
 	var notOK atomic.Value
 
@@ -762,11 +766,16 @@ func requestHandlerWorkerDistributeSMVs(
 		}
 
 		return ctx, subStreams(func(streams []quic.Stream) error {
+			semSize := dutil.SafeUint64toInt64(maxItems)
+			if semSize < 1 {
+				semSize = 1 << 9 //nolint:mnd
+			}
+
 			var newJob dutil.JobWorkerNewJobFunc
 			var jobDone func()
 			var jobWait dutil.InErrorFunc[error]
 
-			switch n, d, w, err := dutil.NewFuncJobWorker(ctx, max(maxItems, 1<<9)); {
+			switch n, d, w, err := defaultNewFuncJobWorker(ctx, semSize); {
 			case err != nil:
 				return err
 			default:
@@ -778,9 +787,9 @@ func requestHandlerWorkerDistributeSMVs(
 					return writeSMVBundle(
 						streams[i%len(streams)],
 						enc,
-						v[0].(uint64),
-						v[1].(util.Hash),
-						v[2].([]dop5.SMV),
+						v[0].(uint64),     //nolint:forcetypeassert
+						v[1].(util.Hash),  //nolint:forcetypeassert
+						v[2].([]dop5.SMV), //nolint:forcetypeassert
 					)
 				}); err != nil {
 					return jobWait(err)
@@ -824,7 +833,7 @@ func requestHandlerWorkerDistributeSMVs(
 	}
 
 	return func(opindex uint64, facth util.Hash, values []dop5.SMV) error {
-			if v := notOK.Load(); v != nil && v.(bool) {
+			if v := notOK.Load(); v != nil && v.(bool) { //nolint:forcetypeassert
 				return nil
 			}
 
@@ -833,7 +842,7 @@ func requestHandlerWorkerDistributeSMVs(
 				!errors.Is(err, dutil.ErrContextUnlimitedChansInsertDone):
 				return err
 			default:
-				if v := notOK.Load(); v != nil && v.(bool) {
+				if v := notOK.Load(); v != nil && v.(bool) { //nolint:forcetypeassert
 					return nil
 				}
 
@@ -841,7 +850,7 @@ func requestHandlerWorkerDistributeSMVs(
 			}
 		},
 		func(rsubs, raffected []string) error {
-			if v := notOK.Load(); v != nil && v.(bool) {
+			if v := notOK.Load(); v != nil && v.(bool) { //nolint:forcetypeassert
 				return nil
 			}
 
@@ -913,7 +922,12 @@ func acceptHandlerWorkerDistributeSMVs(
 		var jobDone func()
 		var jobWait dutil.InErrorFunc[error]
 
-		switch n, d, w, err := dutil.NewFuncJobWorker(ctx, max(maxItems, 1<<9)); {
+		semSize := dutil.SafeUint64toInt64(maxItems)
+		if semSize < 1 {
+			semSize = 1 << 9 //nolint:mnd
+		}
+
+		switch n, d, w, err := defaultNewFuncJobWorker(ctx, semSize); {
 		case err != nil:
 			return ctx, err
 		default:
@@ -976,7 +990,7 @@ func requestHandlerWorkerUnmerged(local string, unmerged []uint64) quicstream.St
 			return ctx, err
 		}
 
-		return ctx, frame.WriteFixedSlice(stream, uint32(len(unmerged)), func(yield func([]byte, error) bool) {
+		return ctx, frame.WriteFixedSlice(stream, dutil.SafeIntToUint32(len(unmerged)), func(yield func([]byte, error) bool) {
 			for opindex := range slices.Values(unmerged) {
 				b, err := dutil.EncodeInt(opindex)
 				if !yield(b, err) {
@@ -1024,7 +1038,7 @@ func acceptHandlerWorkerUnmerged(f func(string, []uint64) error) quicstream.Stre
 	}
 }
 
-func requestHandlerWorkerPingManager(local string, interval time.Duration) quicstream.StreamHandler {
+func requestHandlerWorkerPingManager(local string) quicstream.StreamHandler {
 	return func(ctx context.Context, stream quic.Stream) (context.Context, error) {
 		if err := frame.WriteFixed(stream, []byte(local)); err != nil {
 			return ctx, err
@@ -1050,10 +1064,12 @@ func acceptHandlerWorkerPingManager(f dutil.InErrorFunc[string]) quicstream.Stre
 	}
 }
 
-func subStreamSize(n, maxPerStream uint64, nmax uint16) (nsub uint16) {
-	if s := uint64(maxPerStream); n <= s {
+func subStreamSize(n, maxPerStream uint64, nmax uint16) uint16 {
+	if n <= maxPerStream {
 		return 1
 	}
+
+	var nsub uint16
 
 	switch i := uint64(math.Ceil(float64(n) / float64(maxPerStream))); {
 	case i > math.MaxUint16:
@@ -1067,12 +1083,16 @@ func subStreamSize(n, maxPerStream uint64, nmax uint16) (nsub uint16) {
 	return nsub
 }
 
-func jobsSubStreams(ctx context.Context, streams []quic.Stream, f dutil.In2ErrorFunc[context.Context, quic.Stream]) error {
+func jobsSubStreams(
+	ctx context.Context,
+	streams []quic.Stream,
+	f dutil.In2ErrorFunc[context.Context, quic.Stream],
+) error {
 	var newJob dutil.JobWorkerNewJobFunc
 	var jobDone func()
 	var jobWait dutil.InErrorFunc[error]
 
-	switch n, d, w, err := dutil.NewFuncJobWorker(ctx, uint64(len(streams))); {
+	switch n, d, w, err := defaultNewFuncJobWorker(ctx, int64(len(streams))); {
 	case err != nil:
 		return err
 	default:
@@ -1128,7 +1148,7 @@ func requestHandlerPreloadOps(
 		var jobDone func()
 		var jobWait dutil.InErrorFunc[error]
 
-		switch n, d, w, err := dutil.NewFuncJobWorker(ctx, min(maxItems, 1<<9)); {
+		switch n, d, w, err := defaultNewFuncJobWorker(ctx, dutil.SafeUint64toInt64(maxItems)); {
 		case err != nil:
 			return ctx, err
 		default:
@@ -1210,7 +1230,7 @@ func acceptHandlerPreloadOps(
 		var jobDone func()
 		var jobWait dutil.InErrorFunc[error]
 
-		switch n, d, w, err := dutil.NewFuncJobWorker(ctx, min(maxItems, 1<<9)); {
+		switch n, d, w, err := defaultNewFuncJobWorker(ctx, dutil.SafeUint64toInt64(maxItems)); {
 		case err != nil:
 			return ctx, err
 		default:
@@ -1242,8 +1262,6 @@ func acceptHandlerPreloadOps(
 						}
 					}
 				}
-
-				return nil
 			})
 		}); err != nil {
 			return ctx, jobWait(err)

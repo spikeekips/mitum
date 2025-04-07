@@ -33,9 +33,9 @@ import (
 )
 
 type pprofFlags struct {
-	Out string `name:"out" help:"output directory" placeholder:"directory" group:"pprof"`
-	CPU bool   `name:"cpu" group:"pprof"`
-	Mem bool   `name:"mem" group:"pprof"`
+	Out string `group:"pprof" help:"output directory" name:"out" placeholder:"directory"`
+	CPU bool   `group:"pprof" name:"cpu"`
+	Mem bool   `group:"pprof" name:"mem"`
 }
 
 type baseCommand struct { //betteralign:ignore
@@ -43,7 +43,7 @@ type baseCommand struct { //betteralign:ignore
 	Redis      string `default:"redis://127.0.0.1:6379"`
 	pprofFlags `embed:"" prefix:"pprof."`
 
-	ctx                context.Context
+	ctx                context.Context //nolint:containedctx
 	ctxCancel          dutil.InErrorFunc[error]
 	log                *zerolog.Logger
 	closefs            []dutil.ErrorFunc
@@ -56,7 +56,6 @@ type baseCommand struct { //betteralign:ignore
 	requestWorkWorker  func(workID, prefix string) requestWorkerFunc
 	mustAddHandler     func(string, quicstream.StreamHandler)
 	removeHandler      func([]byte) bool
-	workerOptions      *dop5.WorkerOptions
 	openSubStreams     quicstream.NewOpenSubStreamsFunc
 	db                 db
 	enc                *jsonenc.Encoder
@@ -74,7 +73,7 @@ func (cmd *baseCommand) prepare(role string, log *zerolog.Logger) error {
 		switch fi, err := os.Stat(d); {
 		case os.IsNotExist(err):
 			if err := os.MkdirAll(d, 0o700); err != nil {
-				return err
+				return errors.WithStack(err)
 			}
 		case err != nil:
 			return errors.WithStack(err)
@@ -87,7 +86,7 @@ func (cmd *baseCommand) prepare(role string, log *zerolog.Logger) error {
 		return err
 	}
 
-	cmd.enc = jsonenc.NewEncoder(1 << 9)
+	cmd.enc = jsonenc.NewEncoder(cmd.ctx, 1<<9) //nolint:mnd
 	if err := cmd.addHinters(); err != nil {
 		return err
 	}
@@ -96,7 +95,7 @@ func (cmd *baseCommand) prepare(role string, log *zerolog.Logger) error {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(cmd.ctx, time.Millisecond*333)
+	ctx, cancel := context.WithTimeout(cmd.ctx, time.Millisecond*333) //nolint:mnd
 	defer cancel()
 
 	if err := cmd.db.ping(ctx); err != nil {
@@ -130,7 +129,7 @@ func (cmd *baseCommand) closef() {
 		_ = f()
 	}
 
-	cmd.ctxCancel(nil)
+	_ = cmd.ctxCancel(nil)
 }
 
 func (cmd *baseCommand) prepareQuicStream(role string) error {
@@ -138,11 +137,11 @@ func (cmd *baseCommand) prepareQuicStream(role string) error {
 
 	switch bind, err := net.ResolveUDPAddr("udp", cmd.Bind); {
 	case err != nil:
-		return err
+		return errors.WithStack(err)
 	default:
 		switch c, err := net.ListenUDP("udp", bind); {
 		case err != nil:
-			return err
+			return errors.WithStack(err)
 		default:
 			pconn = c
 		}
@@ -200,7 +199,8 @@ func (cmd *baseCommand) prepareQuicStream(role string) error {
 	}()
 
 	cmd.closefs = append(cmd.closefs, func() error {
-		closef()
+		_ = closef()
+
 		handlerClosef()
 
 		cmd.log.Debug().Err(<-listench).Msg("quicstream listen stopped")
@@ -216,12 +216,12 @@ func (cmd *baseCommand) prepareQuicStream(role string) error {
 }
 
 func (cmd *baseCommand) prepareDialFunc() error {
-	pool, err := dutil.NewLockedMap[string, quic.Connection](nil, 1<<9)
+	pool, err := dutil.NewLockedMap[string, quic.Connection](nil, 1<<9) //nolint:mnd
 	if err != nil {
 		return err
 	}
 
-	dial, closef, err := quicstream.NewDialPool(pool, nil, time.Minute)
+	dial, closef, err := quicstream.NewDialPool(cmd.ctx, pool, nil, time.Minute)
 	if err != nil {
 		return err
 	}
@@ -232,8 +232,18 @@ func (cmd *baseCommand) prepareDialFunc() error {
 	openConnSubStreams, openConnSubStreamsClose, _ := quicstream.NewConnsAcceptSubStreams(cmd.ctx, time.Minute)
 	cmd.openSubStreams = quicstream.NewFuncOpenSubStreams(openConnSubStreams)
 
-	cmd.closefs = append(cmd.closefs, func() error { openConnSubStreamsClose(); return nil })
+	cmd.closefs = append(cmd.closefs, func() error {
+		openConnSubStreamsClose()
 
+		return nil
+	})
+
+	cmd.newAcceptSubStream = quicstream.NewFuncAcceptSubStreams(1 << 9) //nolint:mnd
+
+	return cmd.prepareRequestFuncs()
+}
+
+func (cmd *baseCommand) prepareRequestFuncs() error {
 	var request quicstream.RequestFunc
 
 	switch r, err := quicstream.NewFuncRequest(
@@ -260,7 +270,13 @@ func (cmd *baseCommand) prepareDialFunc() error {
 		logp[0] = "request"
 		copy(logp[1:], p)
 
-		return func(ctx context.Context, addr net.Addr, tlsConfig *tls.Config, quicConfig *quic.Config, h quicstream.StreamHandler) (context.Context, error) {
+		return func(
+			ctx context.Context,
+			addr net.Addr,
+			tlsConfig *tls.Config,
+			quicConfig *quic.Config,
+			h quicstream.StreamHandler,
+		) (context.Context, error) {
 			ctx, err := r(ctx, addr, tlsConfig, quicConfig, cmd.logStreamHandler(h, logp...))
 			l.Trace().Err(err).Msg("request handler")
 
@@ -291,7 +307,13 @@ func (cmd *baseCommand) prepareDialFunc() error {
 	cmd.requestWorker = func(prefix string) requestWorkerFunc {
 		r := prefixRequest(prefix)
 
-		return func(ctx context.Context, worker string, tlsConfig *tls.Config, quicConfig *quic.Config, h quicstream.StreamHandler) (context.Context, error) {
+		return func(
+			ctx context.Context,
+			worker string,
+			tlsConfig *tls.Config,
+			quicConfig *quic.Config,
+			h quicstream.StreamHandler,
+		) (context.Context, error) {
 			addr, err := cmd.workerAddr(worker)
 			if err != nil {
 				return ctx, err
@@ -307,7 +329,13 @@ func (cmd *baseCommand) prepareDialFunc() error {
 	cmd.requestWorkWorker = func(workID, prefix string) requestWorkerFunc {
 		request := cmd.requestWork(workID, prefix)
 
-		return func(ctx context.Context, worker string, tlsConfig *tls.Config, quicConfig *quic.Config, h quicstream.StreamHandler) (context.Context, error) {
+		return func(
+			ctx context.Context,
+			worker string,
+			tlsConfig *tls.Config,
+			quicConfig *quic.Config,
+			h quicstream.StreamHandler,
+		) (context.Context, error) {
 			addr, err := cmd.workerAddr(worker)
 			if err != nil {
 				return ctx, err
@@ -319,8 +347,6 @@ func (cmd *baseCommand) prepareDialFunc() error {
 			return nctx, err
 		}
 	}
-
-	cmd.newAcceptSubStream = quicstream.NewFuncAcceptSubStreams(1 << 9)
 
 	return nil
 }
@@ -338,7 +364,7 @@ func (cmd *baseCommand) parseWorkersAddr(workers []string) error {
 	for s := range slices.Values(workers) {
 		switch addr, err := net.ResolveUDPAddr("udp", s); {
 		case err != nil:
-			return err
+			return errors.WithStack(err)
 		case addr.Port < 1:
 			return errors.Errorf("invalid worker addr, %q", s)
 		default:
@@ -400,12 +426,11 @@ func (cmd *baseCommand) memPprof(name string) (func(), error) {
 }
 
 func (cmd *baseCommand) loadDB() error {
-	dbtype := "redis"
-	var addr string
+	var dbtype, addr string
 
 	switch u, err := url.Parse(cmd.Redis); {
 	case err != nil:
-		return err
+		return errors.WithStack(err)
 	default:
 		dbtype = u.Scheme
 		addr = u.Host
@@ -418,7 +443,7 @@ func (cmd *baseCommand) loadDB() error {
 			rdb: redis.NewClient(&redis.Options{
 				Addr:       addr,
 				MaxRetries: -1,
-				PoolSize:   1 << 9, // NOTE enough pool size reduce the elapsed time to get values.
+				PoolSize:   1 << 9, //nolint:mnd // NOTE enough pool size reduce the elapsed time to get values.
 			}),
 		}
 	case "valkey":
@@ -427,7 +452,7 @@ func (cmd *baseCommand) loadDB() error {
 			DisableRetry: true,
 		})
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 
 		cmd.db = &valkeyDB{enc: cmd.enc, client: client}
@@ -439,7 +464,7 @@ func (cmd *baseCommand) loadDB() error {
 }
 
 func cpuPprof(out string) (func(), error) {
-	f, err := os.Create(out)
+	f, err := os.Create(filepath.Clean(out))
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -457,16 +482,15 @@ func cpuPprof(out string) (func(), error) {
 }
 
 func memPprof(out string) (func(), error) {
-	f, err := os.Create(out)
+	f, err := os.Create(filepath.Clean(out))
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 
 	return func() {
-			defer f.Close()
-
 			runtime.GC()
-			pprof.WriteHeapProfile(f)
+			_ = pprof.WriteHeapProfile(f)
+			_ = f.Close()
 		},
 		nil
 }
@@ -476,12 +500,12 @@ func newTLSConfig(serverName string) (*testcerts.KeyPair, *tls.Config, error) {
 
 	kp, err := ca.NewKeyPair(serverName)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, errors.WithStack(err)
 	}
 
 	tlsConfig, err := kp.ConfigureTLSConfig(ca.GenerateTLSConfig())
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, errors.WithStack(err)
 	}
 
 	tlsConfig.InsecureSkipVerify = true
@@ -508,7 +532,7 @@ func readFixedFrameStringSlice(r io.Reader, i *[]string) error {
 }
 
 func writeFixedFrameStringSlice(w io.Writer, i []string) error {
-	return frame.WriteFixedSlice(w, uint32(len(i)), func(yield func([]byte, error) bool) {
+	return frame.WriteFixedSlice(w, dutil.SafeIntToUint32(len(i)), func(yield func([]byte, error) bool) {
 		for s := range slices.Values(i) {
 			if !yield([]byte(s), nil) {
 				return
@@ -558,13 +582,6 @@ func newFuncGetStateOwnersMurmur3(workers []string, share uint64) func(string) [
 	}
 }
 
-func mustAddDecode[T any](enc *jsonenc.Encoder, ht hint.Hint, sample T, decode any) {
-	err := jsonenc.AddDecode(enc, ht, sample, decode)
-	if err != nil {
-		panic(err)
-	}
-}
-
 func writeOk(w io.Writer, ok bool) error {
 	switch {
 	case ok:
@@ -574,7 +591,7 @@ func writeOk(w io.Writer, ok bool) error {
 	}
 }
 
-func readOk(r io.Reader) (bool, int, error) {
+func readOk(r io.Reader) (bool, int, error) { //nolint:unparam
 	switch b, n, err := frame.ReadFixed(r); {
 	case err != nil && !errors.Is(err, io.EOF):
 		return false, n, err
@@ -607,7 +624,7 @@ func readError(r io.Reader, err *error) (int, error) {
 
 func defaultQuicConfig() *quic.Config {
 	config := quicstream.DefaultQuicConfig()
-	config.HandshakeIdleTimeout = time.Millisecond * 333
+	config.HandshakeIdleTimeout = time.Millisecond * 333 //nolint:mnd
 	config.KeepAlivePeriod = time.Second
 
 	return config
@@ -621,7 +638,7 @@ func newFuncLogStreamHandler(
 		l := logger.With().Strs("prefix", prefix).Logger()
 
 		fp := func() *zerolog.Event {
-			return l.WithLevel(level)
+			return l.WithLevel(level) //nolint:zerologlint
 		}
 
 		return func(ctx context.Context, stream quic.Stream) (context.Context, error) {
@@ -634,4 +651,13 @@ func newFuncLogStreamHandler(
 			return ctx, err
 		}
 	}
+}
+
+func defaultNewFuncJobWorker(ctx context.Context, semSize int64) (
+	dutil.JobWorkerNewJobFunc,
+	func(),
+	dutil.InErrorFunc[error],
+	error,
+) {
+	return dutil.NewFuncJobWorker(ctx, min(semSize, 1<<9)) //nolint:mnd
 }

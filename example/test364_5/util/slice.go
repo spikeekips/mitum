@@ -29,8 +29,8 @@ func ClearSlice[T any](s *[]T) {
 
 	i := *s
 	clear(i)
-
-	*s = make([]T, 0, 0)
+	i = i[:0]
+	*s = i
 }
 
 func SeqAll[T any](s iter.Seq[T]) iter.Seq2[int, T] {
@@ -45,6 +45,7 @@ func SeqAll[T any](s iter.Seq[T]) iter.Seq2[int, T] {
 			if !yield(i, t) {
 				return
 			}
+
 			i++
 		}
 	}

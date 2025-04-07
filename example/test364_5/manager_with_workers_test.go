@@ -39,17 +39,6 @@ func (t *testManagerWithWorkers) randomFacts(n int) ([]OperationFact, [][2]util.
 	return facts, ophs
 }
 
-func (t *testManagerWithWorkers) workerIfErrCancel(worker string, cancel dutil.InErrorFunc[error]) dutil.InErrorFunc[error] {
-	return func(err error) error {
-		t.Print("error: worker=%q err=%w", worker, err)
-		if err != nil {
-			return cancel(err)
-		}
-
-		return nil
-	}
-}
-
 func (t *testManagerWithWorkers) newWorkers(
 	ctx context.Context,
 	workers []string,

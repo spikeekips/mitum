@@ -10,7 +10,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
-const contextLoggerKey = "context-logger"
+const contextLoggerKey ContextKey = "context-logger"
 
 var NopLogger = zerolog.Nop()
 
@@ -27,7 +27,11 @@ func LoadContextValueLogger(ctx context.Context) *zerolog.Logger {
 	}
 }
 
-func NewModuleLogger(logger *zerolog.Logger, module string, f func(zctx zerolog.Context) zerolog.Context) *zerolog.Logger {
+func NewModuleLogger(
+	logger *zerolog.Logger,
+	module string,
+	f func(zctx zerolog.Context) zerolog.Context,
+) *zerolog.Logger {
 	if f == nil {
 		f = func(zctx zerolog.Context) zerolog.Context { return zctx }
 	}
@@ -44,7 +48,11 @@ func NewModuleLogger(logger *zerolog.Logger, module string, f func(zctx zerolog.
 	return &l
 }
 
-func NewModuleLoggerFromContext(ctx context.Context, module string, f func(zerolog.Context) zerolog.Context) *zerolog.Logger {
+func NewModuleLoggerFromContext(
+	ctx context.Context,
+	module string,
+	f func(zerolog.Context) zerolog.Context,
+) *zerolog.Logger {
 	logger := LoadContextValueLogger(ctx)
 	if logger == nil {
 		return &NopLogger
@@ -53,7 +61,9 @@ func NewModuleLoggerFromContext(ctx context.Context, module string, f func(zerol
 	return NewModuleLogger(logger, module, f)
 }
 
-func UpdateModuleLoggerFromContext(ctx context.Context, module string, f func(zerolog.Context) zerolog.Context) (context.Context, *zerolog.Logger) {
+func UpdateModuleLoggerFromContext(ctx context.Context, module string, f func(zerolog.Context) zerolog.Context) (
+	context.Context, *zerolog.Logger,
+) {
 	log := NewModuleLoggerFromContext(ctx, module, f)
 
 	return SetContextValueLogger(ctx, log), log
@@ -102,8 +112,8 @@ func ElapsedLogError(f func() *zerolog.Event) InFunc[error, *zerolog.Event] {
 }
 
 func AtomicElapsedLogEvent(e *zerolog.Event, v *atomic.Value) *zerolog.Event {
-	switch i := v.Load(); {
-	case i == nil:
+	switch i := v.Load(); i {
+	case nil:
 		return e
 	default:
 		t, ok := i.(time.Time)

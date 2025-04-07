@@ -29,7 +29,7 @@ type AccountOpFact struct {
 	Amount int64
 }
 
-var _ = interface{}(new(AccountOpFact)).(OperationFact)
+var _ = interface{}(new(AccountOpFact)).(OperationFact) //nolint:forcetypeassert
 
 func NewAccountOpFact(token base.Token, amount int64, issuer, receiver base.Publickey) *AccountOpFact {
 	fact := &AccountOpFact{

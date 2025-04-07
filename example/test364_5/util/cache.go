@@ -14,7 +14,7 @@ type EmptyGCache[K, V any] struct{}
 func NewEmptyGCache[K, V any]() EmptyGCache[K, V] { return EmptyGCache[K, V]{} }
 
 func (EmptyGCache[K, V]) Exists(K) bool            { return false }
-func (EmptyGCache[K, V]) Get(K) (v V, _ bool)      { return v, false }
+func (EmptyGCache[K, V]) Get(K) (v V, _ bool)      { return v, false } //nolint:nonamedreturns
 func (EmptyGCache[K, V]) Set(K, V, time.Duration)  {}
 func (EmptyGCache[K, V]) Remove(K) bool            { return false }
 func (EmptyGCache[K, V]) Close()                   {}
@@ -34,7 +34,7 @@ func NewLazyCache[K comparable, V any, O cmp.Ordered](
 ) {
 	cache := util.NewLRUGCache[K, [2]any /* {V, <O: set time> } */](cacheSize)
 
-	add, addDone, seq := NewContextUnlimitedChans[[4]any /* {K, V, <expire>, <O:set time>} */](
+	add, addDone, seq := NewUnlimitedChans[[4]any /* {K, V, <expire>, <O:set time>} */](
 		ctx, bufSize, outBufSize)
 
 	donech := make(chan struct{})
@@ -47,7 +47,7 @@ func NewLazyCache[K comparable, V any, O cmp.Ordered](
 
 		switch i, found := cache.Get(k); {
 		case !found:
-		case o < i[1].(O):
+		case o < i[1].(O): //nolint:forcetypeassert
 			return
 		}
 
@@ -58,22 +58,24 @@ func NewLazyCache[K comparable, V any, O cmp.Ordered](
 		for i := range seq {
 			var v V
 			if i[1] != nil {
-				v = i[1].(V)
+				v = i[1].(V) //nolint:forcetypeassert
 			}
 
-			seqGetSet(i[0].(K), v, i[3].(O), i[2].(time.Duration))
+			seqGetSet(i[0].(K), v, i[3].(O), i[2].(time.Duration)) //nolint:forcetypeassert
 		}
 
 		close(donech)
 	}()
 
-	return func(k K) (v V, _ bool) {
+	return func(k K) (V, bool) {
+			var v V
+
 			switch i, found := cache.Get(k); {
 			case !found:
 				return v, false
 			default:
 				if i[0] != nil {
-					v = i[0].(V)
+					v = i[0].(V) //nolint:forcetypeassert
 				}
 
 				return v, true
@@ -86,7 +88,7 @@ func NewLazyCache[K comparable, V any, O cmp.Ordered](
 			cache.Set(k, [2]any{v, order(v)}, d)
 		},
 		func(k K, v V, d time.Duration) {
-			add([4]any{k, v, d, order(v)})
+			_ = add([4]any{k, v, d, order(v)})
 		},
 		func() {
 			addDone()

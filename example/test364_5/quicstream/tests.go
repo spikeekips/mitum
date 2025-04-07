@@ -25,7 +25,7 @@ import (
 type BaseTest struct {
 	dutil.BaseSuite
 	tlsPool *sync.Pool
-	tlsUsed [][2]interface{}
+	tlsUsed []*[2]any
 }
 
 func (t *BaseTest) SetupSuite() {
@@ -33,7 +33,9 @@ func (t *BaseTest) SetupSuite() {
 		New: func() any {
 			kp, tlsConfig := NewTestTLSConfig(util.UUID().String())
 
-			return [2]interface{}{kp, tlsConfig}
+			i := [2]any{kp, tlsConfig}
+
+			return &i
 		},
 	}
 }
@@ -45,11 +47,13 @@ func (t *BaseTest) TearDownTest() {
 }
 
 func (t *BaseTest) NewTLSConfig() (*testcerts.KeyPair, *tls.Config) {
-	i := t.tlsPool.Get().([2]interface{})
+	i := t.tlsPool.Get().(*[2]any)
 
 	t.tlsUsed = append(t.tlsUsed, i)
 
-	return i[0].(*testcerts.KeyPair), i[1].(*tls.Config)
+	j := *i
+
+	return j[0].(*testcerts.KeyPair), j[1].(*tls.Config)
 }
 
 func (t *BaseTest) NewPacketConn() net.PacketConn {

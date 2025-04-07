@@ -3,11 +3,11 @@ package main
 import (
 	"context"
 	"crypto/tls"
-	stderrors "errors"
 	"fmt"
 	"io"
 	"maps"
 	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"time"
@@ -31,8 +31,8 @@ import (
 var (
 	defaultSubStreamItems     uint64 = 1 << 9
 	defaultMaxSubStreamsSize  uint16 = 1 << 8
-	startHeight                      = base.Height(33)
-	nextHeight                       = base.Height(34)
+	startHeight                      = base.Height(33) //nolint:mnd
+	nextHeight                       = base.Height(34) //nolint:mnd
 	manifestsCacheFilenameFmt        = "manifests-%d.b"
 	statesCacheFilenameFmt           = "states-%d-%d.b"
 	opsTreeCacheFilenameFmt          = "ops_trees-%d-%d.b"
@@ -52,7 +52,6 @@ type managerCommand struct { //betteralign:ignore
 	PreloadOps  bool     `help:"preload ops to workers"`
 
 	managerOptions    *dop5.ManagerOptions
-	privs             []base.Privatekey
 	pubs              []base.Publickey
 	createFacts       []dop5.OperationFact
 	createOphs        [][2]util.Hash
@@ -146,6 +145,7 @@ func (cmd *managerCommand) prepare() error {
 	if err != nil {
 		return err
 	}
+
 	cmd.transferFacts, cmd.transferOphs = tfacts, tophs
 	if err := cmd.saveOps(cmd.transferFacts); err != nil {
 		return err
@@ -171,18 +171,18 @@ func (cmd *managerCommand) preparePKs() error {
 	}
 
 	created, pubs, err := prepareItems(
-		cmd.enc,
+		cmd.ctx,
 		"pubs.b",
 		size,
 		func(i uint64) (base.Publickey, []byte, error) {
-			_, k := btcec.PrivKeyFromBytes([]byte(strconv.FormatInt(int64(i), 10)))
+			_, k := btcec.PrivKeyFromBytes([]byte(strconv.FormatUint(i, 10)))
 
 			return base.NewMPublickey(k), k.SerializeCompressed(), nil
 		},
 		func(b []byte, _ uint64) (base.Publickey, error) {
 			k, err := btcec.ParsePubKey(b)
 			if err != nil {
-				return nil, err
+				return nil, errors.WithStack(err)
 			}
 
 			return base.NewMPublickey(k), nil
@@ -212,7 +212,7 @@ func (cmd *managerCommand) prepareCreateOps() ([]dop5.OperationFact, [][2]util.H
 	}
 
 	created, facts, err := prepareItems(
-		cmd.enc,
+		cmd.ctx,
 		"create-ops.b",
 		cmd.Ops,
 		func(i uint64) (dop5.OperationFact, []byte, error) {
@@ -228,7 +228,8 @@ func (cmd *managerCommand) prepareCreateOps() ([]dop5.OperationFact, [][2]util.H
 
 			return fact, b, err
 		},
-		func(b []byte, i uint64) (fact dop5.OperationFact, _ error) {
+		func(b []byte, i uint64) (dop5.OperationFact, error) {
+			var fact dop5.OperationFact
 			if err := encoder.Unmarshal(cmd.enc, b, &fact); err != nil {
 				return nil, err
 			}
@@ -263,7 +264,7 @@ func (cmd *managerCommand) prepareTransferOps() ([]dop5.OperationFact, [][2]util
 	}
 
 	created, facts, err := prepareItems(
-		cmd.enc,
+		cmd.ctx,
 		"transfer-ops.b",
 		cmd.Ops,
 		func(i uint64) (dop5.OperationFact, []byte, error) {
@@ -280,7 +281,8 @@ func (cmd *managerCommand) prepareTransferOps() ([]dop5.OperationFact, [][2]util
 
 			return fact, b, err
 		},
-		func(b []byte, i uint64) (fact dop5.OperationFact, _ error) {
+		func(b []byte, i uint64) (dop5.OperationFact, error) {
+			var fact dop5.OperationFact
 			if err := encoder.Unmarshal(cmd.enc, b, &fact); err != nil {
 				return nil, err
 			}
@@ -349,7 +351,7 @@ func (cmd *managerCommand) saveOps(facts []dop5.OperationFact) error {
 	}
 
 	defer dutil.ElapsedLogMsg(func() *zerolog.Event {
-		return cmd.log.Debug().Int("n", len(facts))
+		return cmd.log.Debug().Int("n", len(facts)) //nolint:zerologlint
 	}, "cmd/save facts")()
 
 	switch f, err := cmd.pprof("save-ops"); {
@@ -359,7 +361,7 @@ func (cmd *managerCommand) saveOps(facts []dop5.OperationFact) error {
 		defer f()
 	}
 
-	return cmd.db.saveOperationFacts(cmd.ctx, 1<<9, 1<<9, facts)
+	return cmd.db.saveOperationFacts(cmd.ctx, 1<<9, 1<<9, facts) //nolint:mnd
 }
 
 func (cmd *managerCommand) processHeight(
@@ -368,12 +370,12 @@ func (cmd *managerCommand) processHeight(
 	prevManiest util.Hash,
 	ophs [][2]util.Hash,
 ) (base.Manifest, dutil.ErrorFunc, error) {
-	workID := fmt.Sprintf("%s", height)
+	workID := height.String()
 
 	defer dutil.ElapsedLogMsg(func() *zerolog.Event {
-		return cmd.log.Debug().
-			Str("work_id", workID).
-			Interface("height", height)
+		return cmd.log.Debug(). //nolint:zerologlint
+					Str("work_id", workID).
+					Interface("height", height)
 	}, "cmd/processed height")()
 
 	m, w, err := cmd.startManager(
@@ -400,9 +402,9 @@ func (cmd *managerCommand) startManager(
 		Logger()
 
 	defer dutil.ElapsedLogMsg(func() *zerolog.Event {
-		return l.Debug().
-			Stringer("prev_hash", prevManiest).
-			Int("ophs", len(ophs))
+		return l.Debug(). //nolint:zerologlint
+					Stringer("prev_hash", prevManiest).
+					Int("ophs", len(ophs))
 	}, "cmd/manager finished")()
 
 	var start dutil.In2ErrorFunc[dop5.ManagerStartWorkerFunc, dop5.NewManagerWorkerSendOpFunc]
@@ -441,11 +443,9 @@ func (cmd *managerCommand) startManager(
 
 	mustAddHandler("manager_worker_error", acceptHandlerWorkerErr(workerErr))
 
-	closeManager := func() error {
+	closeManager := func() {
 		cmd.removeHandler([]byte(workID))
 		closef()
-
-		return nil
 	}
 
 	manifestElapsedLog := dutil.ElapsedLogEvent(l.Info)
@@ -463,7 +463,7 @@ func (cmd *managerCommand) startManager(
 		cmd.newFuncStartWorkers(workID, height),
 		cmd.newFuncSendOp(workID),
 	); err != nil {
-		_ = closeManager()
+		closeManager()
 
 		return nil, nil, err
 	}
@@ -502,7 +502,7 @@ func (cmd *managerCommand) startManager(
 			return cerr
 		},
 	); err != nil {
-		_ = closeManager()
+		closeManager()
 
 		return nil, nil, err
 	}
@@ -511,15 +511,16 @@ func (cmd *managerCommand) startManager(
 
 	return manifest,
 		func() error {
-			// NOTE check all worker closes work.
-			_ = stderrors.Join(
-				cmd.requestWorkers(ctx, func(ctx context.Context, worker string) error {
-					_, _ = requestWaitWorkerClosed(ctx, worker, nil, nil, requestHandlerWaitWorkerClosed())
+			defer closeManager()
 
-					return nil
-				}),
-				closeManager(),
-			)
+			// NOTE check all workers closes work.
+			if err := cmd.requestWorkers(ctx, func(ctx context.Context, worker string) error {
+				_, _ = requestWaitWorkerClosed(ctx, worker, nil, nil, requestHandlerWaitWorkerClosed())
+
+				return nil
+			}); err != nil {
+				return err
+			}
 
 			return cmd.checkProcessed(manifest, opsTree)
 		},
@@ -574,9 +575,9 @@ func (cmd *managerCommand) newFuncSendOp(workID string) dop5.NewManagerWorkerSen
 		requestDone, requestWait := dutil.NewContextDone(ctx)
 
 		l := dutil.ElapsedLogMsg(func() *zerolog.Event {
-			return cmd.log.Debug().
-				Str("worker", worker).
-				Uint64("max_items", maxItems)
+			return cmd.log.Debug(). //nolint:zerologlint
+						Str("worker", worker).
+						Uint64("max_items", maxItems)
 		}, "cmd/send ops")
 
 		go func() {
@@ -600,7 +601,7 @@ func (cmd *managerCommand) requestWorkers(
 	ctx context.Context,
 	job dutil.In2ErrorFunc[context.Context, string],
 ) error {
-	newJob, jobDone, jobWait, _ := dutil.NewFuncJobWorker(ctx, uint64(len(cmd.Workers)))
+	newJob, jobDone, jobWait, _ := defaultNewFuncJobWorker(ctx, int64(len(cmd.Workers)))
 
 	for worker := range slices.Values(cmd.Workers) {
 		if err := newJob(func(ctx context.Context) error {
@@ -621,6 +622,7 @@ func (cmd *managerCommand) waitWorkers() error {
 	done, wait := dutil.NewContextDone(cmd.ctx)
 
 	pinged := dutil.NewSingleLockedMap[string, struct{}]()
+
 	cmd.mustAddHandler("_worker_ping_manager", acceptHandlerWorkerPingManager(func(worker string) error {
 		if slices.Index(cmd.Workers, worker) < 0 {
 			return errors.Errorf("unknown worker, %q", worker)
@@ -637,7 +639,8 @@ func (cmd *managerCommand) waitWorkers() error {
 		}
 
 		if pinged.Len() == len(cmd.Workers) {
-			done(nil)
+			_ = done(nil)
+
 			cmd.log.Debug().Msg("cmd/all worker ping")
 		}
 
@@ -744,7 +747,7 @@ func (cmd *managerCommand) loadPreProcessed() (bool, error) {
 			cmd.expectedStates[i] = states
 		}
 
-		switch tr, err := loadOpsTreeFromFile(cmd.ctx, cmd.enc, fmt.Sprintf(opsTreeCacheFilenameFmt, cmd.Ops, height)); {
+		switch tr, err := loadOpsTreeFromFile(cmd.ctx, fmt.Sprintf(opsTreeCacheFilenameFmt, cmd.Ops, height)); {
 		case err != nil:
 			return false, err
 		case tr == nil || tr.Len() < 1:
@@ -757,17 +760,22 @@ func (cmd *managerCommand) loadPreProcessed() (bool, error) {
 	return true, nil
 }
 
-func (cmd *managerCommand) preProcess() (manifests [2]base.Manifest, states [2][]base.State, opsTrees [2]*fixedtree.Tree, _ error) {
+func (cmd *managerCommand) preProcess() ([2]base.Manifest, [2][]base.State, [2]*fixedtree.Tree, error) {
 	defer dutil.ElapsedLogMsg(cmd.log.Debug, "cmd/make manifests")()
+
+	var manifests [2]base.Manifest
+	var states [2][]base.State
+	var opsTrees [2]*fixedtree.Tree
 
 	ctx := dutil.SetContextValueLogger(cmd.ctx, cmd.log)
 
-	manifest33, states33, opsTree33, err := managerRunOneWorker(ctx, cmd.enc, startHeight, nil, nil, cmd.createFacts)
+	manifest33, states33, opsTree33, err := managerRunOneWorker(ctx, startHeight, nil, nil, cmd.createFacts)
 	if err != nil {
 		return manifests, states, opsTrees, err
 	}
 
-	manifest34, states34, opsTree34, err := managerRunOneWorker(ctx, cmd.enc, nextHeight, manifest33.Hash(), states33, cmd.transferFacts)
+	manifest34, states34, opsTree34, err := managerRunOneWorker(
+		ctx, nextHeight, manifest33.Hash(), states33, cmd.transferFacts)
 	if err != nil {
 		return manifests, states, opsTrees, err
 	}
@@ -860,9 +868,9 @@ func (cmd *managerCommand) checkProcessed(
 
 func (cmd *managerCommand) preloadHeightOps(name string, facts []dop5.OperationFact) error {
 	defer dutil.ElapsedLogMsg(func() *zerolog.Event {
-		return cmd.log.Debug().
-			Str("name", name).
-			Int("ops", len(facts))
+		return cmd.log.Debug(). //nolint:zerologlint
+					Str("name", name).
+					Int("ops", len(facts))
 	}, "cmd/preload height ops")()
 
 	var workerMaxItems dutil.InFunc[uint64, uint64]
@@ -875,7 +883,7 @@ func (cmd *managerCommand) preloadHeightOps(name string, facts []dop5.OperationF
 		workerMaxItems, distribute = w, i
 	}
 
-	newJob, jobDone, jobWait, _ := dutil.NewFuncJobWorker(cmd.ctx, uint64(len(cmd.Workers)))
+	newJob, jobDone, jobWait, _ := defaultNewFuncJobWorker(cmd.ctx, int64(len(cmd.Workers)))
 
 	for worker := range slices.Values(cmd.Workers) {
 		if err := newJob(func(ctx context.Context) error {
@@ -897,22 +905,21 @@ func (cmd *managerCommand) workerPreloadOps(
 	worker string,
 	facts []dop5.OperationFact,
 ) error {
-	workerIndex := uint64(slices.Index(cmd.Workers, worker))
+	workerIndex := dutil.SafeIntToUint64(slices.Index(cmd.Workers, worker))
 	maxItems := workerMaxItems(workerIndex)
 
 	defer dutil.ElapsedLogMsg(func() *zerolog.Event {
-		return cmd.log.Debug().
-			Str("worker", worker).
-			Uint64("max_items", maxItems)
+		return cmd.log.Debug(). //nolint:zerologlint
+					Str("worker", worker).
+					Uint64("max_items", maxItems)
 	}, "cmd/worker preload ops")()
 
 	handler := requestHandlerPreloadOps(
 		cmd.enc,
 		maxItems,
-		1<<9,
-		1<<9,
+		1<<9, 1<<9, //nolint:mnd
 		func(yield func(fact dop5.OperationFact) bool) {
-			distribute(workerIndex, func(opindex uint64) error {
+			_ = distribute(workerIndex, func(opindex uint64) error {
 				if !yield(facts[opindex]) {
 					return nil
 				}
@@ -935,8 +942,8 @@ func (cmd *managerCommand) preloadOps() error {
 	return cmd.preloadHeightOps("transfer facts", cmd.transferFacts)
 }
 
-func prepareItems[T any](
-	enc encoder.Encoder,
+func prepareItems[T any]( //nolint:funlen
+	ctx context.Context,
 	filename string,
 	size uint64,
 	create func(uint64) (T, []byte, error),
@@ -947,15 +954,16 @@ func prepareItems[T any](
 
 	var prev *os.File
 
-	switch f, err := os.Open(filename); {
+	switch f, err := os.Open(filepath.Clean(filename)); {
 	case err != nil && !os.IsNotExist(err):
-		return 0, nil, err
+		return 0, nil, errors.WithStack(err)
 	case os.IsNotExist(err):
 	default:
-		defer f.Close()
+		defer func() { _ = f.Close() }()
+
 		prev = f
 
-		p, err := loadFromFile(f, size, load)
+		p, err := loadFromFile(ctx, f, size, load)
 
 		switch {
 		case err != nil:
@@ -973,9 +981,9 @@ func prepareItems[T any](
 
 	var w *os.File
 
-	switch f, err := os.Create(filename + ".tmp"); {
+	switch f, err := os.Create(filepath.Clean(filename + ".tmp")); {
 	case err != nil:
-		return 0, nil, err
+		return 0, nil, errors.WithStack(err)
 	default:
 		if err := dutil.WriteInt(f, size); err != nil {
 			return 0, nil, err
@@ -983,7 +991,7 @@ func prepareItems[T any](
 
 		if prev != nil {
 			if _, err := prev.Seek(0, 0); err != nil {
-				return 0, nil, err
+				return 0, nil, errors.WithStack(err)
 			}
 
 			var nsize uint64
@@ -992,7 +1000,7 @@ func prepareItems[T any](
 			}
 
 			if _, err := io.Copy(f, prev); err != nil {
-				return 0, nil, err
+				return 0, nil, errors.WithStack(err)
 			}
 
 			_ = prev.Close()
@@ -1001,7 +1009,7 @@ func prepareItems[T any](
 		w = f
 	}
 
-	newJob, jobDone, jobWait, _ := dutil.NewFuncJobWorker(context.Background(), rem)
+	newJob, jobDone, jobWait, _ := defaultNewFuncJobWorker(ctx, dutil.SafeUint64toInt64(rem))
 
 	for i := range rem {
 		if err := newJob(func(context.Context) error {
@@ -1040,13 +1048,14 @@ func prepareItems[T any](
 	_ = w.Close()
 
 	if err := os.Rename(filename+".tmp", filename); err != nil {
-		return 0, nil, err
+		return 0, nil, errors.WithStack(err)
 	}
 
 	return rem, items, nil
 }
 
 func loadFromFile[T any](
+	ctx context.Context,
 	r io.Reader,
 	limit uint64,
 	load func([]byte, uint64) (T, error),
@@ -1063,7 +1072,7 @@ func loadFromFile[T any](
 
 	items := make([]T, nsize)
 
-	newJob, jobDone, jobWait, _ := dutil.NewFuncJobWorker(context.Background(), nsize)
+	newJob, jobDone, jobWait, _ := defaultNewFuncJobWorker(ctx, dutil.SafeUint64toInt64(nsize))
 
 	var count uint64
 	for count < nsize {

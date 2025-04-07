@@ -10,7 +10,6 @@ import (
 	"github.com/spikeekips/mitum/base"
 	dop5 "github.com/spikeekips/mitum/example/test364_5"
 	"github.com/spikeekips/mitum/example/test364_5/encoder"
-	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 )
 
@@ -28,10 +27,10 @@ func (db *redisDB) ping(ctx context.Context) error {
 }
 
 func (db *redisDB) flushAll(ctx context.Context) error {
-	return db.rdb.FlushAll(ctx).Err()
+	return errors.WithStack(db.rdb.FlushAll(ctx).Err())
 }
 
-func (db *redisDB) saveOperationFacts(ctx context.Context, semSize, bulkSize uint64, ops []dop5.OperationFact) error {
+func (db *redisDB) saveOperationFacts(ctx context.Context, semSize, bulkSize int64, ops []dop5.OperationFact) error {
 	return redisBulkSave(
 		ctx,
 		db.enc,
@@ -48,7 +47,7 @@ func (db *redisDB) getOperationFact(ctx context.Context, oph util.Hash, fact *do
 	return redisGet(ctx, db.enc, db.rdb, "op-"+oph.String(), fact)
 }
 
-func (db *redisDB) saveStates(ctx context.Context, semSize, bulkSize uint64, states []base.State) error {
+func (db *redisDB) saveStates(ctx context.Context, semSize, bulkSize int64, states []base.State) error {
 	return redisBulkSave(
 		ctx,
 		db.enc,
@@ -65,11 +64,11 @@ func (db *redisDB) getState(ctx context.Context, stateKey string, st *base.State
 	return redisGet(ctx, db.enc, db.rdb, "st-"+stateKey, st)
 }
 
-func (db *redisDB) getStates(ctx context.Context) iter.Seq2[base.State, error] {
-	limit := 1 << 9
+var defaultLimit = 1 << 9
 
+func (db *redisDB) getStates(ctx context.Context) iter.Seq2[base.State, error] {
 	return func(yield func(base.State, error) bool) {
-		cmd := db.rdb.Scan(ctx, 0, "st-*", 1<<9)
+		cmd := db.rdb.Scan(ctx, 0, "st-*", 0)
 		if _, _, err := cmd.Result(); err != nil {
 			yield(nil, err)
 
@@ -80,7 +79,7 @@ func (db *redisDB) getStates(ctx context.Context) iter.Seq2[base.State, error] {
 
 		for {
 			switch l, err := db.rdb.Pipelined(ctx, func(pipe redis.Pipeliner) error {
-				for i := 0; i < limit; i++ {
+				for range defaultLimit {
 					if !it.Next(ctx) {
 						return nil
 					}
@@ -121,7 +120,7 @@ func redisBulkSave[T any](
 	ctx context.Context,
 	enc encoder.Encoder,
 	rdb *redis.Client,
-	semSize, bulkSize uint64,
+	semSize, bulkSize int64,
 	items []T,
 	setPipe func(context.Context, redis.Pipeliner, T, []byte),
 ) error {
@@ -134,14 +133,14 @@ func redisBulkSave[T any](
 		return errors.Errorf("zero bulk size")
 	}
 
-	newJob, jobDone, jobWait, err := dutil.NewFuncJobWorker(ctx, semSize)
+	newJob, jobDone, jobWait, err := defaultNewFuncJobWorker(ctx, semSize)
 	if err != nil {
 		return err
 	}
 
-	size := uint64(len(items))
+	size := int64(len(items))
 
-	for i := uint64(0); i < size; i += bulkSize {
+	for i := int64(0); i < size; i += bulkSize {
 		if err := newJob(func(ctx context.Context) error {
 			_, err := rdb.Pipelined(ctx, func(pipe redis.Pipeliner) error {
 				e := i + bulkSize
@@ -161,7 +160,7 @@ func redisBulkSave[T any](
 				return nil
 			})
 
-			return err
+			return errors.WithStack(err)
 		}); err != nil {
 			return jobWait(err)
 		}
@@ -185,7 +184,7 @@ func redisGet[T any](
 	case err != nil && errors.Is(err, redis.Nil):
 		return false, nil
 	case err != nil:
-		return false, err
+		return false, errors.WithStack(err)
 	default:
 		return true, encoder.Unmarshal(enc, []byte(c.Val()), t)
 	}

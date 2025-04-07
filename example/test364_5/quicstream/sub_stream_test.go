@@ -33,10 +33,7 @@ func (t *baseTestConnAcceptSubStreams) newFuncNewID(ctx context.Context, size ui
 		nil, nil,
 	)
 
-	newID, sclose, err := newConnAcceptSubStreams(context.Background(), remoteConn)
-	if err != nil {
-		return nil, nil, nil, nil, err
-	}
+	newID, sclose := newConnAcceptSubStreams(context.Background(), remoteConn)
 
 	id := util.UUID().String()
 
@@ -76,13 +73,12 @@ func (t *testConnAcceptSubStreams) TestError() {
 		ctx, cancel := t.Ctx()
 		cancel(nil)
 
-		newID, sclose, err := newConnAcceptSubStreams(ctx, remoteConn)
-		t.NoError(err)
+		newID, sclose := newConnAcceptSubStreams(ctx, remoteConn)
 		defer sclose()
 
 		<-time.After(time.Millisecond * 33)
 
-		_, _, err = newID(context.Background(), util.UUID().String(), 1)
+		_, _, err := newID(context.Background(), util.UUID().String(), 1)
 		t.ErrorIs(err, errConnAcceptSubStreamsClosed)
 	})
 
@@ -93,8 +89,7 @@ func (t *testConnAcceptSubStreams) TestError() {
 		)
 		defer closef()
 
-		newID, sclose, err := newConnAcceptSubStreams(context.Background(), remoteConn)
-		t.NoError(err)
+		newID, sclose := newConnAcceptSubStreams(context.Background(), remoteConn)
 		defer sclose()
 
 		<-time.After(time.Millisecond * 33)
@@ -117,8 +112,7 @@ func (t *testConnAcceptSubStreams) TestError() {
 		)
 		defer closef()
 
-		newID, sclose, err := newConnAcceptSubStreams(context.Background(), remoteConn)
-		t.NoError(err)
+		newID, sclose := newConnAcceptSubStreams(context.Background(), remoteConn)
 		defer sclose()
 
 		<-time.After(time.Millisecond * 33)
@@ -145,8 +139,7 @@ func (t *testConnAcceptSubStreams) TestWaitStream() {
 		)
 		defer closef()
 
-		newID, sclose, err := newConnAcceptSubStreams(context.Background(), remoteConn)
-		t.NoError(err)
+		newID, sclose := newConnAcceptSubStreams(context.Background(), remoteConn)
 		defer sclose()
 
 		<-time.After(time.Millisecond * 33)
@@ -181,8 +174,7 @@ func (t *testConnAcceptSubStreams) TestWaitStream() {
 		)
 		defer closef()
 
-		newID, sclose, err := newConnAcceptSubStreams(context.Background(), remoteConn)
-		t.NoError(err)
+		newID, sclose := newConnAcceptSubStreams(context.Background(), remoteConn)
 		defer sclose()
 
 		var size uint16 = 5
@@ -231,8 +223,7 @@ func (t *testConnAcceptSubStreams) TestWaitStream() {
 		)
 		defer closef()
 
-		newID, sclose, err := newConnAcceptSubStreams(context.Background(), remoteConn)
-		t.NoError(err)
+		newID, sclose := newConnAcceptSubStreams(context.Background(), remoteConn)
 		defer sclose()
 
 		var size uint16 = 3
@@ -277,8 +268,7 @@ func (t *testConnAcceptSubStreams) TestWaitStream() {
 		)
 		defer closef()
 
-		newID, sclose, err := newConnAcceptSubStreams(context.Background(), remoteConn)
-		t.NoError(err)
+		newID, sclose := newConnAcceptSubStreams(context.Background(), remoteConn)
 		defer sclose()
 
 		ids := []string{
@@ -350,7 +340,7 @@ func (t *testConnAcceptSubStreams) TestWaitStream() {
 
 		t.T().Log("check newID is not closed")
 
-		_, _, err = newID(ctx, util.UUID().String(), 3)
+		_, _, err := newID(ctx, util.UUID().String(), 3)
 		t.NoError(err)
 
 		t.False(sclose())
@@ -373,8 +363,7 @@ func (t *testConnAcceptSubStreams) TestWaitStream() {
 		)
 		defer closef()
 
-		newID, sclose, err := newConnAcceptSubStreams(context.Background(), remoteConn)
-		t.NoError(err)
+		newID, sclose := newConnAcceptSubStreams(context.Background(), remoteConn)
 		defer sclose()
 
 		<-time.After(time.Millisecond * 333)
@@ -508,8 +497,7 @@ func (t *testConnAcceptSubStreams) TestClose() {
 		)
 		defer closef()
 
-		newID, sclose, err := newConnAcceptSubStreams(context.Background(), remoteConn)
-		t.NoError(err)
+		newID, sclose := newConnAcceptSubStreams(context.Background(), remoteConn)
 
 		_, doneStreams, err := newID(context.Background(), util.UUID().String(), 1)
 		t.NoError(err)
@@ -526,12 +514,11 @@ func (t *testConnAcceptSubStreams) TestClose() {
 		)
 		defer closef()
 
-		newID, sclose, err := newConnAcceptSubStreams(context.Background(), remoteConn)
-		t.NoError(err)
+		newID, sclose := newConnAcceptSubStreams(context.Background(), remoteConn)
 
 		t.True(sclose())
 
-		_, _, err = newID(context.Background(), util.UUID().String(), 1)
+		_, _, err := newID(context.Background(), util.UUID().String(), 1)
 		t.ErrorIs(err, errConnAcceptSubStreamsClosed)
 	})
 }
@@ -796,6 +783,7 @@ func (t *testRequestSubStreams) openSubStreams(
 	defer scancel(nil)
 
 	f, err := OpenSubStreams(cctx, o, remoteConn, remoteStream, util.UUID().String(), size)
+	t.NoError(err)
 
 	t.NoError(f(func(streams []quic.Stream) error {
 		t.EqualValues(rsize, len(streams))

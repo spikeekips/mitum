@@ -16,7 +16,6 @@ type (
 	extractStateOwnersSMVsFunc = func(opindex uint64, subv SMV, addvs []SMV) func(workerSMVsFunc) error
 
 	insertStateOwnerSetFunc        = func(subw string, affected []string) error
-	insertStateOwnersSetFunc       = func(subws, affected []string) error
 	workerStatesOwnersSetFunc      = func(worker string, subws, affected []string) error
 	localExtractedStatesOwnersFunc = func(getStateOwnersFunc) (
 		extractStateOwnersSMVsFunc,
@@ -24,8 +23,7 @@ type (
 		dutil.OutFunc[[]string],
 		error,
 	)
-	workerInsertStatesOwnersSetFunc = func(worker string, _ insertStateOwnersSetFunc) error
-	workerStatesOwnersDoneFunc      = func() (subws, affected []string, _ error)
+	workerStatesOwnersDoneFunc = func() (subws, affected []string, _ error)
 )
 
 func newFuncWorkerStatesOwners(
@@ -166,7 +164,7 @@ func newFuncLocalExtractedStateOwners(
 				addOwners(adds...)
 
 				for subw := range slices.Values(subws) {
-					addOwnersSet(subw, adds)
+					_ = addOwnersSet(subw, adds)
 				}
 
 				for w := range slices.Values(adds) {
@@ -314,17 +312,17 @@ func newFuncAddStateOwners(
 	dutil.OutFunc[[]string],
 	error,
 ) {
-	switch add, done, err := dutil.NewLockComparableUniqueAppendSlice[string](maxSize, 1<<5); {
+	switch add, done, err := dutil.NewLockComparableUniqueAppendSlice[string](maxSize, 1<<5); { //nolint:mnd
 	case err != nil:
 		return nil, nil, err
 	default:
-		return addOwnersFunc(func(owners []string) {
+		return func(owners []string) {
 				if len(owners) < 1 {
 					return
 				}
 
 				add(owners...)
-			}),
+			},
 			done,
 			nil
 	}

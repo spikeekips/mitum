@@ -38,7 +38,6 @@ func newFuncWorkerUnmerger(
 	WorkerUnmergedFunc, // NOTE from states owners, excluding local
 	workerUnmergerLocalReadyFunc,
 	workerUnmergerWaitFunc,
-	error,
 ) {
 	log := dutil.NewModuleLoggerFromContext(ctx, "worker-unmerger", nil)
 
@@ -123,11 +122,13 @@ func newFuncWorkerUnmerger(
 				return nil
 			})
 		},
-		func() (unmerged []uint64, _ error) {
+		func() ([]uint64, error) {
 			defer func() {
 				_, _ = unmergerWait()
 				_ = workerPhaseDone(nil)
 			}()
+
+			var unmerged []uint64
 
 			return unmerged, dutil.ContextCauseError(ctx, ctxCancel, func(context.Context) error {
 				if err := workerPhaseDoneWait(); err != nil {
@@ -147,8 +148,7 @@ func newFuncWorkerUnmerger(
 					return nil
 				}
 			})
-		},
-		nil
+		}
 }
 
 func newFuncWorkerUnmergerWorkerUnmergedPool(
@@ -158,10 +158,11 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 	getSMVs opindexGetSMVsFunc,
 	newFuncUnmergerFunc workerUnmergerNewFuncUnmergerFunc,
 ) (
-	localReady func(subStatesOwners []string, localUnmerged []uint64, statesShare uint64) (ok, enough bool, failed error, _ error),
-	unmergerUnmerge func(worker string, unmerged []uint64) (ok, enough bool, failed error, _ error),
-	unmergerDone func(),
-	_ workerUnmergerWaitFunc,
+	func(subStatesOwners []string, localUnmerged []uint64, statesShare uint64) (
+		ok, enough bool, failed error, _ error), /* localReady */
+	func(worker string, unmerged []uint64) (ok, enough bool, failed error, _ error), /* unmergerUnmerge */
+	func(), /* unmergerDone */
+	workerUnmergerWaitFunc,
 ) {
 	addPool, _, traversePool := newFuncWorkerUnmergerUnmergedPool()
 
@@ -171,7 +172,7 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 		newWorkerOpindexFilterClose := newFuncWorkerOpindexFilter(maxOpsSize, getSMVs)
 
 	newUnmergerf, unmergef, donef, waitf := newFuncWorkerUnmergerNewUnmergerFunc(
-		context.WithValue(ctx, "local", local),
+		context.WithValue(ctx, dutil.ContextKey("local"), local),
 		newFuncUnmergerFunc,
 	)
 
@@ -199,7 +200,12 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 
 	var l sync.Mutex
 
-	unmergeOps := func(worker string, unmerged []uint64, unmergeOp dutil.InErrorFunc[uint64], filter opindexFilterFunc) (bool, bool, error) {
+	unmergeOps := func(
+		worker string,
+		unmerged []uint64,
+		unmergeOp dutil.InErrorFunc[uint64],
+		filter opindexFilterFunc,
+	) (bool, bool, error) {
 		l.Lock()
 		defer l.Unlock()
 
@@ -262,7 +268,7 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 
 			return o, e, f, nil
 		},
-		func(worker string, unmerged []uint64) (ok, enough bool, failed error, _ error) {
+		func(worker string, unmerged []uint64) (ok, enough bool, failed error, _ error) { //nolint:nonamedreturns
 			if worker == local {
 				return false, false, nil, util.ErrFound.Errorf("unexpected local")
 			}
@@ -303,9 +309,9 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 }
 
 func newFuncWorkerUnmergerUnmergedPool() (
-	addPool func(worker string, unmerged []uint64) (added bool),
-	isNotEmpty func(filter workerOpindexFilterFunc) (bool, error),
-	traverse iter.Seq2[string, []uint64],
+	func(worker string, unmerged []uint64) (added bool), /* add pool */
+	func(filter workerOpindexFilterFunc) (bool, error), /* is not empty */
+	iter.Seq2[string, []uint64],
 ) {
 	pool := map[string] /* worker */ []uint64 /* unmerged */ {}
 
@@ -408,7 +414,9 @@ func newFuncWorkerUnmergerNewUnmergerFunc(
 				done()
 			}
 		},
-		func() (unmerged []uint64, _ error) {
+		func() ([]uint64, error) {
+			var unmerged []uint64
+
 			waitOnce.Do(func() {
 				l.RLock()
 				defer l.RUnlock()
@@ -426,19 +434,17 @@ func newFuncWorkerOpindexFilter(
 	maxOpsSize uint64,
 	getSMVs opindexGetSMVsFunc,
 ) (
-	localReady func(subStatesOwners []string, localUnmerged []uint64) error,
-	_ workerOpindexFilterFunc,
-	_ func(),
+	func(subStatesOwners []string, localUnmerged []uint64) error, /* local ready */
+	workerOpindexFilterFunc,
+	func(),
 ) {
-	filterWorker := func(string) (opindexFilterFunc, error) { return nil, nil }
+	filterWorker := func(string) (opindexFilterFunc, error) { return nil, nil } //nolint:nilnil
 	closef := func() {}
 
 	var l sync.RWMutex
 
 	newf := func(subws []string, localUnmerged []uint64) error {
 		if len(subws) < 1 {
-			filterWorker = func(string) (opindexFilterFunc, error) { return nil, nil }
-
 			return nil
 		}
 

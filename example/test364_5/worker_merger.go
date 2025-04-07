@@ -18,13 +18,12 @@ type (
 	workerMergerWaitFunc                 = func(workerMergerLocalPhaseMergerDoneFunc) (map[uint64]string, error)
 )
 
-func newFuncWorkerMerger(
+func newFuncWorkerMerger( //nolint:funlen
 	ctx context.Context,
 	local string,
 	newJobWorker dutil.NewJobWorkerFunc,
-	getState GetStateFunc,
 	getSVMs mergerGetSVMsFunc,
-	workersSize, maxOpsSize, smvsPoolSize uint64,
+	maxOpsSize, smvsPoolSize uint64,
 	opsWorkers []string, opsShare, statesShare uint64,
 ) (
 	workerMergerInsertSMVsFunc,
@@ -96,11 +95,7 @@ func newFuncWorkerMerger(
 		workerPhaseMergerWorkerInsert, workerPhaseMergerWait = i, w
 	}
 
-	var workerUnmergerUnmerged WorkerUnmergedFunc
-	var workerUnmergerLocalReady workerUnmergerLocalReadyFunc
-	var workerUnmergerWait workerUnmergerWaitFunc
-
-	switch u, s, w, err := newFuncWorkerUnmerger(
+	workerUnmergerUnmerged, workerUnmergerLocalReady, workerUnmergerWait := newFuncWorkerUnmerger(
 		wctx,
 		local,
 		dutil.NewIfErrErrorInFunc(wctxCancel),
@@ -108,12 +103,7 @@ func newFuncWorkerMerger(
 		statesShare, maxOpsSize,
 		getSMVs,
 		getSVMs,
-	); {
-	case err != nil:
-		return nil, nil, nil, err
-	default:
-		workerUnmergerUnmerged, workerUnmergerLocalReady, workerUnmergerWait = u, s, w
-	}
+	)
 
 	unmerge := func(worker string, unmerged []uint64) error {
 		return dutil.ContextCauseError(wctx, nil, func(context.Context) error {
@@ -122,7 +112,6 @@ func newFuncWorkerMerger(
 	}
 
 	insert := newFuncWorkerMergerInsert(
-		wctx,
 		func(worker string) bool {
 			if worker == local {
 				return true
@@ -136,7 +125,6 @@ func newFuncWorkerMerger(
 
 	wait := newFuncWorkerMergerWait(
 		wctx,
-		local,
 		workerPhaseMergerWait,
 		workerUnmergerLocalReady,
 		workerUnmergerWait,
@@ -154,11 +142,13 @@ func newFuncWorkerMerger(
 	}
 
 	return insert, unmerge,
-		func(localDone workerMergerLocalPhaseMergerDoneFunc) (reasons map[uint64]string, _ error) {
+		func(localDone workerMergerLocalPhaseMergerDoneFunc) (map[uint64]string, error) {
 			defer func() {
 				smvsPoolClose()
 				mOpsWorkers.Close()
 			}()
+
+			var reasons map[uint64]string
 
 			return reasons, dutil.ContextCauseError(wctx, wctxCancel, func(context.Context) error {
 				switch r, err := wait(localDone); {
@@ -175,7 +165,6 @@ func newFuncWorkerMerger(
 }
 
 func newFuncWorkerMergerInsert(
-	ctx context.Context,
 	isOpsWorker func(worker string) bool,
 	workerInsert insertWorkerSMVsFunc,
 	setSMVs opindexSetSMVsFunc,
@@ -215,7 +204,6 @@ func newFuncWorkerMergerInsert(
 
 func newFuncWorkerMergerWait(
 	ctx context.Context,
-	local string,
 	workerPhaseMergerWait workerPhaseMergerWaitFunc,
 	workerUnmergerLocalReady workerUnmergerLocalReadyFunc,
 	workerUnmergerWait workerUnmergerWaitFunc,

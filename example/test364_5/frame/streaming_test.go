@@ -29,6 +29,7 @@ func (t *testStreaming) TestWriteError() {
 			}),
 			1,
 		)
+		t.NoError(err)
 
 		n, err := write(randBytes(16))
 		t.ErrorContains(err, "showme")
@@ -48,6 +49,7 @@ func (t *testStreaming) TestWriteError() {
 			}),
 			15,
 		)
+		t.NoError(err)
 
 		b := randBytes(16)
 
@@ -93,7 +95,7 @@ func (t *testStreaming) TestWrite() {
 	t.Run("ok", func() {
 		w := bytes.NewBuffer(nil)
 
-		chunkSize := 3
+		var chunkSize uint32 = 3
 
 		write, closef, err := NewStreamingWriter(w, chunkSize)
 		t.NoError(err)
@@ -141,7 +143,7 @@ func (t *testStreaming) TestWrite() {
 	t.Run("no left", func() {
 		w := bytes.NewBuffer(nil)
 
-		chunkSize := 3
+		var chunkSize uint32 = 3
 
 		write, closef, err := NewStreamingWriter(w, chunkSize)
 		t.NoError(err)
@@ -182,7 +184,7 @@ func (t *testStreaming) TestWrite() {
 	t.Run("less than chunk size", func() {
 		w := bytes.NewBuffer(nil)
 
-		chunkSize := 9
+		var chunkSize uint32 = 9
 
 		write, closef, err := NewStreamingWriter(w, chunkSize)
 		t.NoError(err)
@@ -215,7 +217,7 @@ func (t *testStreaming) TestWrite() {
 
 	t.Run("async", func() {
 		w := bytes.NewBuffer(nil)
-		chunkSize := 3
+		var chunkSize uint32 = 3
 
 		write, closef, err := NewStreamingWriter(w, chunkSize)
 		t.NoError(err)
@@ -320,7 +322,7 @@ func (t *testStreaming) TestWrite() {
 	})
 }
 
-func (t *testStreaming) writeForRead(b []byte, chunkSize int) io.Reader {
+func (t *testStreaming) writeForRead(b []byte, chunkSize uint32) io.Reader {
 	w := bytes.NewBuffer(nil)
 
 	write, closef, err := NewStreamingWriter(w, chunkSize)
@@ -354,7 +356,7 @@ func (t *testStreaming) TestRead() {
 	t.Run("io.ReadAll", func() {
 		b := randBytes(16)
 		t.T().Log("input:", b)
-		chunkSize := 3
+		var chunkSize uint32 = 3
 		appended := randBytes(16)
 
 		r := t.writeForRead(b, chunkSize)
@@ -392,7 +394,7 @@ func (t *testStreaming) TestRead() {
 	t.Run("read less than chunk size", func() {
 		b := randBytes(5)
 		t.T().Log("input:", b)
-		chunkSize := 3
+		var chunkSize uint32 = 3
 
 		r := t.writeForRead(b, chunkSize)
 
@@ -425,7 +427,7 @@ func (t *testStreaming) TestRead() {
 	t.Run("read more than chunk size", func() {
 		b := randBytes(5)
 		t.T().Log("input:", b)
-		chunkSize := 3
+		var chunkSize uint32 = 3
 
 		r := t.writeForRead(b, chunkSize)
 

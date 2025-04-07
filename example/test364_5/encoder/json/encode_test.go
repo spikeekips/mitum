@@ -3,6 +3,7 @@
 package jsonenc
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -18,6 +19,7 @@ import (
 	mjsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/goleak"
 )
 
 var bigStructHint = hint.MustNewHint("big-struct-v1.2.3")
@@ -275,12 +277,16 @@ type testEncodeSubStructs struct {
 }
 
 func (t *testEncodeSubStructs) SetupSuite() {
-	t.enc = NewEncoder(1 << 9)
+	t.enc = NewEncoder(context.Background(), 1<<9)
 	t.NoError(AddDecode(t.enc, bigStructHint, bigStruct{}, bigStructDecodeJSON))
 	t.NoError(AddDecode(t.enc, setHinterHint, setHinter{}, setHinterDecodeJSON))
 
 	t.menc = mjsonenc.NewEncoder()
 	t.NoError(t.menc.Add(mencoder.DecodeDetail{Hint: bigStructHint, Instance: bigStruct{}}))
+}
+
+func (t *testEncodeSubStructs) TearDownSuite() {
+	t.enc.Close()
 }
 
 func (t *testEncodeSubStructs) p(s string, d time.Duration) {
@@ -389,50 +395,57 @@ func (t *testEncodeSubStructs) TestStream() {
 }
 
 func TestEncodeSubStructs(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
 	suite.Run(t, new(testEncodeSubStructs))
 }
 
 type testEncoder struct {
 	dutil.BaseSuite
-	enc *Encoder
-}
-
-func (t *testEncoder) SetupSuite() {
-	t.enc = NewEncoder(1 << 9)
-	t.NoError(AddDecode(t.enc, bigStructHint, bigStruct{}, bigStructDecodeJSON))
-	t.NoError(AddDecode(t.enc, stringStructHint, stringStruct{}, stringStructDecodeJSON))
-	t.NoError(AddDecode(t.enc, stringDHint, "", stringDDecodeJSON))
-	t.NoError(AddDecode(t.enc, setHinterHint, setHinter{}, setHinterDecodeJSON))
 }
 
 func (t *testEncoder) TestAddDecode() {
-	t.Run("interface sample", func() {
-		enc := NewEncoder(1 << 9)
+	t.RunWithGoLeak("interface sample", func() {
+		enc := NewEncoder(context.Background(), 1<<9)
+		defer enc.Close()
+
 		err := AddDecode(enc, stringDHint, (fmt.Stringer)(nil), stringDDecodeJSON)
 		t.ErrorContains(err, "nil sample")
 	})
 
-	t.Run("nil sample", func() {
-		enc := NewEncoder(1 << 9)
+	t.RunWithGoLeak("nil sample", func() {
+		enc := NewEncoder(context.Background(), 1<<9)
+		defer enc.Close()
+
 		err := AddDecode(enc, stringDHint, (fmt.Stringer)(nil), stringDDecodeJSON)
 		t.ErrorContains(err, "nil sample")
 	})
 
-	t.Run("nil decode func", func() {
-		enc := NewEncoder(1 << 9)
+	t.RunWithGoLeak("nil decode func", func() {
+		enc := NewEncoder(context.Background(), 1<<9)
+		defer enc.Close()
+
 		err := AddDecode(enc, decodeJSONStructHint, decodeJSONStruct{}, nil)
 		t.ErrorContains(err, "nil decode")
 	})
 }
 
 func (t *testEncoder) TestHinter() {
+	enc := NewEncoder(context.Background(), 1<<9)
+	defer enc.Close()
+
+	t.NoError(AddDecode(enc, bigStructHint, bigStruct{}, bigStructDecodeJSON))
+	t.NoError(AddDecode(enc, stringStructHint, stringStruct{}, stringStructDecodeJSON))
+	t.NoError(AddDecode(enc, stringDHint, "", stringDDecodeJSON))
+	t.NoError(AddDecode(enc, setHinterHint, setHinter{}, setHinterDecodeJSON))
+
 	t.Run("BaseHinter", func() {
 		n := newBigStructNested(3)
 		b, err := util.MarshalJSON(n)
 		t.NoError(err)
 
 		var d bigStruct
-		t.NoError(encoder.Unmarshal(t.enc, b, &d))
+		t.NoError(encoder.Unmarshal(enc, b, &d))
 
 		t.T().Logf("decoded: %s", t.MarshalIndent(d))
 
@@ -448,7 +461,7 @@ func (t *testEncoder) TestHinter() {
 		t.NoError(err)
 
 		var d setHinter
-		t.NoError(encoder.Unmarshal(t.enc, b, &d))
+		t.NoError(encoder.Unmarshal(enc, b, &d))
 
 		t.T().Logf("decoded: %s", t.MarshalIndent(d))
 
@@ -463,7 +476,7 @@ func (t *testEncoder) TestHinter() {
 		t.T().Logf("marshaled: %s", t.MarshalIndent(n))
 
 		var d stringStruct
-		t.NoError(encoder.UnmarshalString(t.enc, b, &d, 3))
+		t.NoError(encoder.UnmarshalString(enc, b, &d, 3))
 
 		t.T().Logf("decoded: %s", t.MarshalIndent(d))
 
@@ -478,7 +491,7 @@ func (t *testEncoder) TestHinter() {
 		t.T().Logf("marshaled: %s", t.MarshalIndent(n))
 
 		var d stringD
-		t.NoError(encoder.UnmarshalString(t.enc, b, &d, 4))
+		t.NoError(encoder.UnmarshalString(enc, b, &d, 4))
 
 		t.T().Logf("decoded: %s", t.MarshalIndent(d))
 
@@ -487,5 +500,7 @@ func (t *testEncoder) TestHinter() {
 }
 
 func TestEncoder(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
 	suite.Run(t, new(testEncoder))
 }

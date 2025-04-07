@@ -11,6 +11,8 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
+type ContextKey string
+
 func ContextWithCancelCause(ctx context.Context) (context.Context, InErrorFunc[error]) {
 	cctx, cancel := context.WithCancelCause(ctx)
 
@@ -21,8 +23,8 @@ func ContextWithCancelCause(ctx context.Context) (context.Context, InErrorFunc[e
 		var called bool
 
 		once.Do(func() {
-			switch {
-			case err == nil:
+			switch err {
+			case nil:
 				gerr = ErrorWithStack(context.Canceled)
 
 				cancel(nil)
@@ -85,24 +87,24 @@ func CheckContextWait(ctx context.Context) (
 	return cctx, func(err error) error {
 			once.Do(func() {
 				if err == nil {
-					cctxCancel(errDone)
+					_ = cctxCancel(errDone)
 
 					return
 				}
 
-				cctxCancel(err)
+				_ = cctxCancel(err)
 			})
 
 			return err
 		},
 		func() (bool, error) {
-			gerr := context.Cause(ctx)
+			gerr := errors.WithStack(context.Cause(ctx))
 
 			switch err := context.Cause(cctx); {
 			case errors.Is(err, errDone):
 				return false, gerr
 			case err != nil:
-				return false, err
+				return false, errors.WithStack(err)
 			default:
 				return true, gerr
 			}
@@ -113,7 +115,7 @@ func NewFuncCheckContextError(f func() (bool, error), cancel InErrorFunc[error])
 	return func() (bool, error) {
 		ok, err := f()
 		if err != nil || !ok {
-			cancel(err)
+			_ = cancel(err)
 		}
 
 		return ok, err
@@ -159,8 +161,8 @@ func NewContextDone(ctx context.Context) (
 }
 
 type JoinedContext struct {
-	c0 context.Context
-	c1 context.Context
+	c0 context.Context //nolint:containedctx
+	c1 context.Context //nolint:containedctx
 }
 
 var _ context.Context = &JoinedContext{}
@@ -194,10 +196,10 @@ func (c *JoinedContext) Done() <-chan struct{} {
 
 func (c *JoinedContext) Err() error {
 	if e := c.c1.Err(); e != nil {
-		return e
+		return errors.WithStack(e)
 	}
 
-	return c.c0.Err()
+	return errors.WithStack(c.c0.Err())
 }
 
 func (c *JoinedContext) Value(key any) any {

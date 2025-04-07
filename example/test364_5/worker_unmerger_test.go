@@ -76,7 +76,7 @@ func (t *testWorkerUnmerger) TestCancel() {
 
 		cancel(nil)
 
-		workerUnmerge, localReady, wait, err := newFuncWorkerUnmerger(
+		workerUnmerge, localReady, wait := newFuncWorkerUnmerger(
 			ctx,
 			local,
 			cancel,
@@ -85,9 +85,8 @@ func (t *testWorkerUnmerger) TestCancel() {
 			getSMVs,
 			getSVMs,
 		)
-		t.NoError(err)
 
-		err = workerUnmerge("w1", nil)
+		err := workerUnmerge("w1", nil)
 		t.ErrorIs(err, context.Canceled)
 
 		err = localReady([]string{local}, nil)
@@ -106,7 +105,7 @@ func (t *testWorkerUnmerger) TestCancel() {
 
 		ctx, cancel := t.Ctx()
 
-		workerUnmerge, localReady, wait, err := newFuncWorkerUnmerger(
+		workerUnmerge, localReady, wait := newFuncWorkerUnmerger(
 			ctx,
 			local,
 			cancel,
@@ -115,7 +114,6 @@ func (t *testWorkerUnmerger) TestCancel() {
 			getSMVs,
 			getSVMs,
 		)
-		t.NoError(err)
 
 		go func() {
 			for worker := range slices.Values(workers) {
@@ -136,7 +134,7 @@ func (t *testWorkerUnmerger) TestCancel() {
 			}
 		}()
 
-		err = localReady(workers, nil)
+		err := localReady(workers, nil)
 		if err != nil {
 			t.ErrorIs(err, context.Canceled)
 		}
@@ -153,7 +151,7 @@ func (t *testWorkerUnmerger) TestCancel() {
 
 		ctx, cancel := t.Ctx()
 
-		workerUnmerge, localReady, wait, err := newFuncWorkerUnmerger(
+		workerUnmerge, localReady, wait := newFuncWorkerUnmerger(
 			ctx,
 			local,
 			cancel,
@@ -162,7 +160,6 @@ func (t *testWorkerUnmerger) TestCancel() {
 			getSMVs,
 			getSVMs,
 		)
-		t.NoError(err)
 
 		donech := make(chan struct{}, 1)
 		go func() {
@@ -183,7 +180,7 @@ func (t *testWorkerUnmerger) TestCancel() {
 		}()
 
 		<-donech
-		_, err = wait()
+		_, err := wait()
 		t.ErrorIs(err, context.Canceled)
 	})
 }
@@ -195,7 +192,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 
 		ctx, cancel := t.Ctx()
 
-		workerUnmerge, localReady, wait, err := newFuncWorkerUnmerger(
+		workerUnmerge, localReady, wait := newFuncWorkerUnmerger(
 			ctx,
 			local,
 			cancel,
@@ -204,9 +201,8 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			t.randomGetSMVs,
 			getSVMs,
 		)
-		t.NoError(err)
 
-		err = workerUnmerge(local, []uint64{0, 1, 2, 3, 4})
+		err := workerUnmerge(local, []uint64{0, 1, 2, 3, 4})
 		t.ErrorIs(err, util.ErrFound)
 
 		t.NoError(localReady([]string{local}, nil))
@@ -224,7 +220,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 
 		ctx, cancel := t.Ctx()
 
-		_, localReady, wait, err := newFuncWorkerUnmerger(
+		_, localReady, wait := newFuncWorkerUnmerger(
 			ctx,
 			local,
 			cancel,
@@ -233,7 +229,6 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			t.randomGetSMVs,
 			getSVMs,
 		)
-		t.NoError(err)
 
 		go func() {
 			err := localReady([]string{local}, nil)
@@ -251,7 +246,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 
 		ctx, cancel := t.Ctx()
 
-		_, localReady, wait, err := newFuncWorkerUnmerger(
+		_, localReady, wait := newFuncWorkerUnmerger(
 			ctx,
 			local,
 			cancel,
@@ -260,7 +255,6 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			t.randomGetSMVs,
 			getSVMs,
 		)
-		t.NoError(err)
 
 		go func() {
 			err := localReady([]string{local}, nil)
@@ -268,6 +262,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 		}()
 
 		unmerged, err := wait()
+		t.NoError(err)
 		t.T().Logf("wait: unmerged=%v", unmerged)
 
 		t.Empty(unmerged)
@@ -279,7 +274,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 
 		ctx, cancel := t.Ctx()
 
-		workerUnmerge, localReady, wait, err := newFuncWorkerUnmerger(
+		workerUnmerge, localReady, wait := newFuncWorkerUnmerger(
 			ctx,
 			local,
 			cancel,
@@ -288,7 +283,6 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			t.randomGetSMVs,
 			getSVMs,
 		)
-		t.NoError(err)
 
 		go func() {
 			err := workerUnmerge("w1", []uint64{0, 1, 2, 3, 4})
@@ -314,7 +308,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 
 		ctx = dutil.SetContextValueLogger(ctx, logging.TestNilLogging.Log())
 
-		workerUnmerge, localReady, wait, err := newFuncWorkerUnmerger(
+		workerUnmerge, localReady, wait := newFuncWorkerUnmerger(
 			ctx,
 			local,
 			cancel,
@@ -323,7 +317,6 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			t.randomGetSMVs,
 			getSVMs,
 		)
-		t.NoError(err)
 
 		go func() {
 			for worker := range slices.Values(workers) {
@@ -358,7 +351,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 
 		ctx = dutil.SetContextValueLogger(ctx, logging.TestNilLogging.Log())
 
-		workerUnmerge, localReady, wait, err := newFuncWorkerUnmerger(
+		workerUnmerge, localReady, wait := newFuncWorkerUnmerger(
 			ctx,
 			local,
 			cancel,
@@ -367,7 +360,6 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			t.randomGetSMVs,
 			getSVMs,
 		)
-		t.NoError(err)
 
 		opsPerWorker := 3
 		ops := make([]uint64, len(workers)*opsPerWorker)
@@ -429,7 +421,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 
 		ctx = dutil.SetContextValueLogger(ctx, logging.TestNilLogging.Log())
 
-		workerUnmerge, localReady, wait, err := newFuncWorkerUnmerger(
+		workerUnmerge, localReady, wait := newFuncWorkerUnmerger(
 			ctx,
 			local,
 			cancel,
@@ -438,7 +430,6 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			t.randomGetSMVs,
 			getSVMs,
 		)
-		t.NoError(err)
 
 		opsPerWorker := 3
 		ops := make([]uint64, len(workers)*opsPerWorker)
@@ -526,7 +517,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 		) workerUnmergerWaitFunc {
 			_, _, _, _, _, getSVMs, _ := t.newFuncs()
 
-			workerUnmerge, localReady, wait, err := newFuncWorkerUnmerger(
+			workerUnmerge, localReady, wait := newFuncWorkerUnmerger(
 				ctx,
 				local,
 				cancel,
@@ -535,7 +526,6 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 				getSMVs,
 				getSVMs,
 			)
-			t.NoError(err)
 
 			{
 				err := localReady(workers, nil)
@@ -605,7 +595,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 
 		ctx = dutil.SetContextValueLogger(ctx, logging.TestNilLogging.Log())
 
-		workerUnmerge, localReady, wait, err := newFuncWorkerUnmerger(
+		workerUnmerge, localReady, wait := newFuncWorkerUnmerger(
 			ctx,
 			local,
 			cancel,
@@ -614,7 +604,6 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			t.randomGetSMVs,
 			getSVMs,
 		)
-		t.NoError(err)
 
 		ops := make([]uint64, 3)
 
@@ -651,7 +640,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 
 		ctx = dutil.SetContextValueLogger(ctx, logging.TestNilLogging.Log())
 
-		_, localReady, wait, err := newFuncWorkerUnmerger(
+		_, localReady, wait := newFuncWorkerUnmerger(
 			ctx,
 			local,
 			cancel,
@@ -660,7 +649,6 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			t.randomGetSMVs,
 			getSVMs,
 		)
-		t.NoError(err)
 
 		ops := make([]uint64, 3)
 
@@ -669,7 +657,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 		}
 
 		go func() {
-			err = localReady(workers, nil)
+			err := localReady(workers, nil)
 
 			t.Print("local phase done: worker=%q err=%v", local, err)
 		}()
@@ -709,7 +697,7 @@ func (t *testWorkerUnmerger) TestWorkerManager() {
 
 		ctx, cancel := t.Ctx()
 
-		workerUnmerge, localReady, wait, err := newFuncWorkerUnmerger(
+		workerUnmerge, localReady, wait := newFuncWorkerUnmerger(
 			ctx,
 			local,
 			cancel,
@@ -718,7 +706,6 @@ func (t *testWorkerUnmerger) TestWorkerManager() {
 			t.randomGetSMVs,
 			getSVMs,
 		)
-		t.NoError(err)
 
 		go func() {
 			err := localReady([]string{local}, []uint64{0, 1, 2, 3, 4})
@@ -741,7 +728,7 @@ func (t *testWorkerUnmerger) TestWorkerManager() {
 
 		ctx, cancel := t.Ctx()
 
-		workerUnmerge, _, wait, err := newFuncWorkerUnmerger(
+		workerUnmerge, _, wait := newFuncWorkerUnmerger(
 			ctx,
 			local,
 			cancel,
@@ -750,7 +737,6 @@ func (t *testWorkerUnmerger) TestWorkerManager() {
 			t.randomGetSMVs,
 			getSVMs,
 		)
-		t.NoError(err)
 
 		go func() {
 			err := workerUnmerge(ManagerName, []uint64{0, 1, 2, 3, 4})
@@ -767,8 +753,8 @@ func (t *testWorkerUnmerger) TestWorkerManager() {
 
 func TestWorkerUnmerger(t *testing.T) {
 	defer goleak.VerifyNone(t,
-		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewContextUnlimitedChans[...].func2"),
-		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewContextUnlimitedChans[...].func4"),
+		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewUnlimitedChans[...].func2"),
+		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewUnlimitedChans[...].func4"),
 	)
 
 	suite.Run(t, new(testWorkerUnmerger))

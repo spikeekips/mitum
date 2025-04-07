@@ -80,7 +80,7 @@ func main() {
 func printBuildInfo(out io.Writer) {
 	bi, ok := debug.ReadBuildInfo()
 	if !ok {
-		fmt.Fprintln(out, "-")
+		_, _ = fmt.Fprintln(out, "-")
 
 		return
 	}
@@ -95,16 +95,15 @@ func printBuildInfo(out io.Writer) {
 		m[i.Key[4:]] = i.Value
 	}
 
-	fmt.Fprintln(out, "- version")
+	_, _ = fmt.Fprintln(out, "- version")
 	for k := range slices.Values([]string{"revision", "modified"}) {
-		fmt.Fprintln(out, fmt.Sprintf("%15s: %s", k, m[k]))
+		_, _ = fmt.Fprintf(out, "%15s: %s\n", k, m[k])
 	}
 
-	m = map[string]string{
-		"go": bi.GoVersion,
-	}
+	clear(m)
+	m["go"] = bi.GoVersion
 
-	fmt.Fprintln(out, "- build")
+	_, _ = fmt.Fprintln(out, "- build")
 	for i := range slices.Values(bi.Settings) {
 		var k string
 
@@ -117,7 +116,7 @@ func printBuildInfo(out io.Writer) {
 			k = i.Key
 		}
 
-		fmt.Fprintln(out, fmt.Sprintf("%15s: %s", k, i.Value))
+		_, _ = fmt.Fprintf(out, "%15s: %s\n", k, i.Value)
 	}
 }
 

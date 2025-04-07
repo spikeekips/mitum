@@ -10,13 +10,11 @@ import (
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 )
 
-type ContextKey = string
-
 var (
-	QuicConnectionContextKey    ContextKey = "quic_connection"
-	QuicConnectionUIDContextKey ContextKey = "quic_connection_uid"
-	RemoteAddrContextKey        ContextKey = "remote_addr"
-	StreamIDContextKey          ContextKey = "stream_id"
+	QuicConnectionContextKey    dutil.ContextKey = "quic_connection"
+	QuicConnectionUIDContextKey dutil.ContextKey = "quic_connection_uid"
+	RemoteAddrContextKey        dutil.ContextKey = "remote_addr"
+	StreamIDContextKey          dutil.ContextKey = "stream_id"
 )
 
 func Serve(
@@ -53,8 +51,6 @@ func Serve(
 			default:
 				return err
 			}
-
-			return nil
 		},
 		func() error {
 			return errors.Wrap(listener.Close(), "listener.Close()")
@@ -81,13 +77,11 @@ func serveListener(
 				cctx := context.WithValue(ctx, QuicConnectionUIDContextKey, cuid)
 
 				if err := serveConnection(cctx, conn, f); err != nil {
-					closeConnection(conn, err)
+					_ = closeConnection(conn, err)
 				}
 			}()
 		}
 	}
-
-	return nil
 }
 
 func serveConnection(

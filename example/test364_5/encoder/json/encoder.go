@@ -15,12 +15,6 @@ import (
 type (
 	decodeMapFunc    = func(*Encoder, map[string]any) (any, error)
 	decodeStringFunc = func(*Encoder, string) (any, error)
-	decodeJSONMap    interface {
-		DecodeJSON(*Encoder, map[string]any) (any, error)
-	}
-	decodeJSONString interface {
-		DecodeJSON(*Encoder, string) (any, error)
-	}
 )
 
 type Encoder struct {
@@ -30,12 +24,14 @@ type Encoder struct {
 	hintCacheClose func()
 }
 
-func NewEncoder(cacheSize int) *Encoder {
+var defaultEncoderBufSize uint64 = 1 << 9
+
+func NewEncoder(ctx context.Context, cacheSize int) *Encoder {
 	enc := &Encoder{
 		set: map[string]any{},
 	}
 
-	enc.hintCacheGet, enc.hintCacheSet, enc.hintCacheClose = newFuncHintCache(cacheSize, 1<<9)
+	enc.hintCacheGet, enc.hintCacheSet, enc.hintCacheClose = newFuncHintCache(ctx, cacheSize, defaultEncoderBufSize)
 
 	return enc
 }
@@ -53,14 +49,14 @@ func AddDecode[T any](enc *Encoder, ht hint.Hint, sample T, decode any) error {
 		return errors.Errorf("nil sample")
 	}
 
-	return enc.addDecode(ht, sample, hinterDecodeFunc(ht, sample, decode))
+	return enc.addDecode(ht, hinterDecodeFunc(ht, sample, decode))
 }
 
 func (enc *Encoder) Close() {
 	enc.hintCacheClose()
 }
 
-func (enc *Encoder) addDecode(ht hint.Hint, sample any, decode any) error {
+func (enc *Encoder) addDecode(ht hint.Hint, decode any) error {
 	decodeKey := enc.decodeKeyWithHint(ht, decode)
 
 	if _, found := enc.set[decodeKey]; found {
@@ -96,7 +92,7 @@ func (enc *Encoder) UnmarshalString(b []byte, size int) (any, error) {
 
 func (enc *Encoder) Decode(v any) (any, error) {
 	if v == nil {
-		return nil, nil
+		return nil, nil //nolint:nilnil
 	}
 
 	switch t := v.(type) {
@@ -221,17 +217,17 @@ func hinterDecodeFunc[T any](ht hint.Hint, sample T, decode any) any {
 
 	switch {
 	case indirect:
-		sethint = func(t T) (any, error) {
+		sethint = func(t T) (any, error) { //nolint:unparam
 			n := new(T)
 			*n = t
 
-			_ = any(n).(hint.SetHinter).SetHint(ht)
+			_ = any(n).(hint.SetHinter).SetHint(ht) //nolint:forcetypeassert
 
 			return *n, nil
 		}
 	default:
 		sethint = func(t T) (any, error) {
-			n := any(t).(hint.SetHinter).SetHint(ht)
+			n := any(t).(hint.SetHinter).SetHint(ht) //nolint:forcetypeassert
 			if _, ok := n.(T); !ok {
 				return nil, errors.Errorf("SetHint; expected %T, but %T", sample, n)
 			}
@@ -259,20 +255,21 @@ func hinterDecodeFunc[T any](ht hint.Hint, sample T, decode any) any {
 	}
 }
 
-func newFuncHintCache(cacheSize int, bufSize uint64) (
+func newFuncHintCache(ctx context.Context, cacheSize int, bufSize uint64) (
 	func(string) (hint.Hint, bool, error),
 	func(string, *hint.Hint, error),
 	func(),
 ) {
-	get, _, lazySet, closef := dutil.NewLastFirstLazyCache[string, [2]any /* {*hint.Hint, error} */](context.Background(), cacheSize, bufSize, bufSize)
+	get, _, lazySet, closef := dutil.NewLastFirstLazyCache[string, [2]any /* {*hint.Hint, error} */](
+		ctx, cacheSize, bufSize, bufSize)
 
 	return func(s string) (hint.Hint, bool, error) {
 			if i, found := get(s); found {
 				if i[1] != nil {
-					return hint.Hint{}, false, i[1].(error)
+					return hint.Hint{}, false, i[1].(error) //nolint:forcetypeassert
 				}
 
-				return *(i[0].(*hint.Hint)), true, nil
+				return *(i[0].(*hint.Hint)), true, nil //nolint:forcetypeassert
 			}
 
 			return hint.Hint{}, false, nil

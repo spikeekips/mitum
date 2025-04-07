@@ -209,6 +209,9 @@ func (t *baseTestManager) processOps(
 			return nil
 		},
 	)
+	if err != nil {
+		panic(err)
+	}
 
 	slices.SortFunc(states, func(a, b base.State) int {
 		return strings.Compare(a.Key(), b.Key())
@@ -243,7 +246,6 @@ func (t *baseTestManager) processOps(
 type testManager struct {
 	dutil.BaseSuite
 	baseTestWorkers
-	baseTestManager
 }
 
 func (t *testManager) newOptions() *ManagerOptions {

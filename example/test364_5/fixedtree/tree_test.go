@@ -12,10 +12,6 @@ import (
 
 var treeHint = hint.MustNewHint("test-tree-v0.0.1")
 
-func emptyTree() *Tree {
-	return &Tree{BaseHinter: hint.NewBaseHinter(treeHint)}
-}
-
 type baseTestTree struct {
 	dutil.BaseSuite
 }

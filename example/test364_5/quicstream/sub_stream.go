@@ -17,7 +17,7 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
-func AcceptSubStreams(
+func AcceptSubStreams( //nolint:funlen
 	ctx context.Context,
 	conn quic.Connection,
 	stream quic.Stream,
@@ -63,7 +63,7 @@ func AcceptSubStreams(
 		controlStream = s
 	}
 
-	if size < 2 {
+	if size < 2 { //nolint:mnd
 		return func(f dutil.InErrorFunc[[]quic.Stream]) error {
 				err := frame.WriteSize(controlStream, 1)
 				if err == nil {
@@ -95,7 +95,7 @@ func AcceptSubStreams(
 	var jobDone func()
 	var jobWait dutil.InErrorFunc[error]
 
-	switch n, d, w, err := dutil.NewFuncJobWorker(ctx, uint64(size-1)); {
+	switch n, d, w, err := dutil.NewFuncJobWorker(ctx, int64(size-1)); {
 	case err != nil:
 		_ = closeStream(controlStream, err)
 
@@ -127,7 +127,7 @@ func AcceptSubStreams(
 			streams := done()
 			defer dutil.ClearSlice(&streams)
 
-			if err := frame.WriteSize(controlStream, uint32(len(streams))); err != nil {
+			if err := frame.WriteSize(controlStream, dutil.SafeIntToUint32(len(streams))); err != nil {
 				return err
 			}
 
@@ -228,8 +228,8 @@ func openSubStreamSync(ctx context.Context, conn quic.Connection, id string) (qu
 }
 
 func loadQuicConnectionFromContext(ctx context.Context) (quic.Connection, error) {
-	switch i := ctx.Value(QuicConnectionContextKey); {
-	case i == nil:
+	switch i := ctx.Value(QuicConnectionContextKey); i {
+	case nil:
 		return nil, util.ErrNotFound.Errorf("context key, %q not found", QuicConnectionContextKey)
 	default:
 		conn, ok := i.(quic.Connection)
@@ -260,7 +260,7 @@ var errConnAcceptSubStreamsClosed = errors.New("ConnAcceptSubStreamsClosed")
 func newConnAcceptSubStreams(
 	ctx context.Context,
 	conn quic.Connection,
-) (requestSubStreamsFunc, dutil.OutFunc[bool], error) {
+) (requestSubStreamsFunc, dutil.OutFunc[bool]) {
 	var l sync.Mutex
 	ids := map[string]addSubStreamFunc{}
 
@@ -272,7 +272,7 @@ func newConnAcceptSubStreams(
 		switch b, n, err := frame.ReadFixed(stream); {
 		case err != nil && !errors.Is(err, io.EOF),
 			n < 1 && errors.Is(err, io.EOF):
-			_ = closeStream(stream, errors.Wrap(err, "emtpy id"))
+			_ = closeStream(stream, errors.Wrap(err, "empty id"))
 
 			return
 		default:
@@ -294,7 +294,7 @@ func newConnAcceptSubStreams(
 		for {
 			switch stream, err := conn.AcceptStream(gctx); {
 			case err != nil:
-				gctxCancel(errors.WithStack(err))
+				_ = gctxCancel(errors.WithStack(err))
 
 				return
 			default:
@@ -311,7 +311,7 @@ func newConnAcceptSubStreams(
 			switch err := context.Cause(gctx); {
 			case err == nil:
 			case errors.Is(err, errConnAcceptSubStreamsClosed):
-				return nil, nil, err
+				return nil, nil, err //nolint:wrapcheck
 			default:
 				return nil, nil, stderrors.Join(errConnAcceptSubStreamsClosed, err)
 			}
@@ -341,16 +341,18 @@ func newConnAcceptSubStreams(
 			var controlOnce sync.Once
 			var controlStream quic.Stream
 
-			controlDone, controlWait := dutil.NewContextDone(jctx)
+			controlDone, controlWait := dutil.NewContextDone(jctx) //nolint:contextcheck
 			_, streamsDone, _, streamsWait := dutil.NewContextWait(jctx)
 
 			rsize := uint64(size)
-			var left uint64 = uint64(size)
+			left := uint64(size)
 
-			ids[id] = func(stream quic.Stream) (ok bool) {
+			ids[id] = func(stream quic.Stream) bool {
+				var ok bool
+
 				switch _, l := addStream(stream); {
 				case l < 1, uint64(size)-l >= atomic.LoadUint64(&rsize):
-					streamsDone(nil)
+					_ = streamsDone(nil)
 
 					ok = true
 				default:
@@ -378,8 +380,8 @@ func newConnAcceptSubStreams(
 					switch i, err := readSubStreamsSize(controlStream, size); {
 					case err != nil:
 						return nil, err
-					case i < 2:
-						streamsDone(nil)
+					case i < 2: //nolint:mnd
+						_ = streamsDone(nil)
 
 						return doneStream(), nil
 					default:
@@ -393,7 +395,7 @@ func newConnAcceptSubStreams(
 					}
 
 					if l := atomic.LoadUint64(&left); l < 1 || uint64(size)-l >= uint64(nsize) {
-						streamsDone(nil)
+						_ = streamsDone(nil)
 					}
 
 					if err := streamsWait(); err != nil {
@@ -432,14 +434,13 @@ func newConnAcceptSubStreams(
 			}
 
 			if len(ids) < 1 {
-				gctxCancel(nil)
+				_ = gctxCancel(nil)
 
 				return true
 			}
 
 			return false
-		},
-		nil
+		}
 }
 
 func NewConnsAcceptSubStreams(
@@ -479,7 +480,7 @@ func NewConnsAcceptSubStreams(
 			case <-removeInactiveTicker.C:
 			}
 
-			pool.Lock(func(
+			_ = pool.Lock(func(
 				_ func(string) ([2]interface{}, bool),
 				_ func(string, [2]interface{}) bool,
 				remove func(string) bool,
@@ -521,16 +522,8 @@ func NewConnsAcceptSubStreams(
 					}
 				}
 
-				var newID requestSubStreamsFunc
-				var closef dutil.OutFunc[bool]
-
-				switch n, c, err := newConnAcceptSubStreams(gctx, conn); {
-				case err != nil:
-					return v, err
-				default:
-					newID, closef = n, c
-					lastCalled[connID] = time.Now()
-				}
+				newID, closef := newConnAcceptSubStreams(gctx, conn)
+				lastCalled[connID] = time.Now()
 
 				switch w, d, err := newID(ctx, id, size); {
 				case err != nil:

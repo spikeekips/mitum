@@ -158,6 +158,7 @@ func (t *testMergeOp) TestMergeSingleValue() {
 
 		isMerged, nexts, reason, err := mergeOpValues(opindex, vs, getMerger)
 		t.NoError(err)
+		t.True(isMerged)
 		t.Empty(nexts)
 		t.Empty(reason)
 
@@ -491,7 +492,7 @@ func (t *testMergeOp) TestNotCommit() {
 
 		reason, found := reasons[opindex]
 		t.True(found)
-		t.Contains(reason, "insufficient balance")
+		t.Contains(reason, "account not exists")
 
 		merged, err := t.closeMergersWithError(mergers)
 		t.NoError(err)
@@ -883,10 +884,10 @@ func (t *testPhaseMerger) TestMerge() {
 
 		var opindex0, opindex1 uint64 = 1, 2
 
-		vs := t.randomMergeValuesVP(vp, opindex0, -1)
+		_ = t.randomMergeValuesVP(vp, opindex0, -1)
 		t.NoError(merge(opindex0))
 
-		vs = t.randomMergeValuesVP(vp, opindex1, 1)
+		vs := t.randomMergeValuesVP(vp, opindex1, 1)
 		t.NoError(merge(opindex1))
 
 		done()
@@ -895,7 +896,7 @@ func (t *testPhaseMerger) TestMerge() {
 		t.NoError(err)
 		t.Empty(newMerged)
 		t.Equal([]uint64{1}, newUnmerged)
-		t.Equal(map[uint64]string{1: "insufficient balance"}, reasons)
+		t.Equal(map[uint64]string{1: "account not exists"}, reasons)
 
 		merged, err := t.closeMergersWithError(mergers)
 		t.NoError(err)

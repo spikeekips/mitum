@@ -32,17 +32,17 @@ type LockedMap[K mapIndexType /* key */, V any /* value */] interface { //nolint
 	Map() map[K]V
 	Exists(K) (found bool)
 	Value(K) (_ V, found bool)
-	SetValue(K, V) (created bool)
+	SetValue(_ K, _ V) (created bool)
 	RemoveValues(...K) (removed int)
-	Get(K, func(_ V, found bool) error) error
+	Get(_ K, _ func(_ V, found bool) error) error
 	GetOrCreate(_ K, create func() (V, error), get func(_ V, created bool) error) error
-	GetOrRemove(K, func(_ V, found bool) (remove bool, _ error)) error
-	Set(K, func(_ V, found bool) (V, error)) (created bool, _ error)
-	SetOrRemove(K, func(_ V, found bool) (_ V, remove bool, _ error)) (created, removed bool, _ error)
-	Remove(K, func(_ V, found bool) error) (removed bool, _ error)
+	GetOrRemove(_ K, _ func(_ V, found bool) (remove bool, _ error)) error
+	Set(_ K, _ func(_ V, found bool) (V, error)) (created bool, _ error)
+	SetOrRemove(_ K, _ func(_ V, found bool) (_ V, remove bool, _ error)) (created, removed bool, _ error)
+	Remove(_ K, _ func(_ V, found bool) error) (removed bool, _ error)
 	Lock(func(
 		get func(K) (_ V, found bool),
-		set func(K, V) (created bool),
+		set func(_ K, _ V) (created bool),
 		remove func(K) (removed bool),
 		traverse iter.Seq2[K, V],
 	) error) error
@@ -104,16 +104,16 @@ func (l *SingleLockedMap[K, V]) Exists(k K) bool {
 	return found
 }
 
-func (l *SingleLockedMap[K, V]) Value(k K) (v V, found bool) {
+func (l *SingleLockedMap[K, V]) Value(k K) (V, bool) {
 	l.l.RLock()
 	defer l.l.RUnlock()
 
-	v, found = l.m[k]
+	v, found := l.m[k]
 
 	return v, found
 }
 
-func (l *SingleLockedMap[K, V]) SetValue(k K, v V) (created bool) {
+func (l *SingleLockedMap[K, V]) SetValue(k K, v V) bool {
 	l.l.Lock()
 	defer l.l.Unlock()
 
@@ -128,9 +128,11 @@ func (l *SingleLockedMap[K, V]) SetValue(k K, v V) (created bool) {
 	return !found
 }
 
-func (l *SingleLockedMap[K, V]) RemoveValues(ks ...K) (removed int) {
+func (l *SingleLockedMap[K, V]) RemoveValues(ks ...K) int {
 	l.l.Lock()
 	defer l.l.Unlock()
+
+	var removed int
 
 	for k := range slices.Values(ks) {
 		_, found := l.m[k]
@@ -211,7 +213,7 @@ func (l *SingleLockedMap[K, V]) GetOrRemove(
 func (l *SingleLockedMap[K, V]) Set(
 	k K,
 	f func(_ V, found bool) (V, error),
-) (created bool, _ error) {
+) (bool, error) {
 	l.l.Lock()
 	defer l.l.Unlock()
 
@@ -236,7 +238,7 @@ func (l *SingleLockedMap[K, V]) Set(
 func (l *SingleLockedMap[K, V]) SetOrRemove(
 	k K,
 	f func(V, bool) (_ V, remove bool, _ error),
-) (created, removed bool, _ error) {
+) (bool, bool, error) {
 	l.l.Lock()
 	defer l.l.Unlock()
 
@@ -267,7 +269,7 @@ func (l *SingleLockedMap[K, V]) SetOrRemove(
 func (l *SingleLockedMap[K, V]) Remove(
 	k K,
 	f func(V, bool) error,
-) (removed bool, _ error) {
+) (bool, error) {
 	l.l.Lock()
 	defer l.l.Unlock()
 
@@ -397,14 +399,16 @@ func NewShardedLockedMap[K mapIndexType, V any](
 	}, nil
 }
 
-func (l *ShardedLockedMap[K, V]) loadChild(k K) (_ LockedMap[K, V], found, iscloed bool) {
+func (l *ShardedLockedMap[K, V]) loadChild(k K) (_ LockedMap[K, V], found, iscloed bool) { //nolint:nonamedreturns
 	l.l.RLock()
 	defer l.l.RUnlock()
 
 	return l.unlockedloadChild(k)
 }
 
-func (l *ShardedLockedMap[K, V]) unlockedloadChild(k K) (_ LockedMap[K, V], found, iscloed bool) {
+func (l *ShardedLockedMap[K, V]) unlockedloadChild(k K) ( //nolint:nonamedreturns
+	_ LockedMap[K, V], found, iscloed bool,
+) {
 	if l.sharded == nil {
 		return nil, false, true
 	}
@@ -421,7 +425,13 @@ func (l *ShardedLockedMap[K, V]) unlockedloadChild(k K) (_ LockedMap[K, V], foun
 	return item, true, false
 }
 
-func (l *ShardedLockedMap[K, V]) unlockedloadChildByIndex(index uint64) (_ LockedMap[K, V], found, iscloed bool) {
+func (l *ShardedLockedMap[K, V]) unlockedloadChildByIndex(index uint64) ( //nolint:nonamedreturns
+	_ LockedMap[K, V], found, iscloed bool,
+) {
+	if l.sharded == nil {
+		return nil, false, true
+	}
+
 	item := l.sharded[index]
 	if item == nil {
 		return nil, false, false
@@ -430,14 +440,16 @@ func (l *ShardedLockedMap[K, V]) unlockedloadChildByIndex(index uint64) (_ Locke
 	return item, true, false
 }
 
-func (l *ShardedLockedMap[K, V]) getOrCreateChild(k K) (_ LockedMap[K, V], isclosed bool) {
+func (l *ShardedLockedMap[K, V]) getOrCreateChild(k K) (_ LockedMap[K, V], isclosed bool) { //nolint:nonamedreturns
 	l.l.Lock()
 	defer l.l.Unlock()
 
 	return l.unlockedGetOrCreateChild(k)
 }
 
-func (l *ShardedLockedMap[K, V]) unlockedGetOrCreateChild(k K) (_ LockedMap[K, V], isclosed bool) {
+func (l *ShardedLockedMap[K, V]) unlockedGetOrCreateChild(k K) ( //nolint:nonamedreturns
+	_ LockedMap[K, V], isclosed bool,
+) {
 	if l.sharded == nil {
 		return nil, true
 	}
@@ -469,9 +481,11 @@ func (l *ShardedLockedMap[K, V]) Len() int {
 	return int(atomic.LoadInt64(&l.length))
 }
 
-func (l *ShardedLockedMap[K, V]) Map() (m map[K]V) {
+func (l *ShardedLockedMap[K, V]) Map() map[K]V {
 	l.l.RLock()
 	defer l.l.RUnlock()
+
+	var m map[K]V
 
 	for s := range slices.Values(l.sharded) {
 		if s == nil {
@@ -535,7 +549,9 @@ func (l *ShardedLockedMap[K, V]) Exists(k K) bool {
 	}
 }
 
-func (l *ShardedLockedMap[K, V]) Value(k K) (v V, _ bool) {
+func (l *ShardedLockedMap[K, V]) Value(k K) (V, bool) {
+	var v V
+
 	switch i, found, isclosed := l.loadChild(k); {
 	case isclosed, !found:
 		return v, false
@@ -544,12 +560,12 @@ func (l *ShardedLockedMap[K, V]) Value(k K) (v V, _ bool) {
 	}
 }
 
-func (l *ShardedLockedMap[K, V]) SetValue(k K, v V) (created bool) {
+func (l *ShardedLockedMap[K, V]) SetValue(k K, v V) bool {
 	switch i, isclosed := l.getOrCreateChild(k); {
 	case isclosed:
 		return false
 	default:
-		created = i.SetValue(k, v)
+		created := i.SetValue(k, v)
 		if created {
 			atomic.AddInt64(&l.length, 1)
 		}
@@ -558,7 +574,7 @@ func (l *ShardedLockedMap[K, V]) SetValue(k K, v V) (created bool) {
 	}
 }
 
-func (l *ShardedLockedMap[K, V]) RemoveValues(ks ...K) (removed int) {
+func (l *ShardedLockedMap[K, V]) RemoveValues(ks ...K) int {
 	l.l.Lock()
 	defer l.l.Unlock()
 
@@ -569,6 +585,8 @@ func (l *ShardedLockedMap[K, V]) RemoveValues(ks ...K) (removed int) {
 		index := l.hashf(k)
 		m[index] = append(m[index], k)
 	}
+
+	var removed int
 
 	for index, iks := range maps.All(m) {
 		if i, found, isclosed := l.unlockedloadChildByIndex(index); !isclosed && found {
@@ -728,9 +746,11 @@ func (l *ShardedLockedMap[K, V]) Lock(
 	defer l.l.Unlock()
 
 	return f(
-		func(k K) (v V, _ bool) {
+		func(k K) (V, bool) {
 			i, found, isclosed := l.unlockedloadChild(k)
 			if isclosed || !found {
+				var v V
+
 				return v, false
 			}
 
@@ -811,8 +831,8 @@ func NewLockedMap[K mapIndexType, V any](
 		}
 	}
 
-	switch {
-	case size == 1:
+	switch size {
+	case 1:
 		return newMapf()
 	default:
 		return NewShardedLockedMap[K, V](newMapf, size)
@@ -836,7 +856,7 @@ func (l *MultiKeysLockedMap[K, V]) Map() LockedMap[K, V] {
 	return l.m
 }
 
-func (l *MultiKeysLockedMap[K, V]) Lock(keys []K) (_ LockedMap[K, V], unlock func(), _ error) {
+func (l *MultiKeysLockedMap[K, V]) Lock(keys []K) (_ LockedMap[K, V], unlock func(), _ error) { //nolint:nonamedreturns
 	nkeys := compactLockedMapKeys(keys)
 	if len(nkeys) < 1 {
 		return nil, nil, nil
@@ -869,7 +889,7 @@ func (l *MultiKeysLockedMap[K, V]) Seq2(yield func(K, V) bool) {
 	l.m.Seq2(yield)
 }
 
-func (l *MultiKeysLockedMap[K, V]) lock(keys []K) (_ LockedMap[K, V], unlock func(), _ error) {
+func (l *MultiKeysLockedMap[K, V]) lock(keys []K) (_ LockedMap[K, V], unlock func(), _ error) { //nolint:nonamedreturns
 	l.l.Lock()
 	defer l.l.Unlock()
 
@@ -941,7 +961,7 @@ func NewLimitedLockedMap[K mapIndexType, V any](m LockedMap[K, V], allowedKeys [
 	}
 }
 
-func (l *LimitedLockedMap[K, V]) Exists(k K) (found bool) {
+func (l *LimitedLockedMap[K, V]) Exists(k K) bool {
 	if ok, _ := l.allowKey(k); !ok {
 		return false
 	}
@@ -949,8 +969,10 @@ func (l *LimitedLockedMap[K, V]) Exists(k K) (found bool) {
 	return l.LockedMap.Exists(k)
 }
 
-func (l *LimitedLockedMap[K, V]) Value(k K) (v V, _ bool) {
+func (l *LimitedLockedMap[K, V]) Value(k K) (V, bool) {
 	if ok, _ := l.allowKey(k); !ok {
+		var v V
+
 		return v, false
 	}
 
@@ -1043,12 +1065,14 @@ func (l *LimitedLockedMap[K, V]) Seq2(yield func(K, V) bool) {
 	}
 }
 
-func (l *LimitedLockedMap[K, V]) Len() (count int) {
+func (l *LimitedLockedMap[K, V]) Len() int {
 	l.l.Lock()
 	if l.isclosed {
 		return 0
 	}
 	l.l.Unlock()
+
+	var count int
 
 	for k := range slices.Values(l.allowedKeys) {
 		if _, found := l.LockedMap.Value(k); found {
@@ -1130,7 +1154,7 @@ func (l *SetOnlyLockedMap[K, V]) ResetKeys() {
 		return
 	}
 
-	l.keys = make([]K, l.Len(), uint64(l.Len())+l.grow)
+	l.keys = make([]K, l.Len(), SafeIntToUint64(l.Len())+l.grow)
 
 	var i int
 	for k := range l.LockedMap.Seq2 {
@@ -1163,9 +1187,11 @@ func (l *SetOnlyLockedMap[K, V]) CloseFunc(f func()) {
 	ClearSlice(&l.keys)
 }
 
-func (l *SetOnlyLockedMap[K, V]) SetValue(k K, v V) (created bool) {
+func (l *SetOnlyLockedMap[K, V]) SetValue(k K, v V) bool {
 	l.l.Lock()
 	defer l.l.Unlock()
+
+	var created bool
 
 	if created = l.LockedMap.SetValue(k, v); created {
 		l.setKey(k)
@@ -1333,7 +1359,7 @@ func (l *SetOnlyLockedMap[K, V]) setKey(k K) {
 
 var murmur3Seed = NewHashSeed()
 
-func newFuncDefaultLockedMapHash[K mapIndexType](size uint64) InFunc[K, uint64] {
+func newFuncDefaultLockedMapHash[K mapIndexType](size uint64) InFunc[K, uint64] { //nolint:funlen
 	var intf func(i K) uint64
 
 	var k K
@@ -1341,34 +1367,34 @@ func newFuncDefaultLockedMapHash[K mapIndexType](size uint64) InFunc[K, uint64] 
 	switch any(k).(type) {
 	case string:
 		intf = func(i K) uint64 {
-			return Murmur3(murmur3Seed, any(i).(string))
+			return Murmur3(murmur3Seed, any(i).(string)) //nolint:forcetypeassert
 		}
 	case float32:
-		intf = func(i K) uint64 { return uint64(any(i).(float64)) }
+		intf = func(i K) uint64 { return uint64(any(i).(float64)) } //nolint:forcetypeassert
 	case float64:
-		intf = func(i K) uint64 { return uint64(any(i).(float64)) }
+		intf = func(i K) uint64 { return uint64(any(i).(float64)) } //nolint:forcetypeassert
 	case int:
-		intf = func(i K) uint64 { return uint64(any(i).(int)) }
+		intf = func(i K) uint64 { return uint64(any(i).(int)) } //nolint:forcetypeassert,gosec
 	case int8:
-		intf = func(i K) uint64 { return uint64(any(i).(int8)) }
+		intf = func(i K) uint64 { return uint64(any(i).(int8)) } //nolint:forcetypeassert,gosec
 	case int16:
-		intf = func(i K) uint64 { return uint64(any(i).(int16)) }
+		intf = func(i K) uint64 { return uint64(any(i).(int16)) } //nolint:forcetypeassert,gosec
 	case int32:
-		intf = func(i K) uint64 { return uint64(any(i).(int32)) }
+		intf = func(i K) uint64 { return uint64(any(i).(int32)) } //nolint:forcetypeassert,gosec
 	case int64:
-		intf = func(i K) uint64 { return uint64(any(i).(int64)) }
+		intf = func(i K) uint64 { return uint64(any(i).(int64)) } //nolint:forcetypeassert,gosec
 	case uint:
-		intf = func(i K) uint64 { return uint64(any(i).(uint)) }
+		intf = func(i K) uint64 { return uint64(any(i).(uint)) } //nolint:forcetypeassert
 	case uint8:
-		intf = func(i K) uint64 { return uint64(any(i).(uint8)) }
+		intf = func(i K) uint64 { return uint64(any(i).(uint8)) } //nolint:forcetypeassert
 	case uint16:
-		intf = func(i K) uint64 { return uint64(any(i).(uint16)) }
+		intf = func(i K) uint64 { return uint64(any(i).(uint16)) } //nolint:forcetypeassert
 	case uint32:
-		intf = func(i K) uint64 { return uint64(any(i).(uint32)) }
+		intf = func(i K) uint64 { return uint64(any(i).(uint32)) } //nolint:forcetypeassert
 	case uint64:
-		intf = func(i K) uint64 { return any(i).(uint64) }
+		intf = func(i K) uint64 { return any(i).(uint64) } //nolint:forcetypeassert
 	case uintptr:
-		intf = func(i K) uint64 { return uint64(any(i).(uintptr)) }
+		intf = func(i K) uint64 { return uint64(any(i).(uintptr)) } //nolint:forcetypeassert
 	}
 
 	return func(i K) uint64 {

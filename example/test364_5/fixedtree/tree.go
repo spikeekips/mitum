@@ -33,7 +33,7 @@ func (t *Tree) IsValid(b []byte) error {
 	}
 
 	return e.Wrap(AsyncIsValidNodesHash(
-		context.Background(), uint64(len(t.nodes)), b, t.nodes))
+		context.Background(), int64(len(t.nodes)), b, t.nodes))
 }
 
 func (t *Tree) Close() {
@@ -49,7 +49,7 @@ func (t *Tree) Nodes() []Node {
 }
 
 func (t *Tree) Node(index uint64) Node {
-	if index >= uint64(t.Len()) {
+	if index >= dutil.SafeIntToUint64(t.Len()) {
 		return nil
 	}
 
@@ -72,14 +72,16 @@ func (t *Tree) Traverse() iter.Seq2[uint64, Node] {
 		}
 
 		for i, n := range slices.All(t.nodes) {
-			if !yield(uint64(i), n) {
+			if !yield(dutil.SafeIntToUint64(i), n) {
 				return
 			}
 		}
 	}
 }
 
-func childrenNodes(index uint64, nodes []Node) (c [2]Node, err error) {
+func childrenNodes(index uint64, nodes []Node) ([2]Node, error) {
+	var c [2]Node
+
 	i, err := children(uint64(len(nodes)), index)
 	if err != nil {
 		return c, err
@@ -105,13 +107,13 @@ func indexHeight(index uint64) uint64 {
 		return 0
 	}
 
-	return uint64(math.Log(float64(index+1)) / math.Log(2))
+	return uint64(math.Log(float64(index+1)) / math.Log(2)) //nolint:mnd
 }
 
 func lenNodesInHeight(size, height uint64) uint64 {
-	cf := uint64(math.Pow(2, float64(height)) - 1)
+	cf := uint64(math.Pow(2, float64(height)) - 1) //nolint:mnd
 
-	switch l := uint64(math.Pow(2, float64(height))); {
+	switch l := uint64(math.Pow(2, float64(height))); { //nolint:mnd
 	case cf+l > size:
 		return size - cf
 	default:
@@ -120,11 +122,11 @@ func lenNodesInHeight(size, height uint64) uint64 {
 }
 
 func indicesInHeight(size, height uint64) iter.Seq[uint64] {
-	cf := uint64(math.Pow(2, float64(height)) - 1)
+	cf := uint64(math.Pow(2, float64(height)) - 1) //nolint:mnd
 
 	var n uint64
 
-	switch l := uint64(math.Pow(2, float64(height))); {
+	switch l := uint64(math.Pow(2, float64(height))); { //nolint:mnd
 	case cf+l > size:
 		n = size - cf
 	default:
@@ -137,22 +139,24 @@ func indicesInHeight(size, height uint64) iter.Seq[uint64] {
 		}
 
 		for i := range n {
-			if !yield(cf + uint64(i)) {
+			if !yield(cf + i) {
 				return
 			}
 		}
 	}
 }
 
-func children(size, index uint64) (c [2]uint64, err error) {
+func children(size, index uint64) ([2]uint64, error) {
+	var c [2]uint64
+
 	height := indexHeight(index)
 
-	currentFirst := uint64(math.Pow(2, float64(height)) - 1)
-	nextFirst := uint64(math.Pow(2, float64(height+1)) - 1)
+	currentFirst := uint64(math.Pow(2, float64(height)) - 1) //nolint:mnd
+	nextFirst := uint64(math.Pow(2, float64(height+1)) - 1)  //nolint:mnd
 	pos := index - currentFirst
 
-	switch i := nextFirst + pos*2; { //nolint:mnd //...
-	case i >= uint64(size):
+	switch i := nextFirst + pos*2; { //nolint:mnd
+	case i >= size:
 		return c, errNoChildren.WithStack()
 	default:
 		c[0] = i
@@ -169,14 +173,14 @@ func parent(index uint64) (uint64, error) {
 		return 0, errNoParent.WithStack()
 	}
 
-	currentFirst := uint64(math.Pow(2, float64(height)) - 1)
+	currentFirst := uint64(math.Pow(2, float64(height)) - 1) //nolint:mnd
 	pos := index - currentFirst
 
 	if pos%2 == 1 {
 		pos--
 	}
 
-	upFirst := uint64(math.Pow(2, float64(height-1)) - 1)
+	upFirst := uint64(math.Pow(2, float64(height-1)) - 1) //nolint:mnd
 
 	return upFirst + pos/2, nil
 }
@@ -206,21 +210,17 @@ func baseTraverseByHeight(
 		nil
 }
 
-func traverseByHeight(size uint64) (iter.Seq2[uint64, iter.Seq[uint64]], error) {
-	return baseTraverseByHeight(size, func(_ uint64, i uint64) uint64 { return i })
-}
-
 func reverseByHeight(size uint64) (iter.Seq2[uint64, iter.Seq[uint64]], error) {
 	return baseTraverseByHeight(size, func(last, i uint64) uint64 { return last - i })
 }
 
-func AsyncIsValidNodesHash(ctx context.Context, semSize uint64, b []byte, nodes []Node) error {
-	nnodes := uint64(len(nodes))
+func AsyncIsValidNodesHash(ctx context.Context, semSize int64, b []byte, nodes []Node) error {
+	nnodes := int64(len(nodes))
 
 	switch {
 	case nnodes < 1:
 		return nil
-	case nnodes < 2:
+	case nnodes < 2: //nolint:mnd
 		return isValidNodeHash(b, 0, nodes)
 	}
 
@@ -228,9 +228,7 @@ func AsyncIsValidNodesHash(ctx context.Context, semSize uint64, b []byte, nodes 
 	var jobDone func()
 	var jobWait dutil.InErrorFunc[error]
 
-	if semSize > nnodes {
-		semSize = nnodes
-	}
+	semSize = min(semSize, nnodes)
 
 	switch n, d, w, err := dutil.NewFuncJobWorker(ctx, semSize); {
 	case err != nil:
@@ -239,7 +237,7 @@ func AsyncIsValidNodesHash(ctx context.Context, semSize uint64, b []byte, nodes 
 		newJob, jobDone, jobWait = n, d, w
 	}
 
-	for index := range nnodes {
+	for index := range uint64(nnodes) {
 		if err := newJob(func(context.Context) error {
 			return isValidNodeHash(b, index, nodes)
 		}); err != nil {

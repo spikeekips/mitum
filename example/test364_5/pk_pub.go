@@ -45,7 +45,7 @@ func (k *LazyMPublickey) UnmarshalText(b []byte) error {
 	return nil
 }
 
-var _ = any(LazyMPublickey("")).(base.Publickey)
+var _ = any(LazyMPublickey("")).(base.Publickey) //nolint:forcetypeassert
 
 func NewLazyMPublickey(s string) LazyMPublickey {
 	return LazyMPublickey(s)
@@ -66,7 +66,12 @@ func AssignJSONPublickey(v any, k *base.Publickey, enc *jsonenc.Encoder) dutil.E
 		case err != nil:
 			return nil, err
 		default:
-			return i.(base.Publickey), nil
+			p, ok := i.(base.Publickey)
+			if !ok {
+				return nil, errors.Errorf("expected base.Publickey, but %T", i)
+			}
+
+			return p, nil
 		}
 	})
 }

@@ -18,8 +18,11 @@ type testUnlimitedChans struct {
 }
 
 func (t *testUnlimitedChans) TestInsert() {
-	t.Run("insert", func() {
-		insert, done, seq := NewUnlimitedChans[int](0, 0)
+	t.RunWithGoLeak("insert", func() {
+		ctx, cancel := t.Ctx()
+		defer cancel(nil)
+
+		insert, done, seq := NewUnlimitedChans[int](ctx, 0, 0)
 
 		var expected []int
 		for i := range 333 {
@@ -35,8 +38,11 @@ func (t *testUnlimitedChans) TestInsert() {
 		t.Equal(expected, collected)
 	})
 
-	t.Run("insert; seq delayed", func() {
-		insert, done, seq := NewUnlimitedChans[int](1<<9, 1<<9)
+	t.RunWithGoLeak("insert; seq delayed", func() {
+		ctx, cancel := t.Ctx()
+		defer cancel(nil)
+
+		insert, done, seq := NewUnlimitedChans[int](ctx, 1<<9, 1<<9)
 
 		var expected, collected []int
 
@@ -77,8 +83,11 @@ func (t *testUnlimitedChans) TestInsert() {
 		}
 	})
 
-	t.Run("insert; seq", func() {
-		insert, done, seq := NewUnlimitedChans[int](1<<9, 1<<9)
+	t.RunWithGoLeak("insert; seq", func() {
+		ctx, cancel := t.Ctx()
+		defer cancel(nil)
+
+		insert, done, seq := NewUnlimitedChans[int](ctx, 1<<9, 1<<9)
 
 		var expected, collected []int
 
@@ -110,9 +119,12 @@ func (t *testUnlimitedChans) TestInsert() {
 		}
 	})
 
-	t.Run("insert: async", func() {
+	t.RunWithGoLeak("insert: async", func() {
 		for range 333 {
-			insert, done, seq := NewUnlimitedChans[int](1<<9, 1<<9)
+			ctx, cancel := t.Ctx()
+			defer cancel(nil)
+
+			insert, done, seq := NewUnlimitedChans[int](ctx, 1<<9, 1<<9)
 
 			var expected, collected []int
 
@@ -157,8 +169,11 @@ func (t *testUnlimitedChans) TestInsert() {
 }
 
 func (t *testUnlimitedChans) TestInsertDone() {
-	t.Run("done during insert", func() {
-		insert, done, seq := NewUnlimitedChans[int](1<<9, 1<<9)
+	t.RunWithGoLeak("done during insert", func() {
+		ctx, cancel := t.Ctx()
+		defer cancel(nil)
+
+		insert, done, seq := NewUnlimitedChans[int](ctx, 1<<9, 1<<9)
 
 		var collected []int
 
@@ -212,8 +227,11 @@ func (t *testUnlimitedChans) TestInsertDone() {
 }
 
 func (t *testUnlimitedChans) TestSeq() {
-	t.Run("empty insert", func() {
-		_, done, seq := NewUnlimitedChans[int](1<<9, 1<<9)
+	t.RunWithGoLeak("empty insert", func() {
+		ctx, cancel := t.Ctx()
+		defer cancel(nil)
+
+		_, done, seq := NewUnlimitedChans[int](ctx, 1<<9, 1<<9)
 
 		var collected []int
 
@@ -237,8 +255,11 @@ func (t *testUnlimitedChans) TestSeq() {
 		}
 	})
 
-	t.Run("stop during iter", func() {
-		insert, done, seq := NewUnlimitedChans[int](1<<9, 1<<9)
+	t.RunWithGoLeak("stop during iter", func() {
+		ctx, cancel := t.Ctx()
+		defer cancel(nil)
+
+		insert, done, seq := NewUnlimitedChans[int](ctx, 1<<9, 1<<9)
 
 		var collected []int
 
@@ -281,8 +302,11 @@ func (t *testUnlimitedChans) TestSeq() {
 		}
 	})
 
-	t.Run("no iter", func() {
-		insert, done, _ := NewUnlimitedChans[int](1<<9, 1<<9)
+	t.RunWithGoLeak("no iter", func() {
+		ctx, cancel := t.Ctx()
+		defer cancel(nil)
+
+		insert, done, _ := NewUnlimitedChans[int](ctx, 1<<9, 1<<9)
 
 		var wg sync.WaitGroup
 
@@ -301,8 +325,11 @@ func (t *testUnlimitedChans) TestSeq() {
 		done()
 	})
 
-	t.Run("iter; nil yield", func() {
-		insert, done, seq := NewUnlimitedChans[int](1<<9, 1<<9)
+	t.RunWithGoLeak("iter; nil yield", func() {
+		ctx, cancel := t.Ctx()
+		defer cancel(nil)
+
+		insert, done, seq := NewUnlimitedChans[int](ctx, 1<<9, 1<<9)
 
 		seqdone := make(chan struct{})
 		go func() {
@@ -337,11 +364,11 @@ func (t *testUnlimitedChans) TestSeq() {
 }
 
 func (t *testUnlimitedChans) TestContext() {
-	t.Run("cancel before new", func() {
+	t.RunWithGoLeak("cancel before new", func() {
 		ctx, cancel := t.Ctx()
 		cancel(errors.Errorf("showme"))
 
-		insert, done, seq := NewContextUnlimitedChans[int](ctx, 1<<9, 1<<9)
+		insert, done, seq := NewUnlimitedChans[int](ctx, 1<<9, 1<<9)
 		err := insert(1)
 		t.ErrorIs(err, context.Canceled)
 		done()
@@ -353,10 +380,10 @@ func (t *testUnlimitedChans) TestContext() {
 		t.Nil(collected)
 	})
 
-	t.Run("cancel during insert", func() {
+	t.RunWithGoLeak("cancel during insert", func() {
 		ctx, cancel := t.Ctx()
 
-		insert, done, seq := NewContextUnlimitedChans[int](ctx, 1<<9, 1<<9)
+		insert, done, seq := NewUnlimitedChans[int](ctx, 1<<9, 1<<9)
 
 		var collected []int
 
@@ -410,10 +437,10 @@ func (t *testUnlimitedChans) TestContext() {
 		}
 	})
 
-	t.Run("cancel before done", func() {
+	t.RunWithGoLeak("cancel before done", func() {
 		ctx, cancel := t.Ctx()
 
-		insert, done, seq := NewContextUnlimitedChans[int](ctx, 1<<9, 1<<9)
+		insert, done, seq := NewUnlimitedChans[int](ctx, 1<<9, 1<<9)
 
 		var expected, collected []int
 
@@ -470,10 +497,10 @@ func (t *testUnlimitedChans) TestContext() {
 		}
 	})
 
-	t.Run("cancel before seq", func() {
+	t.RunWithGoLeak("cancel before seq", func() {
 		ctx, cancel := t.Ctx()
 
-		insert, done, seq := NewContextUnlimitedChans[int](ctx, 1<<9, 1<<9)
+		insert, done, seq := NewUnlimitedChans[int](ctx, 1<<9, 1<<9)
 
 		var collected []int
 
@@ -525,10 +552,10 @@ func (t *testUnlimitedChans) TestContext() {
 		}
 	})
 
-	t.Run("cancel before delayed seq", func() {
+	t.RunWithGoLeak("cancel before delayed seq", func() {
 		ctx, cancel := t.Ctx()
 
-		insert, done, seq := NewContextUnlimitedChans[int](ctx, 1<<9, 1<<9)
+		insert, done, seq := NewUnlimitedChans[int](ctx, 1<<9, 1<<9)
 
 		var collected []int
 

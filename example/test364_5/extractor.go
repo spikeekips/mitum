@@ -12,8 +12,9 @@ import (
 type (
 	OpindexOpHashesFunc    = func(opindex uint64, oph, facth util.Hash) error
 	ctxOpindexOpHashesFunc = func(_ context.Context, opindex uint64, oph, facth util.Hash) error
-	GetOperationFactFunc   = func(_ context.Context, opindex uint64, oph, facth util.Hash) (_ OperationFact, found bool, reason string, _ error)
-	extractSMVsFunc        = func(context.Context, uint64, util.Hash, util.Hash) (
+	GetOperationFactFunc   = func(_ context.Context, opindex uint64, oph, facth util.Hash) (
+		_ OperationFact, found bool, reason string, _ error)
+	extractSMVsFunc = func(context.Context, uint64, util.Hash, util.Hash) (
 		subv SMV,
 		addvs []SMV,
 		reason string,
@@ -49,7 +50,7 @@ func newFuncSMVExtractor(
 	var jobDone func()
 	var jobWait dutil.InErrorFunc[error]
 
-	switch n, d, w, err := newJobWorker(ctx, maxOpsSize); {
+	switch n, d, w, err := newJobWorker(ctx, dutil.SafeUint64toInt64(maxOpsSize)); {
 	case err != nil:
 		return nil, nil, err
 	default:

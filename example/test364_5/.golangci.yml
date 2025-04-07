@@ -1,0 +1,207 @@
+# This configuration file is not a recommendation.
+#
+# We intentionally use a limited set of linters.
+# This configuration file is used with different version of golangci-lint to avoid regressions:
+# the linters can change between version,
+# their configuration may be not compatible or their reports can be different,
+# and this can break some of our tests.
+# Also, some linters are not relevant for the project (e.g. linters related to SQL).
+#
+# We have specific constraints, so we use a specific configuration.
+#
+# See the file `.golangci.reference.yml` to have a list of all available configuration options.
+
+version: "2"
+
+run:
+  build-tags:
+    - test
+    - valkey
+
+linters:
+  exclusions:
+    rules:
+      - path: '(.+)_test\.go'
+        text: '.*'
+
+      - path: tests\.go
+        text: '.*'
+
+      - linters:
+          - staticcheck
+        text: "QF1008:"
+
+  settings:
+    inamedparam:
+      skip-single-param: true
+
+    wsl:
+      strict-append: true
+      allow-assign-and-call: true
+      allow-assign-and-anything: true
+      allow-multiline-assign: true
+      force-case-trailing-whitespace: 0
+      allow-trailing-comment: false
+      allow-separated-leading-comment: true
+      allow-cuddle-declarations: true
+      allow-cuddle-used-in-block: true
+      force-err-cuddling: true
+      error-variable-names: ["err"]
+      force-short-decl-cuddling: false
+
+    wrapcheck:
+      ignore-package-globs:
+        - github.com/spikeekips/mitum/*
+
+    tagalign:
+      align: false
+
+    gosec:
+      excludes:
+        - G104
+
+    recvcheck:
+      disable-builtin: true
+      exclusions:
+        - "LazyMPublickey.UnmarshalText"
+
+    tagliatelle:
+      case:
+        rules:
+          json: snake
+
+    gomoddirectives:
+      replace-local: true
+      replace-allow-list:
+        - "github.com/hashicorp/memberlist"
+
+    revive:
+      rules:
+        - name: exported
+          disabled: true
+
+    mnd:
+      ignored-files:
+      ignored-numbers:
+        - '0o700'
+
+    cyclop:
+      max-complexity: 10
+
+    gocognit:
+      min-complexity: 30
+
+    funlen:
+      lines: -1
+      statements: 40
+      ignore-comments: true
+
+  enable:
+    - asasalint
+    - asciicheck
+    - bidichk
+    - bodyclose
+    - canonicalheader
+    - containedctx
+    - contextcheck
+    - copyloopvar
+    #- cyclop
+    - decorder
+    - dogsled
+    - dupl
+    - dupword
+    - durationcheck
+    - err113
+    - errcheck
+    - errchkjson
+    - errname
+    - errorlint
+    - exhaustive
+    - exptostd
+    - fatcontext
+    - forbidigo
+    - forcetypeassert
+    - funlen
+    - ginkgolinter
+    - gocheckcompilerdirectives
+    - gochecknoinits
+    - gochecksumtype
+    #- gocognit
+    - goconst
+    - gocritic
+    - gocyclo
+    - godot
+    - godox
+    - goheader
+    - gomoddirectives
+    - gomodguard
+    - goprintffuncname
+    - gosec
+    - gosmopolitan
+    - govet
+    - grouper
+    - iface
+    - importas
+    - inamedparam
+    - ineffassign
+    - interfacebloat
+    - intrange
+    - lll
+    - loggercheck
+    - maintidx
+    - makezero
+    - mirror
+    - misspell
+    - mnd
+    - musttag
+    - nakedret
+    - nestif
+    - nilerr
+    - nilnesserr
+    - nilnil
+    - nlreturn
+    - noctx
+    - nolintlint
+    - nonamedreturns
+    - nosprintfhostport
+    - paralleltest
+    - perfsprint
+    - prealloc
+    - predeclared
+    - promlinter
+    - protogetter
+    - reassign
+    - recvcheck
+    - revive
+    - rowserrcheck
+    - sloglint
+    - spancheck
+    - sqlclosecheck
+    - staticcheck
+    - tagalign
+    - tagliatelle
+    - testableexamples
+    - testifylint
+    - testpackage
+    - thelper
+    - tparallel
+    - unconvert
+    - unparam
+    - unused
+    - usestdlibvars
+    - usetesting
+    - wastedassign
+    - whitespace
+    - wrapcheck
+    - wsl
+    - zerologlint
+
+output:
+  sort-order:
+    - file
+    - linter
+    - severity
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

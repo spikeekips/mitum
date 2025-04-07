@@ -1,6 +1,7 @@
 package dop5
 
 import (
+	"context"
 	"testing"
 
 	"github.com/spikeekips/mitum/base"
@@ -14,7 +15,8 @@ import (
 func TestBaseStateEncode(tt *testing.T) {
 	t := new(mencoder.BaseTestEncode)
 
-	enc := jsonenc.NewEncoder(1 << 9)
+	enc := jsonenc.NewEncoder(context.Background(), 1<<9)
+	defer enc.Close()
 
 	t.Encode = func() (interface{}, []byte) {
 		sv := NewAccountSV(base.NewDummyPublickey(util.UUID().String()), 1)

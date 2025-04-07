@@ -20,6 +20,8 @@ const (
 
 	mergeFlag   xMergeFlag = "m"
 	unmergeFlag xMergeFlag = "u"
+	mergeName              = "merge"
+	unmergeName            = "unmerge"
 )
 
 type xMergeFlag string
@@ -27,9 +29,9 @@ type xMergeFlag string
 func (x xMergeFlag) String() string {
 	switch x {
 	case mergeFlag:
-		return "merge"
+		return mergeName
 	case unmergeFlag:
-		return "unmerge"
+		return unmergeName
 	default:
 		return fmt.Sprintf("<unknown: %q>", string(x))
 	}
@@ -72,11 +74,11 @@ func newFuncPhaseMerger(
 	getSMVs opindexGetSMVsFunc,
 	getSVMs mergerGetSVMsFunc,
 ) (
-	merge,
-	unmerge dutil.InErrorFunc[uint64],
-	done func(),
-	_ phaseMergerWaitFunc,
-	_ error,
+	dutil.InErrorFunc[uint64], /* merge */
+	dutil.InErrorFunc[uint64], /* unmerge */
+	func(), /* done */
+	phaseMergerWaitFunc,
+	error,
 ) {
 	getSMVs = mustFuncGetSMVs(getSMVs)
 
@@ -125,9 +127,7 @@ func newFuncPhaseMerger(
 			return newJob(opindex, mergeCallback(opindex))
 		},
 		func(opindex uint64) error {
-			// NOTE for testing
-			// addXMergedOp(basePhase, opindex, unmergeFlag)
-
+			// NOTE for testing addXMergedOp(basePhase, opindex, unmergeFlag)
 			return newJob(opindex, unmergeCallback(opindex))
 		},
 		jobDone,
@@ -162,8 +162,8 @@ func newFuncXMergeCallbacks(
 	getSMVs opindexGetSMVsFunc,
 	getSVMs mergerGetSVMsFunc,
 ) (
-	merge,
-	unmerge opindexPhaseJobWorkerCallback,
+	opindexPhaseJobWorkerCallback, /* merge */
+	opindexPhaseJobWorkerCallback, /* unmerge */
 ) {
 	var mergeCallback opindexPhaseJobWorkerCallback
 	var unmergeCallback opindexPhaseJobWorkerCallback
@@ -288,9 +288,9 @@ func unmergeValues(
 	getSVMs mergerGetSVMsFunc,
 	opindex uint64,
 ) (
-	committed bool,
-	nextMergeOps []uint64,
-	_ error,
+	bool, /* committed */
+	[]uint64, /* next merge ops */
+	error,
 ) {
 	var values []SMV
 
@@ -302,6 +302,9 @@ func unmergeValues(
 	default:
 		values = i
 	}
+
+	var committed bool
+	var nextMergeOps []uint64
 
 	return committed, nextMergeOps, getSVMs(
 		opindex,
@@ -323,15 +326,15 @@ func unmergeValues(
 	)
 }
 
-func extractSMVKeysFromValues(values []SMV) (stateKeys []string) {
+func extractSMVKeysFromValues(values []SMV) []string {
 	switch i := len(values); {
 	case i < 1:
 		return nil
-	case i < 2:
+	case i < 2: //nolint:mnd
 		return []string{values[0].Key()}
 	}
 
-	stateKeys = make([]string, len(values))
+	stateKeys := make([]string, len(values))
 
 	for i, value := range slices.All(values) {
 		stateKeys[i] = value.Key()
@@ -340,7 +343,7 @@ func extractSMVKeysFromValues(values []SMV) (stateKeys []string) {
 	return stateKeys
 }
 
-func newFuncExtractSMVKeys(ctx context.Context, maxSize, size int) (
+func newFuncExtractSMVKeys(ctx context.Context, maxSize, size uint64) (
 	extractSMVKeysFunc,
 	func(),
 ) {
@@ -348,7 +351,11 @@ func newFuncExtractSMVKeys(ctx context.Context, maxSize, size int) (
 		size = maxSize
 	}
 
-	get, _, lazySet, closef := dutil.NewLastFirstLazyCache[uint64, []string](ctx, size, uint64(maxSize), uint64(maxSize))
+	get, _, lazySet, closef := dutil.NewLastFirstLazyCache[uint64, []string](
+		ctx,
+		dutil.SafeUint64toInt(size),
+		maxSize, maxSize,
+	)
 
 	return func(opindex uint64, values []SMV) ([]string, error) {
 			if len(values) < 1 {
@@ -436,12 +443,12 @@ func newFuncCollectXmergedOps(
 	}
 
 	return func(phase int, opindex uint64, x xMergeFlag) {
-			switch {
-			case phase == basePhase:
+			switch phase {
+			case basePhase:
 				baseMergedOps.SetValue(opindex, x)
 
 				return
-			case phase == startPhase:
+			case startPhase:
 				if y, _ := baseMergedOps.Value(opindex); x == y {
 					return
 				}
@@ -487,9 +494,9 @@ func newFuncCollectXmergedOps(
 }
 
 func newFuncAddOpUnmergeReasons(mapSize uint64) (
-	add func(reasons map[uint64]string) error,
-	done func() (reasons map[uint64]string, _ error),
-	_ error,
+	func(reasons map[uint64]string) error, /* add */
+	func() (reasons map[uint64]string, _ error), /* done */
+	error,
 ) {
 	var m dutil.LockedMap[uint64, string]
 
@@ -509,8 +516,8 @@ func newFuncAddOpUnmergeReasons(mapSize uint64) (
 				r := reasons[i]
 
 				_, _ = m.Set(i, func(prev string, _ bool) (string, error) {
-					switch {
-					case prev == r:
+					switch r {
+					case prev:
 						return "", dutil.ErrLockedSetIgnore
 					default:
 						return r, nil
@@ -534,10 +541,10 @@ func xMergeOpValues(
 	getMerger func(SMV) (SVM, error),
 	xmergeFunc func(SVM) xMergeOpFunc,
 ) (
-	committed bool,
-	nextOps []uint64,
-	reasons map[uint64]string,
-	_ error,
+	bool, /* committed */
+	[]uint64, /* next ops */
+	map[uint64]string, /* reasons */
+	error,
 ) {
 	valuesSize := uint64(len(values))
 
@@ -565,6 +572,8 @@ func xMergeOpValues(
 	default:
 		addCommit, doneCommit = a, d
 	}
+
+	var reasons map[uint64]string
 
 	addReason := func() func(uint64, string) {
 		c := sync.OnceFunc(func() {
@@ -621,6 +630,8 @@ end:
 		return false, nil, reasons, nil
 	}
 
+	var committed bool
+
 	return committed, doneNext(), reasons, func() error {
 		for i, f := range slices.All(doneCommit()) {
 			if i == 0 {
@@ -641,10 +652,10 @@ func mergeOpValues(
 	values []SMV,
 	getMerger func(SMV) (SVM, error),
 ) (
-	committed bool,
-	nextUnmergeOps []uint64,
-	reasons map[uint64]string,
-	_ error,
+	bool, /* committed */
+	[]uint64, /* next unmerge ops */
+	map[uint64]string, /* reasons */
+	error,
 ) {
 	return xMergeOpValues(
 		opindex,
@@ -661,12 +672,12 @@ func unmergeOpValues(
 	values []SMV,
 	getMerger func(SMV) (SVM, error),
 ) (
-	committed bool,
-	nextMergeOps []uint64,
-	_ map[uint64]string,
-	_ error,
+	bool, /* committed */
+	[]uint64, /* next merge ops */
+	map[uint64]string,
+	error,
 ) {
-	committed, nextMergeOps, reasons, err := xMergeOpValues(
+	return xMergeOpValues(
 		opindex,
 		values,
 		getMerger,
@@ -683,15 +694,15 @@ func unmergeOpValues(
 			}
 		},
 	)
-
-	return committed, nextMergeOps, reasons, err
 }
 
 func newFuncGetOrCreateMerger(
 	m dutil.LockedMap[string, SVM],
 	getState GetStateFunc,
 ) func(SMV) (SVM, error) {
-	return func(value SMV) (merger SVM, _ error) {
+	return func(value SMV) (SVM, error) {
+		var merger SVM
+
 		return merger, m.GetOrCreate(
 			value.Key(),
 			func() (SVM, error) {

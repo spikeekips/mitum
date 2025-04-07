@@ -72,6 +72,7 @@ func (t *testManagerWorkersOps) TestCancel() {
 			workers, 1,
 			ophs,
 		)
+		t.NoError(err)
 
 		err = send(
 			func(ctx context.Context, worker string, maxItems uint64) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
@@ -169,6 +170,7 @@ func (t *testManagerWorkersOps) TestSend() {
 			workers, opsShare,
 			ophs,
 		)
+		t.NoError(err)
 
 		t.NoError(send(
 			func(ctx context.Context, worker string, maxItems uint64) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {

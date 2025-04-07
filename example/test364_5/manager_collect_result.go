@@ -30,7 +30,7 @@ type (
 
 func newFuncManagerCollectResult(
 	ctx context.Context,
-	workersSize, approxStatesSize uint64,
+	approxStatesSize uint64,
 	ophs [][2]util.Hash,
 ) (
 	ManagerInsertWorkerResultFunc,
@@ -45,7 +45,6 @@ func newFuncManagerCollectResult(
 	log := dutil.NewModuleLoggerFromContext(ctx, "manager-collect-result", nil)
 
 	log.Debug().
-		Uint64("workers_size", workersSize).
 		Uint64("approx_states_size", approxStatesSize).
 		Msg("new")
 
@@ -53,7 +52,7 @@ func newFuncManagerCollectResult(
 	var opsJobDone func()
 	var opsJobWait dutil.InErrorFunc[error]
 
-	switch n, d, w, err := dutil.NewFuncJobWorker(ctx, approxStatesSize); {
+	switch n, d, w, err := dutil.NewFuncJobWorker(ctx, dutil.SafeUint64toInt64(approxStatesSize)); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -83,7 +82,6 @@ func newFuncManagerCollectResult(
 
 	switch r, o, w, t, err := newFuncManagerWorkersResult(
 		ctx,
-		workersSize,
 		approxStatesSize,
 		opsNewJob,
 		func(reasons map[uint64]string) error {
@@ -104,7 +102,7 @@ func newFuncManagerCollectResult(
 
 	return workerResult,
 		ownersReady,
-		func(g fixedtree.GenerateNodesHashFunc) (opsTree, statesTree *fixedtree.Tree, _ error) {
+		func(g fixedtree.GenerateNodesHashFunc) (_, _ *fixedtree.Tree, _ error) {
 			defer func() {
 				_ = opsJobWait(context.Canceled)
 				_ = baseOpsDone(nil)
@@ -117,6 +115,8 @@ func newFuncManagerCollectResult(
 			if err := workersWait(); err != nil {
 				return nil, nil, err
 			}
+
+			var opsTree, statesTree *fixedtree.Tree
 
 			err := dutil.FuncsJobWorker(
 				ctx,
@@ -166,10 +166,10 @@ func newFuncGenerateOperationFixedtree(
 	ophs [][2]util.Hash,
 	newJob dutil.JobWorkerNewJobFunc,
 ) (
-	_ dutil.ErrorFunc,
-	unmerge dutil.In2ErrorFunc[uint64 /* opindex */, string /* reason */],
-	_ generateFixedTreeFunc,
-	_ error,
+	dutil.ErrorFunc, /* start */
+	dutil.In2ErrorFunc[uint64 /* opindex */, string /* reason */], /* unmerged */
+	generateFixedTreeFunc,
+	error,
 ) {
 	var pool dutil.LockedMap[uint64, *OperationTreeNode]
 
@@ -183,7 +183,7 @@ func newFuncGenerateOperationFixedtree(
 	return func() error {
 			for i, hs := range slices.All(ophs) {
 				if err := newJob(func(context.Context) error {
-					_, _ = pool.Set(uint64(i), func(n *OperationTreeNode, found bool) (*OperationTreeNode, error) {
+					_, _ = pool.Set(dutil.SafeIntToUint64(i), func(n *OperationTreeNode, found bool) (*OperationTreeNode, error) {
 						if found {
 							return nil, dutil.ErrLockedSetIgnore
 						}
@@ -222,7 +222,7 @@ func newFuncGenerateOperationFixedtree(
 		func(g fixedtree.GenerateNodesHashFunc) (*fixedtree.Tree, error) {
 			defer pool.Close()
 
-			nnodes := uint64(pool.Len())
+			nnodes := dutil.SafeIntToUint64(pool.Len())
 
 			if nnodes < 1 {
 				return nil, nil
@@ -243,18 +243,17 @@ func newFuncGenerateOperationFixedtree(
 		nil
 }
 
-func newFuncManagerWorkersResult(
+func newFuncManagerWorkersResult( //nolint:maintidx,gocyclo,funlen
 	ctx context.Context,
-	workersSize,
 	approxStatesSize uint64,
 	opsNewjob dutil.JobWorkerNewJobFunc,
 	workerReasons dutil.InErrorFunc[map[uint64]string],
 ) (
-	_ ManagerInsertWorkerResultFunc,
-	ready managerCollectResultOwnersReadyFunc,
-	insertDone dutil.ErrorFunc,
-	_ generateFixedTreeFunc,
-	_ error,
+	ManagerInsertWorkerResultFunc,
+	managerCollectResultOwnersReadyFunc, /* ready */
+	dutil.ErrorFunc, /* insert done */
+	generateFixedTreeFunc,
+	error,
 ) {
 	log := dutil.LoadContextValueLogger(ctx)
 
@@ -262,7 +261,7 @@ func newFuncManagerWorkersResult(
 	var jobDone func()
 	var jobWait dutil.InErrorFunc[error]
 
-	switch n, d, w, err := dutil.NewFuncJobWorker(ctx, approxStatesSize); {
+	switch n, d, w, err := dutil.NewFuncJobWorker(ctx, dutil.SafeUint64toInt64(approxStatesSize)); {
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:
@@ -286,7 +285,7 @@ func newFuncManagerWorkersResult(
 
 	workerErrPool := dutil.NewSingleLockedMap[string, error]()
 
-	checkWorkerDone := func(ctx context.Context, cw checkFailedWorkersFunc, worker string, err error) (bool, error) {
+	checkWorkerDone := func(cw checkFailedWorkersFunc, worker string, err error) (bool, error) {
 		l := log.With().Str("worker", worker).Logger()
 
 		switch ok, enough, failed := cw(worker, err); {
@@ -298,7 +297,7 @@ func newFuncManagerWorkersResult(
 		case enough:
 			l.Debug().Msg("enough")
 
-			workersDone(nil)
+			_ = workersDone(nil)
 
 			return false, nil
 		default:
@@ -308,7 +307,7 @@ func newFuncManagerWorkersResult(
 		return false, nil
 	}
 
-	workerDone := func(ctx context.Context, worker string, err error) error {
+	workerDone := func(worker string, err error) error {
 		l := log.With().Str("worker", worker).Logger()
 
 		var cw checkFailedWorkersFunc
@@ -332,7 +331,7 @@ func newFuncManagerWorkersResult(
 		case cw == nil:
 			return nil
 		default:
-			_, err := checkWorkerDone(ctx, cw, worker, err)
+			_, err := checkWorkerDone(cw, worker, err)
 
 			return err
 		}
@@ -393,13 +392,13 @@ func newFuncManagerWorkersResult(
 					}
 				},
 				func(err error) error {
-					defer cancel(nil)
+					defer func() { _ = cancel(nil) }()
 
 					if ok, err := checkContextError(); err != nil || !ok {
 						return err
 					}
 
-					switch err := workerDone(wctx, worker, err); {
+					switch err := workerDone(worker, err); {
 					case errors.Is(err, dutil.ErrJobWorkerDone),
 						errors.Is(err, context.Canceled):
 						return nil // ignore error
@@ -429,7 +428,7 @@ func newFuncManagerWorkersResult(
 					case err != nil:
 						return err
 					default:
-						checkWorker = func(worker string, err error) (ok, enough bool, failed error) {
+						checkWorker = func(worker string, err error) (ok, enough bool, failed error) { //nolint:nonamedreturns
 							if slices.Index(statesOwners, worker) < 0 {
 								return false, false, nil
 							}
@@ -445,7 +444,7 @@ func newFuncManagerWorkersResult(
 
 				// NOTE exhaust errors in pool
 				for worker, err := range workerErrPool.Seq2 {
-					if _, gerr := checkWorkerDone(ctx, checkWorker, worker, err); gerr != nil {
+					if _, gerr := checkWorkerDone(checkWorker, worker, err); gerr != nil {
 						return gerr
 					}
 				}
@@ -462,10 +461,12 @@ func newFuncManagerWorkersResult(
 
 			return workersWait()
 		},
-		func(g fixedtree.GenerateNodesHashFunc) (tr *fixedtree.Tree, _ error) {
+		func(g fixedtree.GenerateNodesHashFunc) (*fixedtree.Tree, error) {
 			defer func() {
 				_ = jobWait(context.Canceled)
 			}()
+
+			var tr *fixedtree.Tree
 
 			return tr, dutil.ContextCauseError(ctx, workersDone, func(context.Context) error {
 				if err := jobWait(nil); err != nil {

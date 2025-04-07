@@ -2,7 +2,6 @@ package dop5
 
 import (
 	"context"
-	"fmt"
 	"iter"
 	"maps"
 	"math"
@@ -19,21 +18,16 @@ type (
 	workerOperationsFunc         = dutil.In2ErrorFunc[string /* worker */, OpindexOpHashesFunc]
 	checkFailedWorkersFunc       = func(worker string, err error) (ok, enough bool, failed error)
 	checkWeightFailedWorkersFunc = func(worker string, weight uint64, err error) (ok, enough bool, failed error)
-	newCheckFailedWorkersFunc    = func(worker, share uint64, blockUntil func(string) bool) (
-		checkFailedWorkersFunc,
-		error,
-	)
-	getStateOwnersFunc     = func(stateKey string) []string
-	getOperationOwnersFunc = func(opindex uint64) []string
-	mergeStateOpFunc       = func(opindex uint64, facth util.Hash, stateKeys []string) bool
-	unmergeStateOpFunc     = func(ops []uint64) bool
-	getStateOpsFunc        = func(stateKey string) ([]util.Hash, error)
-	traverseStateOpsFunc   = func(dutil.In2ErrorFunc[int, getStateOpsFunc]) error
+	getStateOwnersFunc           = func(stateKey string) []string
+	mergeStateOpFunc             = func(opindex uint64, facth util.Hash, stateKeys []string) bool
+	unmergeStateOpFunc           = func(ops []uint64) bool
+	getStateOpsFunc              = func(stateKey string) ([]util.Hash, error)
+	traverseStateOpsFunc         = func(dutil.In2ErrorFunc[int, getStateOpsFunc]) error
 )
 
 var errWorkersFailed = util.NewIDError("workers failed")
 
-func minEnoughMaxFailed(workers, share uint64) (minEnough, maxFailed uint64, _ error) {
+func minEnoughMaxFailed(workers, share uint64) (minEnough, maxFailed uint64, _ error) { //nolint:nonamedreturns
 	switch {
 	case workers < 1:
 		return 0, 0, util.ErrInvalid.Errorf("zero workers")
@@ -76,7 +70,7 @@ func newFuncCheckWeightFailedWorkers(
 
 	pool := map[string]struct{}{}
 
-	return func(worker string, weight uint64, err error) (ok, enough bool, failed error) {
+	return func(worker string, weight uint64, err error) (ok, enough bool, failed error) { //nolint:nonamedreturns
 			l.Lock()
 			defer l.Unlock()
 
@@ -173,9 +167,10 @@ func newFuncSVMs(
 		getState,
 		extractSMVKeys,
 	)
+
 	return g,
 		func() (uint64, iter.Seq2[string, SVM]) {
-			return uint64(pool.Len()),
+			return dutil.SafeIntToUint64(pool.Len()),
 				func(yield func(string, SVM) bool) {
 					defer func() {
 						c()
@@ -227,7 +222,9 @@ func newFuncSetStateOps(mapSize uint64) (
 		keyPool = i
 	}
 
-	set := func(opindex uint64, stateKeys []string, x xMergeFlag) (ok bool) {
+	set := func(opindex uint64, stateKeys []string, x xMergeFlag) bool {
+		var ok bool
+
 		for stateKey := range slices.Values(stateKeys) {
 			_, _ = m.Set(stateKey, func(prev map[uint64]int, _ bool) (map[uint64]int, error) {
 				switch x {
@@ -347,10 +344,10 @@ func newFuncSetStateOps(mapSize uint64) (
 }
 
 func newSMVsPool(poolSize uint64) (
-	_ opindexGetSMVsFunc,
-	_ opindexSetSMVsFunc,
-	closef func(),
-	_ error,
+	opindexGetSMVsFunc,
+	opindexSetSMVsFunc,
+	func(), /* close */
+	error,
 ) {
 	var pool dutil.LockedMap[uint64, []SMV]
 
@@ -388,10 +385,10 @@ func stateOwnersFuncByCount(workers []string, share uint64) (getStateOwnersFunc,
 		f, closef = i, c
 	}
 
-	return func(stateKey string) (owners []string) {
+	return func(stateKey string) []string {
 			p := f(stateKey)
 
-			owners = make([]string, len(p))
+			owners := make([]string, len(p))
 			for i := range p {
 				owners[i] = workers[p[i]]
 			}
@@ -419,7 +416,7 @@ func opsNShareWorkers(workers []string, share uint64, ophs [][2]util.Hash) (
 
 	return func(yield func(string, uint64) bool) {
 			for i, worker := range slices.All(workers) {
-				if n := workerMaxItems(uint64(i)); n > 0 {
+				if n := workerMaxItems(dutil.SafeIntToUint64(i)); n > 0 {
 					if !yield(worker, n) {
 						return
 					}
@@ -484,7 +481,7 @@ func NewDistributeSerialNShare(workers, items, share uint64) (
 				return nil
 			}
 
-			for item := uint64(0); item < maxItems; item++ {
+			for item := range maxItems {
 				if err := f(pos(worker, item)); err != nil {
 					return err
 				}
@@ -549,12 +546,10 @@ func (p *failedWorkerPool) Close() {
 	clear(p.pool)
 }
 
-func (p *failedWorkerPool) workerError(worker string, err error) (added, failed bool, _ error) {
+func (p *failedWorkerPool) workerError(worker string, err error) (added, failed bool, _ error) { //nolint:nonamedreturns
 	if err == nil {
 		return false, false, errors.Errorf("nil error")
 	}
-
-	fmt.Printf("worker error: worker=%q err=%+v\n", worker, err)
 
 	p.l.Lock()
 	defer p.l.Unlock()
@@ -583,7 +578,7 @@ func (p *failedWorkerPool) workerError(worker string, err error) (added, failed 
 	}
 
 	if p.isSosReady {
-		if p.subOwnerError(worker, err) {
+		if p.subOwnerError(worker) {
 			return true, true, nil
 		}
 	}
@@ -591,7 +586,7 @@ func (p *failedWorkerPool) workerError(worker string, err error) (added, failed 
 	return true, false, nil
 }
 
-func (p *failedWorkerPool) subOwnerError(worker string, err error) (failed bool) {
+func (p *failedWorkerPool) subOwnerError(worker string) bool {
 	if slices.Index(p.sos, worker) < 0 {
 		return false
 	}
@@ -608,7 +603,7 @@ func (p *failedWorkerPool) subOwnerError(worker string, err error) (failed bool)
 	return false
 }
 
-func (p *failedWorkerPool) statesOwnersReady(sos []string) (failed bool, _ error) {
+func (p *failedWorkerPool) statesOwnersReady(sos []string) (bool, error) {
 	p.l.Lock()
 	defer p.l.Unlock()
 
@@ -626,7 +621,7 @@ func (p *failedWorkerPool) statesOwnersReady(sos []string) (failed bool, _ error
 	p.isSosReady = true
 
 	for worker := range slices.Values(sos) {
-		if err := p.pool[worker]; err != nil && p.subOwnerError(worker, err) {
+		if err := p.pool[worker]; err != nil && p.subOwnerError(worker) {
 			return true, nil
 		}
 	}
@@ -653,7 +648,7 @@ func (p *failedWorkerPool) statesOwners() ([]string, error) {
 	return p.sos, nil
 }
 
-func (p *failedWorkerPool) activeWorkers() (failed bool, _ iter.Seq[string]) {
+func (p *failedWorkerPool) activeWorkers() (bool, iter.Seq[string]) {
 	p.l.RLock()
 	defer p.l.RUnlock()
 
@@ -672,7 +667,7 @@ func (p *failedWorkerPool) activeWorkers() (failed bool, _ iter.Seq[string]) {
 		}
 }
 
-func (p *failedWorkerPool) activeOpsWorkers(f func(iter.Seq[string])) (failed bool) {
+func (p *failedWorkerPool) activeOpsWorkers(f func(iter.Seq[string])) bool {
 	p.l.RLock()
 	defer p.l.RUnlock()
 
@@ -693,7 +688,7 @@ func (p *failedWorkerPool) activeOpsWorkers(f func(iter.Seq[string])) (failed bo
 	return false
 }
 
-func (p *failedWorkerPool) activeStatesOwners(f func(iter.Seq[string])) (failed bool, _ error) {
+func (p *failedWorkerPool) activeStatesOwners(f func(iter.Seq[string])) (bool, error) {
 	p.l.RLock()
 	defer p.l.RUnlock()
 
@@ -718,7 +713,7 @@ func (p *failedWorkerPool) activeStatesOwners(f func(iter.Seq[string])) (failed 
 	return false, nil
 }
 
-func (p *failedWorkerPool) activeNonStatesOwners(f func(iter.Seq[string])) (failed bool, _ error) {
+func (p *failedWorkerPool) activeNonStatesOwners(f func(iter.Seq[string])) (bool, error) {
 	p.l.RLock()
 	defer p.l.RUnlock()
 
@@ -804,7 +799,7 @@ func newFuncDelayedWorkerDistributeSMVs(
 
 				switch t := i.(type) {
 				case [3]interface{}:
-					if err := sendOp(t[0].(uint64), t[1].(util.Hash), t[2].([]SMV)); err != nil {
+					if err := sendOp(t[0].(uint64), t[1].(util.Hash), t[2].([]SMV)); err != nil { //nolint:forcetypeassert
 						return err
 					}
 				case [2][]string:
@@ -817,9 +812,7 @@ func newFuncDelayedWorkerDistributeSMVs(
 			return nil
 		}
 
-		go func() {
-			wctxCancel(runseq())
-		}()
+		go func() { _ = wctxCancel(runseq()) }()
 
 		ifErrWctxCancel := dutil.NewIfErrErrorInFunc(wctxCancel, dutil.ErrContextUnlimitedChansInsertDone)
 
@@ -842,7 +835,7 @@ type newWorkersDistributeSMVsContextChansFunc = func(context.Context) (
 	iter.Seq[interface{}],
 )
 
-func newFuncWorkerProcessWorkersDistributeSMVs(
+func newFuncWorkerProcessWorkersDistributeSMVs( //nolint:gocyclo,funlen
 	ctx context.Context,
 	local string,
 	workers []string,
@@ -889,26 +882,29 @@ func newFuncWorkerProcessWorkersDistributeSMVs(
 
 	go func() {
 		defer func() {
-			wctxCancel(nil)
+			_ = wctxCancel(nil)
+
 			pool.Close()
 			created.Close()
 		}()
 
 		for i := range seq {
 			switch t := i.(type) {
-			case [4]interface{}: // op
-				worker := t[0].(string)
+			case [4]interface{}:
+				worker := t[0].(string) //nolint:forcetypeassert
 
 				var sendOp WorkerProcessInsertSMVsFunc
 				var gerr error
 
-				_, _ = pool.Set(worker, func(f [2]interface{}, found bool) (v [2]interface{}, _ error) {
+				_, _ = pool.Set(worker, func(f [2]interface{}, found bool) ([2]interface{}, error) {
+					var v [2]interface{}
+
 					if !found {
 						switch p, o, err := newf(ctx, worker); {
 						case err != nil:
 							gerr = err
 
-							return [2]interface{}{err, nil}, nil
+							return [2]interface{}{err, nil}, nil //nolint:nilerr
 						case p == nil:
 							return v, nil
 						default:
@@ -926,34 +922,36 @@ func newFuncWorkerProcessWorkersDistributeSMVs(
 						return v, dutil.ErrLockedSetIgnore
 					}
 
-					sendOp = f[0].(WorkerProcessInsertSMVsFunc)
+					sendOp = f[0].(WorkerProcessInsertSMVsFunc) //nolint:forcetypeassert
 
 					return v, dutil.ErrLockedSetIgnore
 				})
 
 				if gerr == nil && sendOp != nil {
-					gerr = sendOp(t[1].(uint64), t[2].(util.Hash), t[3].([]SMV))
+					gerr = sendOp(t[1].(uint64), t[2].(util.Hash), t[3].([]SMV)) //nolint:forcetypeassert
 				}
 
 				if gerr != nil {
 					log.Error().Err(gerr).
 						Str("worker", worker).
-						Uint64("opindex", t[1].(uint64)).
+						Uint64("opindex", t[1].(uint64)). //nolint:forcetypeassert
 						Msg("failed to send op")
 				}
 			case [3]interface{}: // owners
-				worker := t[0].(string)
+				worker := t[0].(string) //nolint:forcetypeassert
 
 				var sendOwners dutil.In2ErrorFunc[[]string, []string]
 				var gerr error
 
-				_, _ = pool.Set(worker, func(f [2]interface{}, found bool) (v [2]interface{}, _ error) {
+				_, _ = pool.Set(worker, func(f [2]interface{}, found bool) ([2]interface{}, error) {
+					var v [2]interface{}
+
 					if !found {
 						switch _, o, err := newf(ctx, worker); {
 						case err != nil:
 							gerr = err
 
-							return [2]interface{}{err, nil}, nil
+							return [2]interface{}{err, nil}, nil //nolint:nilerr
 						default:
 							sendOwners = o
 
@@ -969,7 +967,7 @@ func newFuncWorkerProcessWorkersDistributeSMVs(
 						return v, dutil.ErrLockedSetIgnore
 					}
 
-					sendOwners = f[1].(dutil.In2ErrorFunc[[]string, []string])
+					sendOwners = f[1].(dutil.In2ErrorFunc[[]string, []string]) //nolint:forcetypeassert
 
 					return v, nil
 				})
@@ -977,10 +975,11 @@ func newFuncWorkerProcessWorkersDistributeSMVs(
 				if gerr == nil && sendOwners != nil {
 					var subws, affected []string
 					if t[1] != nil {
-						subws = t[1].([]string)
+						subws = t[1].([]string) //nolint:forcetypeassert
 					}
+
 					if t[2] != nil {
-						affected = t[2].([]string)
+						affected = t[2].([]string) //nolint:forcetypeassert
 					}
 
 					gerr = sendOwners(subws, affected)
@@ -1009,7 +1008,7 @@ func newFuncWorkerProcessWorkersDistributeSMVs(
 				return nil
 			}
 
-			created.Set(worker, func(_ struct{}, found bool) (struct{}, error) {
+			_, _ = created.Set(worker, func(_ struct{}, found bool) (struct{}, error) {
 				if found {
 					return struct{}{}, dutil.ErrLockedSetIgnore
 				}

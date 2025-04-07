@@ -36,7 +36,7 @@ func (t *testDialPool) TestGetConnection() {
 		defer cancel(nil)
 
 		pool := t.NewDialPool()
-		dial, poolClose, err := NewDialPool(pool, nil, time.Minute)
+		dial, poolClose, err := NewDialPool(context.Background(), pool, nil, time.Minute)
 		t.NoError(err)
 		defer poolClose()
 
@@ -77,7 +77,7 @@ func (t *testDialPool) TestGetConnection() {
 		ctx, cancel := t.Ctx()
 
 		pool := t.NewDialPool()
-		dial, poolClose, err := NewDialPool(pool, nil, time.Minute)
+		dial, poolClose, err := NewDialPool(context.Background(), pool, nil, time.Minute)
 		t.NoError(err)
 		defer poolClose()
 
@@ -103,7 +103,7 @@ func (t *testDialPool) TestGetConnection() {
 		defer cancel(nil)
 
 		pool := t.NewDialPool()
-		dial, poolClose, err := NewDialPool(pool, nil, time.Minute)
+		dial, poolClose, err := NewDialPool(context.Background(), pool, nil, time.Minute)
 		t.NoError(err)
 		defer poolClose()
 
@@ -140,7 +140,7 @@ func (t *testDialPool) TestClean() {
 		interval := time.Millisecond * 33
 
 		pool := t.NewDialPool()
-		dial, poolClose, err := NewDialPool(pool, nil, interval)
+		dial, poolClose, err := NewDialPool(context.Background(), pool, nil, interval)
 		t.NoError(err)
 		defer poolClose()
 
@@ -165,7 +165,7 @@ func (t *testDialPool) TestClean() {
 
 		pool := t.NewDialPool()
 
-		dial, poolClose, err := NewDialPool(pool, nil, interval)
+		dial, poolClose, err := NewDialPool(context.Background(), pool, nil, interval)
 		t.NoError(err)
 		defer poolClose()
 
@@ -207,7 +207,7 @@ func (t *testDialPool) TestAsync() {
 
 	counts := dutil.NewSingleLockedMap[string, int]()
 
-	dial, poolClose, err := NewDialPool(pool, func(ctx context.Context, addr net.Addr, tlsConfig *tls.Config, quicConfig *quic.Config) (quic.Connection, error) {
+	dial, poolClose, err := NewDialPool(context.Background(), pool, func(ctx context.Context, addr net.Addr, tlsConfig *tls.Config, quicConfig *quic.Config) (quic.Connection, error) {
 		counts.Set(addr.String(), func(i int, found bool) (int, error) {
 			i++
 
@@ -290,7 +290,7 @@ func (t *testRequest) TestRequest() {
 		defer cancel(nil)
 
 		pool := t.NewDialPool()
-		dial, poolClose, err := NewDialPool(pool, nil, time.Minute)
+		dial, poolClose, err := NewDialPool(context.Background(), pool, nil, time.Minute)
 		t.NoError(err)
 		defer poolClose()
 
@@ -314,7 +314,7 @@ func (t *testRequest) TestRequest() {
 		defer cancel(nil)
 
 		pool := t.NewDialPool()
-		dial, poolClose, err := NewDialPool(pool, nil, time.Minute)
+		dial, poolClose, err := NewDialPool(context.Background(), pool, nil, time.Minute)
 		t.NoError(err)
 		defer poolClose()
 
@@ -342,7 +342,7 @@ func (t *testRequest) TestRequest() {
 		defer cancel(nil)
 
 		pool := t.NewDialPool()
-		dial, poolClose, err := NewDialPool(pool, nil, time.Minute)
+		dial, poolClose, err := NewDialPool(context.Background(), pool, nil, time.Minute)
 		t.NoError(err)
 		defer poolClose()
 

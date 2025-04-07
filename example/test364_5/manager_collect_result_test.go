@@ -26,7 +26,7 @@ func (t *testManagerCollectResult) TestCancel() {
 
 		cancel(nil)
 
-		wr, or, w, err := newFuncManagerCollectResult(ctx, 1<<9, 1<<9, t.randomOphs(3))
+		wr, or, w, err := newFuncManagerCollectResult(ctx, 1<<9, t.randomOphs(3))
 		t.NoError(err)
 
 		_, _, _, err = wr("w0")
@@ -41,7 +41,7 @@ func (t *testManagerCollectResult) TestCancel() {
 	t.RunWithGoLeak("before worker result", func() {
 		ctx, cancel := t.Ctx()
 
-		wr, or, w, err := newFuncManagerCollectResult(ctx, 1<<9, 1<<9, t.randomOphs(3))
+		wr, or, w, err := newFuncManagerCollectResult(ctx, 1<<9, t.randomOphs(3))
 		t.NoError(err)
 
 		cancel(nil)
@@ -58,7 +58,7 @@ func (t *testManagerCollectResult) TestCancel() {
 	t.RunWithGoLeak("during worker result", func() {
 		ctx, cancel := t.Ctx()
 
-		wr, or, w, err := newFuncManagerCollectResult(ctx, 1<<9, 1<<9, t.randomOphs(3))
+		wr, or, w, err := newFuncManagerCollectResult(ctx, 1<<9, t.randomOphs(3))
 		t.NoError(err)
 
 		var wg sync.WaitGroup
@@ -111,7 +111,7 @@ func (t *testManagerCollectResult) TestCancel() {
 	t.RunWithGoLeak("before owners", func() {
 		ctx, cancel := t.Ctx()
 
-		wr, or, w, err := newFuncManagerCollectResult(ctx, 1<<9, 1<<9, t.randomOphs(3))
+		wr, or, w, err := newFuncManagerCollectResult(ctx, 1<<9, t.randomOphs(3))
 		t.NoError(err)
 
 		r, s, d, err := wr("w0")
@@ -131,7 +131,7 @@ func (t *testManagerCollectResult) TestCancel() {
 	t.RunWithGoLeak("before wait", func() {
 		ctx, cancel := t.Ctx()
 
-		wr, or, w, err := newFuncManagerCollectResult(ctx, 1<<9, 1<<9, t.randomOphs(3))
+		wr, or, w, err := newFuncManagerCollectResult(ctx, 1<<9, t.randomOphs(3))
 		t.NoError(err)
 
 		r, s, d, err := wr("w0")
@@ -157,7 +157,7 @@ func (t *testManagerCollectResult) TestWorkerResult() {
 		ophs := t.randomOphs(3)
 		workers := []string{"w0", "w1"}
 
-		wr, or, w, err := newFuncManagerCollectResult(ctx, uint64(len(workers)), 1<<9, ophs)
+		wr, or, w, err := newFuncManagerCollectResult(ctx, 1<<9, ophs)
 		t.NoError(err)
 
 		_, _, d, err := wr("w0")
@@ -192,7 +192,7 @@ func (t *testManagerCollectResult) TestMaxFailed() {
 			t.T().Logf("workers=%d states share=%d min enough=%d max failed=%d", len(workers), statesShare, minEnough, maxFailed)
 		}
 
-		wr, or, w, err := newFuncManagerCollectResult(ctx, uint64(len(workers)), 1<<9, ophs)
+		wr, or, w, err := newFuncManagerCollectResult(ctx, 1<<9, ophs)
 		t.NoError(err)
 
 		t.NoError(or(workers, statesShare))
@@ -230,7 +230,7 @@ func (t *testManagerCollectResult) TestMaxFailed() {
 			t.T().Logf("workers=%d states share=%d min enough=%d max failed=%d", len(workers), statesShare, minEnough, maxFailed)
 		}
 
-		wr, or, w, err := newFuncManagerCollectResult(ctx, uint64(len(workers)), 1<<9, ophs)
+		wr, or, w, err := newFuncManagerCollectResult(ctx, 1<<9, ophs)
 		t.NoError(err)
 
 		t.NoError(or(workers, statesShare))
@@ -264,7 +264,7 @@ func (t *testManagerCollectResult) TestStatesOwners() {
 
 		ophs := t.randomOphs(3)
 
-		_, or, w, err := newFuncManagerCollectResult(ctx, uint64(len(t.workers(3))), 1<<9, ophs)
+		_, or, w, err := newFuncManagerCollectResult(ctx, 1<<9, ophs)
 		t.NoError(err)
 
 		t.NoError(or(nil, 1))
@@ -281,7 +281,7 @@ func (t *testManagerCollectResult) TestOpsTree() {
 		ctx, cancel := t.Ctx()
 		defer cancel(nil)
 
-		_, _, _, err := newFuncManagerCollectResult(ctx, uint64(len(t.workers(3))), 1<<9, nil)
+		_, _, _, err := newFuncManagerCollectResult(ctx, 1<<9, nil)
 		t.ErrorContains(err, "empty ophs")
 	})
 
@@ -292,7 +292,7 @@ func (t *testManagerCollectResult) TestOpsTree() {
 		ophs := t.randomOphs(3)
 		workers := []string{"w0"}
 
-		wr, or, w, err := newFuncManagerCollectResult(ctx, uint64(len(workers)), 1<<9, ophs)
+		wr, or, w, err := newFuncManagerCollectResult(ctx, 1<<9, ophs)
 		t.NoError(err)
 
 		_, _, d, err := wr("w0")
@@ -318,7 +318,7 @@ func (t *testManagerCollectResult) TestOpsTree() {
 
 		workers := []string{"w0"}
 
-		wr, or, w, err := newFuncManagerCollectResult(ctx, uint64(len(workers)), 1<<9, ophs)
+		wr, or, w, err := newFuncManagerCollectResult(ctx, 1<<9, ophs)
 		t.NoError(err)
 
 		r, _, d, err := wr("w0")
@@ -342,7 +342,7 @@ func (t *testManagerCollectResult) TestStatesTree() {
 		ophs := t.randomOphs(3)
 
 		workers := []string{"w0"}
-		wr, or, w, err := newFuncManagerCollectResult(ctx, uint64(len(workers)), 1<<9, ophs)
+		wr, or, w, err := newFuncManagerCollectResult(ctx, 1<<9, ophs)
 		t.NoError(err)
 
 		_, _, d, err := wr("w0")
@@ -364,7 +364,7 @@ func (t *testManagerCollectResult) TestStatesTree() {
 		ophs := t.randomOphs(3)
 
 		workers := []string{"w0"}
-		wr, or, w, err := newFuncManagerCollectResult(ctx, uint64(len(workers)), 1<<9, ophs)
+		wr, or, w, err := newFuncManagerCollectResult(ctx, 1<<9, ophs)
 		t.NoError(err)
 
 		expectedStates := make([][2]interface{}, 3)

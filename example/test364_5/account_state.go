@@ -74,12 +74,12 @@ type AccountSMV struct {
 	hint.BaseHinter
 }
 
-func NewAccountSMV(address base.Publickey, balance int64) (v *AccountSMV, _ error) {
+func NewAccountSMV(address base.Publickey, balance int64) (*AccountSMV, error) {
 	switch {
 	case address == nil:
-		return v, errors.Errorf("empty address")
+		return nil, errors.Errorf("empty address")
 	case balance == 0:
-		return v, errors.Errorf("zero balance")
+		return nil, errors.Errorf("zero balance")
 	default:
 		return &AccountSMV{
 			BaseHinter: hint.NewBaseHinter(AccountSMVHint),
@@ -172,7 +172,7 @@ func (m *AccountSVM) Close() (base.StateValue, error) {
 	}()
 
 	if m.sum == 0 {
-		return nil, nil
+		return nil, nil //nolint:nilnil
 	}
 
 	var merged *AccountSV
@@ -192,10 +192,10 @@ func (m *AccountSVM) Close() (base.StateValue, error) {
 }
 
 func (m *AccountSVM) Merge(op uint64, value base.StateValue) (
-	commit func() error,
-	unmergeOp uint64,
-	reason string,
-	_ error,
+	func() error, /* commit */
+	uint64, /* unmergeOp */
+	string, /* reason */
+	error,
 ) {
 	var ac *AccountSV
 
@@ -203,57 +203,78 @@ func (m *AccountSVM) Merge(op uint64, value base.StateValue) (
 		return nil, op, "invalid state value", err
 	}
 
-	unmergeOp = op
+	switch {
+	case ac.Balance < 0:
+		return m.mergeSub(op, ac)
+	default:
+		return m.mergeAdd(op, ac)
+	}
+}
 
-	if ac.Balance < 0 {
-		balance := ac.Balance
+func (m *AccountSVM) mergeSub(op uint64, ac *AccountSV) (
+	func() error,
+	uint64,
+	string,
+	error,
+) {
+	switch {
+	case m.address == nil:
+		return nil, op, "account not exists", nil
+	case m.prev != nil && m.prev.Balance+ac.Balance < 0:
+		return nil, op, "insufficient balance", nil
+	}
 
-		if m.prev != nil {
-			balance += m.prev.Balance
-		}
+	var reason string
+	unmergeOp := op
 
-		if balance < 0 {
-			return nil, op, "insufficient balance", nil
-		}
+	if m.lastop != nil {
+		lastMerged := *m.lastop
 
-		if m.lastop != nil {
-			lastMerged := *m.lastop
+		switch {
+		case op == lastMerged:
+			return nil, op, "", nil
+		case op > lastMerged:
+			m.addPrepOps(op)
 
-			switch {
-			case op == lastMerged:
-				return nil, op, "", nil
-			case op > lastMerged:
-				m.addPrepOps(op)
+			return nil, op, "previous issuer found", nil
+		default:
+			m.addPrepOps(lastMerged)
 
-				return nil, op, "previous issuer found", nil
-			default:
-				m.addPrepOps(lastMerged)
-
-				unmergeOp = lastMerged
-				reason = "previous issuer found"
-			}
+			unmergeOp = lastMerged
+			reason = "previous issuer found"
 		}
 	}
 
 	return func() error {
-		if m.address == nil {
-			m.address = ac.Address
-		}
-
-		if ac.Balance < 0 {
-			m.lastop = &op
-		}
-
+		m.address = ac.Address
+		m.lastop = &op
 		m.sum += ac.Balance
 
 		return nil
 	}, unmergeOp, reason, nil
 }
 
+func (m *AccountSVM) mergeAdd(op uint64, ac *AccountSV) (
+	func() error,
+	uint64,
+	string,
+	error,
+) {
+	return func() error {
+		if m.address == nil {
+			m.address = ac.Address
+		}
+
+		m.sum += ac.Balance
+
+		return nil
+	}, op, "", nil
+}
+
 func (m *AccountSVM) Unmerge(op uint64, value base.StateValue) (
-	commit func() error,
-	mergeOp uint64,
-	_ error,
+	func() error, /* commit */
+	uint64, /* mergeOp */
+	error,
 ) {
 	var ac *AccountSV
 
@@ -261,39 +282,60 @@ func (m *AccountSVM) Unmerge(op uint64, value base.StateValue) (
 		return nil, op, err
 	}
 
-	mergeOp = op
+	switch {
+	case ac.Balance < 0:
+		return m.unmergeSub(op, ac)
+	default:
+		return m.unmergeAdd(op, ac)
+	}
+}
 
-	if ac.Balance < 0 {
-		if m.prev.Balance+ac.Balance < 0 {
-			return nil, op, nil
-		}
+func (m *AccountSVM) unmergeSub(op uint64, ac *AccountSV) (
+	func() error,
+	uint64,
+	error,
+) {
+	if m.prev.Balance+ac.Balance < 0 {
+		return nil, op, nil
+	}
 
-		for s := range slices.Values(m.prepops) {
-			if s > op {
-				mergeOp = s
+	mergeOp := op
 
-				break
-			}
+	for s := range slices.Values(m.prepops) {
+		if s > op {
+			mergeOp = s
+
+			break
 		}
 	}
 
 	return func() error {
-		if ac.Balance < 0 {
-			if m.lastop != nil && *m.lastop == op {
-				m.lastop = nil
-			}
+		if m.lastop != nil && *m.lastop == op {
+			m.lastop = nil
+		}
 
-			if slices.Index(m.prepops, op) < 0 {
-				m.prepops = append(m.prepops, op)
+		if slices.Index(m.prepops, op) < 0 {
+			m.prepops = append(m.prepops, op)
 
-				slices.Sort(m.prepops)
-			}
+			slices.Sort(m.prepops)
 		}
 
 		m.sum -= ac.Balance
 
 		return nil
 	}, mergeOp, nil
+}
+
+func (m *AccountSVM) unmergeAdd(op uint64, ac *AccountSV) (
+	func() error,
+	uint64,
+	error,
+) {
+	return func() error {
+		m.sum -= ac.Balance
+
+		return nil
+	}, op, nil
 }
 
 func (m *AccountSVM) assertValue(value base.StateValue, t **AccountSV) error {

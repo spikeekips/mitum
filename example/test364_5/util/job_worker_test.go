@@ -19,7 +19,7 @@ type testJobWorker struct {
 }
 
 func (t *testJobWorker) TestNoError() {
-	var l uint64 = 10
+	var l int64 = 10
 	returnch := make(chan interface{}, l)
 
 	callback := func(j interface{}) InErrorFunc[context.Context] {
@@ -42,7 +42,7 @@ func (t *testJobWorker) TestNoError() {
 	newJob, jobDone, wait, _ := NewFuncJobWorker(context.Background(), l)
 
 	go func() {
-		for i := uint64(0); i < l; i++ {
+		for i := int64(0); i < l; i++ {
 			if err := newJob(callback(i)); err != nil {
 				break
 			}
@@ -55,14 +55,14 @@ func (t *testJobWorker) TestNoError() {
 
 	close(returnch)
 
-	e := make([]uint64, l)
-	for i := uint64(0); i < l; i++ {
+	e := make([]int64, l)
+	for i := int64(0); i < l; i++ {
 		e[i] = i
 	}
-	r := make([]uint64, l)
+	r := make([]int64, l)
 
 	for i := range returnch {
-		j := i.(uint64)
+		j := i.(int64)
 		r[j] = j
 	}
 
@@ -73,7 +73,7 @@ func (t *testJobWorker) TestNoError() {
 
 func (t *testJobWorker) TestError() {
 	t.Run("error", func() {
-		var l uint64 = 10
+		var l int64 = 10
 
 		var called uint64
 		callback := func(j interface{}) InErrorFunc[context.Context] {
@@ -82,7 +82,7 @@ func (t *testJobWorker) TestError() {
 					return nil
 				}
 
-				if i := j.(uint64); i == 3 {
+				if i := j.(int64); i == 3 {
 					return errors.Errorf("error:%d", j)
 				}
 
@@ -100,7 +100,7 @@ func (t *testJobWorker) TestError() {
 		newJob, jobDone, wait, _ := NewFuncJobWorker(context.Background(), l)
 
 		go func() {
-			for i := uint64(0); i < l; i++ {
+			for i := int64(0); i < l; i++ {
 				if err := newJob(callback(i)); err != nil {
 					break
 				}
@@ -208,7 +208,7 @@ func (t *testJobWorker) TestError() {
 }
 
 func (t *testJobWorker) TestDeadlineError() {
-	var l uint64 = 10
+	var l int64 = 10
 
 	var called uint64
 	callback := func() InErrorFunc[context.Context] {
@@ -230,7 +230,7 @@ func (t *testJobWorker) TestDeadlineError() {
 	newJob, jobDone, wait, _ := NewFuncJobWorker(ctx, l)
 
 	go func() {
-		for i := uint64(0); i < l; i++ {
+		for i := int64(0); i < l; i++ {
 			if err := newJob(callback()); err != nil {
 				break
 			}
@@ -250,7 +250,7 @@ func (t *testJobWorker) TestDeadlineError() {
 
 func (t *testJobWorker) TestCancel() {
 	t.Run("cancel after NewJob", func() {
-		var l uint64 = 10
+		var l int64 = 10
 
 		callback := func(j interface{}) InErrorFunc[context.Context] {
 			return func(ctx context.Context) error {
@@ -269,7 +269,7 @@ func (t *testJobWorker) TestCancel() {
 		newJob, jobDone, wait, _ := NewFuncJobWorker(ctx, l)
 
 		go func() {
-			for i := uint64(0); i < l; i++ {
+			for i := int64(0); i < l; i++ {
 				_ = newJob(callback(i))
 
 				if i == 3 {
@@ -323,20 +323,20 @@ func (t *testJobWorker) TestCancel() {
 }
 
 func (t *testJobWorker) TestCancelBeforeRun() {
-	var l uint64 = 33
+	var l int64 = 33
 
-	var called uint64
+	var called int64
 
 	callback := func(ctx context.Context) error {
-		if atomic.LoadUint64(&called) < 5 {
-			atomic.AddUint64(&called, 1)
+		if atomic.LoadInt64(&called) < 5 {
+			atomic.AddInt64(&called, 1)
 
 			return nil
 		}
 
 		select {
 		case <-time.After(time.Second):
-			atomic.AddUint64(&called, 1)
+			atomic.AddInt64(&called, 1)
 		case <-ctx.Done():
 			return ctx.Err()
 		}
@@ -350,7 +350,7 @@ func (t *testJobWorker) TestCancelBeforeRun() {
 
 	enoughch := make(chan bool)
 	go func() {
-		for i := uint64(0); i < l; i++ {
+		for i := int64(0); i < l; i++ {
 			if i == 5 {
 				enoughch <- true
 			}
@@ -368,7 +368,7 @@ func (t *testJobWorker) TestCancelBeforeRun() {
 	t.Error(err)
 	t.ErrorIs(err, context.Canceled)
 
-	c := atomic.LoadUint64(&called)
+	c := atomic.LoadInt64(&called)
 	t.T().Logf("called=%d, total=%d", c, l)
 	t.True(c < l, "called=%d, total=%d", c, l)
 }
@@ -428,7 +428,7 @@ func (t *testJobWorker) TestWait() {
 		newJob, jobDone, wait, err := NewFuncJobWorker(context.Background(), 3)
 		t.NoError(err)
 
-		jobdonech := make(chan struct{}, 0)
+		jobdonech := make(chan struct{})
 		t.NoError(newJob(func(context.Context) error {
 			jobdonech <- struct{}{}
 
@@ -452,7 +452,7 @@ func (t *testJobWorker) TestWait() {
 		newJob, jobDone, wait, err := NewFuncJobWorker(context.Background(), 3)
 		t.NoError(err)
 
-		jobdonech := make(chan struct{}, 0)
+		jobdonech := make(chan struct{})
 		t.NoError(newJob(func(context.Context) error {
 			jobdonech <- struct{}{}
 

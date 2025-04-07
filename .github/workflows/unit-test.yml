@@ -5,7 +5,7 @@ jobs:
   unit:
     strategy:
       matrix:
-        go: ["1.23.x" ]
+        go: ["1.24.x" ]
     runs-on: ubuntu-latest
     name: Unit tests Go ${{ matrix.go }})
     steps:
@@ -16,15 +16,13 @@ jobs:
           go-version: ${{ matrix.go }}
           check-latest: true
 
-      - uses: shogo82148/actions-setup-redis@v1
-
       - run: go version
 
       - name: run go test
         run: bash .github/workflows/unit-test.sh
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           file: /tmp/allcov.out
           env_vars: GO=${{ matrix.go }}

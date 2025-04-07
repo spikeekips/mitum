@@ -108,6 +108,7 @@ func (n *BaseNode) UnmarshalJSON(b []byte) error {
 	}
 
 	*n = *u
+
 	return nil
 }
 

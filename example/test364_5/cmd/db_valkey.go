@@ -9,7 +9,6 @@ import (
 	"github.com/spikeekips/mitum/base"
 	dop5 "github.com/spikeekips/mitum/example/test364_5"
 	"github.com/spikeekips/mitum/example/test364_5/encoder"
-	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 	"github.com/valkey-io/valkey-go"
 )
@@ -20,14 +19,14 @@ type valkeyDB struct {
 }
 
 func (db *valkeyDB) ping(ctx context.Context) error {
-	return db.client.Do(ctx, db.client.B().Ping().Build()).Error()
+	return errors.WithStack(db.client.Do(ctx, db.client.B().Ping().Build()).Error())
 }
 
 func (db *valkeyDB) flushAll(ctx context.Context) error {
-	return db.client.Do(ctx, db.client.B().Flushall().Build()).Error()
+	return errors.WithStack(db.client.Do(ctx, db.client.B().Flushall().Build()).Error())
 }
 
-func (db *valkeyDB) saveOperationFacts(ctx context.Context, semSize, bulkSize uint64, ops []dop5.OperationFact) error {
+func (db *valkeyDB) saveOperationFacts(ctx context.Context, semSize, bulkSize int64, ops []dop5.OperationFact) error {
 	return valkeyBulkSave(
 		ctx,
 		db.enc,
@@ -47,7 +46,7 @@ func (db *valkeyDB) getOperationFact(ctx context.Context, facth util.Hash, fact 
 	return valkeyGet(ctx, db.enc, db.client, valkeyOperationFactKey(facth), fact)
 }
 
-func (db *valkeyDB) saveStates(ctx context.Context, semSize, bulkSize uint64, states []base.State) error {
+func (db *valkeyDB) saveStates(ctx context.Context, semSize, bulkSize int64, states []base.State) error {
 	return valkeyBulkSave(
 		ctx,
 		db.enc,
@@ -72,12 +71,13 @@ func (db *valkeyDB) getStates(ctx context.Context) iter.Seq2[base.State, error] 
 		var cursor uint64
 
 		for {
-			entry, err := db.client.Do(ctx, db.client.B().Scan().Cursor(cursor).Match("st-*").Count(1<<9).Build()).AsScanEntry()
+			entry, err := db.client.Do(ctx, db.client.B().Scan().Cursor(cursor).Match("st-*").Build()).AsScanEntry()
 			if err != nil {
 				yield(nil, err)
 
 				return
 			}
+
 			if len(entry.Elements) < 1 {
 				return
 			}
@@ -90,6 +90,7 @@ func (db *valkeyDB) getStates(ctx context.Context) iter.Seq2[base.State, error] 
 
 				return
 			}
+
 			switch i := len(vs); {
 			case i < 1:
 				yield(nil, errors.Errorf("empty"))
@@ -135,7 +136,7 @@ func valkeyBulkSave[T any](
 	ctx context.Context,
 	enc encoder.Encoder,
 	client valkey.Client,
-	semSize, bulkSize uint64,
+	semSize, bulkSize int64,
 	items []T,
 	setPipe func(valkey.Builder, T, []byte) valkey.Completed,
 ) error {
@@ -148,14 +149,14 @@ func valkeyBulkSave[T any](
 		return errors.Errorf("zero bulk size")
 	}
 
-	newJob, jobDone, jobWait, err := dutil.NewFuncJobWorker(ctx, semSize)
+	newJob, jobDone, jobWait, err := defaultNewFuncJobWorker(ctx, semSize)
 	if err != nil {
 		return err
 	}
 
-	size := uint64(len(items))
+	size := int64(len(items))
 
-	for i := uint64(0); i < size; i += bulkSize {
+	for i := int64(0); i < size; i += bulkSize {
 		if err := newJob(func(ctx context.Context) error {
 			e := i + bulkSize
 			if e > size {
@@ -175,7 +176,7 @@ func valkeyBulkSave[T any](
 
 			for res := range slices.Values(client.DoMulti(ctx, cmds...)) {
 				if err := res.Error(); err != nil {
-					return err
+					return errors.WithStack(err)
 				}
 			}
 
@@ -197,11 +198,11 @@ func valkeyGet[T any](
 	key string,
 	t *T,
 ) (bool, error) {
-	switch s, err := client.Do(context.Background(), client.B().Get().Key(key).Build()).ToString(); {
+	switch s, err := client.Do(ctx, client.B().Get().Key(key).Build()).ToString(); {
 	case err != nil && errors.Is(err, valkey.Nil):
 		return false, nil
 	case err != nil:
-		return false, err
+		return false, errors.WithStack(err)
 	default:
 		return true, encoder.Unmarshal(enc, []byte(s), t)
 	}

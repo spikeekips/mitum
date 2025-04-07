@@ -52,18 +52,18 @@ type (
 type WorkerOptions struct {
 	Local                       string
 	JobWorkerMaxSemSize         uint64
-	MaxExtractStateKeyCacheSize int
+	MaxExtractStateKeyCacheSize uint64
 }
 
 func NewWorkerOptions(local string) *WorkerOptions {
 	return &WorkerOptions{
 		Local:                       local,
-		JobWorkerMaxSemSize:         1 << 9,
-		MaxExtractStateKeyCacheSize: 1 << 13,
+		JobWorkerMaxSemSize:         1 << 9,  //nolint:mnd
+		MaxExtractStateKeyCacheSize: 1 << 13, //nolint:mnd
 	}
 }
 
-func NewFuncWorker(
+func NewFuncWorker( //nolint:maintidx
 	ctx context.Context,
 	options *WorkerOptions,
 	getState GetStateFunc,
@@ -124,7 +124,7 @@ func NewFuncWorker(
 	switch i, w, u, p, err := newFuncWorkerProcess(
 		wctx,
 		options.Local,
-		dutil.NewFuncNewJobWorkerFunc(options.JobWorkerMaxSemSize),
+		dutil.NewFuncNewJobWorkerFunc(dutil.SafeUint64toInt64(options.JobWorkerMaxSemSize)),
 		getState,
 		createState,
 		options.MaxExtractStateKeyCacheSize,
@@ -141,7 +141,7 @@ func NewFuncWorker(
 	var bgNewJob dutil.JobWorkerNewJobFunc
 	var bgJobWait dutil.InErrorFunc[error]
 
-	switch n, d, w, err := dutil.NewFuncJobWorker(wctx, uint64(len(workers))); {
+	switch n, d, w, err := dutil.NewFuncJobWorker(wctx, int64(len(workers))); {
 	case err != nil:
 		return nil, nil, nil, nil, nil, err
 	default:
@@ -170,7 +170,7 @@ func NewFuncWorker(
 					func(),
 					iter.Seq[interface{}],
 				) {
-					return dutil.NewContextUnlimitedChans[interface{}](ctx, maxOpsSize*2, maxOpsSize*2)
+					return dutil.NewUnlimitedChans[interface{}](ctx, maxOpsSize*2, maxOpsSize*2) //nolint:mnd
 				},
 			)
 

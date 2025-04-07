@@ -28,14 +28,13 @@ func writeSMVBundle(w io.Writer, enc encoder.Encoder, opindex uint64, fact util.
 	seq := func(yield func([]byte, error) bool) {
 		for i := range slices.Values(values) {
 			b, err := enc.Marshal(i)
-
 			if !yield(b, err) {
 				return
 			}
 		}
 	}
 
-	if err := frame.WriteFixedSlice(buf, uint32(len(values)), seq); err != nil {
+	if err := frame.WriteFixedSlice(buf, dutil.SafeIntToUint32(len(values)), seq); err != nil {
 		return err
 	}
 

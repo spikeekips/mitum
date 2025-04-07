@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"iter"
 	"slices"
@@ -56,14 +57,14 @@ func smvsBundleDecodeJSON(enc *jsonenc.Encoder, m map[string]any) (any, error) {
 func TestDecodeSMV(tt *testing.T) {
 	defer goleak.VerifyNone(tt,
 		goleak.IgnoreTopFunction("runtime/pprof.readProfile"),
-		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewContextUnlimitedChans[...].func2"),
-		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewContextUnlimitedChans[...].func4"),
 	)
 
 	t := new(dutil.BaseSuite)
 	t.SetT(tt)
 
-	enc := jsonenc.NewEncoder(1 << 9)
+	enc := jsonenc.NewEncoder(context.Background(), 1<<9)
+	defer enc.Close()
+
 	t.NoError(jsonenc.AddDecode(enc, base.MPublickeyHint, &base.MPublickey{}, dop5.DecodeJSONMPublickey))
 	t.NoError(jsonenc.AddDecode(enc, dop5.AccountSVHint, &dop5.AccountSV{}, dop5.AccountSVDecodeJSON))
 	t.NoError(jsonenc.AddDecode(enc, dop5.AccountSMVHint, &dop5.AccountSMV{}, dop5.AccountSMVDecodeJSON))

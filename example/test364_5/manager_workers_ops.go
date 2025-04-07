@@ -9,20 +9,21 @@ import (
 )
 
 type (
-	newWorkerSendOpFunc func(_ context.Context, worker string, maxItems uint64) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error)
+	newWorkerSendOpFunc func(_ context.Context, worker string, maxItems uint64) (
+		OpindexOpHashesFunc, dutil.InErrorFunc[error], error)
 )
 
-func newFuncManagerWorkersOps(
+func newFuncManagerWorkersOps( //nolint:funlen
 	ctx context.Context,
 	newJobWorker dutil.NewJobWorkerFunc,
 	workers []string,
 	opsShare uint64,
 	ophs [][2]util.Hash,
 ) (
-	opsWorkers []string,
-	_ dutil.InErrorFunc[newWorkerSendOpFunc],
-	_ dutil.ErrorFunc,
-	_ error,
+	[]string, /* ops workers */
+	dutil.InErrorFunc[newWorkerSendOpFunc],
+	dutil.ErrorFunc,
+	error,
 ) {
 	if len(ophs) < 1 {
 		return nil, nil, nil, util.ErrInvalid.Errorf("empty ophs")
@@ -41,12 +42,15 @@ func newFuncManagerWorkersOps(
 	var workerOps workerOperationsFunc
 	var opsWorkerMaxItems map[string]uint64
 
+	var opsWorkers []string
+
 	switch w, d, err := opsNShareWorkers(workers, opsShare, ophs); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
 		opsWorkers = make([]string, 0, len(workers))
 		opsWorkerMaxItems = map[string]uint64{}
+
 		for worker, maxItems := range w {
 			opsWorkers = append(opsWorkers, worker)
 			opsWorkerMaxItems[worker] = maxItems
@@ -76,7 +80,7 @@ func newFuncManagerWorkersOps(
 	var jobDone func()
 	var jobWait dutil.InErrorFunc[error]
 
-	switch n, d, w, err := newJobWorker(ctx, opsWorkersSize); {
+	switch n, d, w, err := newJobWorker(ctx, dutil.SafeUint64toInt64(opsWorkersSize)); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:

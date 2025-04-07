@@ -11,12 +11,6 @@ import (
 type (
 	phaseJobWorkerNewJobFunc func(jobID uint64, _ phaseJobWorkerCallback) error
 	phaseJobWorkerCallback   = func(_ context.Context, phase int, _ phaseJobWorkerNewJobFunc) error
-	newPhaseJobWorkerFunc    = func(context.Context) (
-		newJob phaseJobWorkerNewJobFunc,
-		jobDone func(),
-		wait dutil.ErrorFunc,
-		_ error,
-	)
 )
 
 func newFuncPhaseJobWorker(
@@ -48,7 +42,7 @@ func newFuncPhaseJobWorker(
 	var jobDone func()
 	var jobWait dutil.InErrorFunc[error]
 
-	switch n, d, w, err := newJobWorker(ctx, jobIDMapSize); {
+	switch n, d, w, err := newJobWorker(ctx, dutil.SafeUint64toInt64(jobIDMapSize)); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -74,6 +68,7 @@ func newFuncPhaseJobWorker(
 		func() error {
 			defer func() {
 				_ = nextPhaseWait()
+
 				jobIDClose()
 			}()
 
@@ -148,9 +143,9 @@ func newLockedPhaseJobWorker(
 }
 
 func newFuncJobID(mapSize uint64) (
-	filter func(jobID uint64, phase int) (ok bool),
-	closef func(),
-	_ error,
+	func(jobID uint64, phase int) (ok bool), /* filter */
+	func(), /* close */
+	error,
 ) {
 	var m dutil.LockedMap[uint64, int]
 
@@ -161,7 +156,7 @@ func newFuncJobID(mapSize uint64) (
 		m = i
 	}
 
-	return func(jobID uint64, phase int) (ok bool) {
+	return func(jobID uint64, phase int) (ok bool) { //nolint:nonamedreturns
 			_, _ = m.Set(jobID, func(prev int, found bool) (int, error) {
 				if found && phase == prev {
 					return 0, dutil.ErrLockedSetIgnore

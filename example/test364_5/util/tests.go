@@ -216,7 +216,7 @@ func (t *BaseSuite) Ctx() (context.Context, InErrorFunc[error]) {
 	ctx, cancel := ContextWithCancelCause(context.Background())
 
 	t.T().Cleanup(func() {
-		cancel(nil)
+		_ = cancel(nil)
 	})
 
 	return ctx, cancel

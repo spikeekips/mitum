@@ -16,7 +16,12 @@ import (
 )
 
 type (
-	CreateStateFunc = func(string /* state key */, base.StateValue, util.Hash /* previous hash */, []util.Hash /* op fact hashes */) (
+	CreateStateFunc = func(
+		string, /* state key */
+		base.StateValue,
+		util.Hash, /* previous hash */
+		[]util.Hash, /* op fact hashes */
+	) (
 		base.State,
 		error,
 	)
@@ -44,11 +49,7 @@ type (
 		dutil.InErrorFunc[OpindexOpHashesFunc],
 		dutil.In2ErrorFunc[[]string /* owners */, map[uint64]string /* reasons */],
 	) error
-	WorkerProcessInsertSMVsFunc     = func(opindex uint64, facth util.Hash, _ []SMV) error
-	workerProcessInsertSMVsCallback = func(
-		WorkerProcessInsertSMVsFunc,
-		dutil.In2ErrorFunc[[]string /* sub */, []string /* affected */],
-	) error
+	WorkerProcessInsertSMVsFunc       = func(opindex uint64, facth util.Hash, _ []SMV) error
 	WorkerProcessWorkerInsertSMVsFunc = func(worker string) (
 		WorkerProcessInsertSMVsFunc,
 		dutil.In2ErrorFunc[[]string /* sub */, []string /* affected */],
@@ -73,7 +74,7 @@ func newFuncWorkerProcess(
 	newJobWorker dutil.NewJobWorkerFunc,
 	getStatef GetStateFunc,
 	createStatef CreateStateFunc,
-	maxExtractStateKeyCacheSize int,
+	maxExtractStateKeyCacheSize uint64,
 	workers, opsWorkers []string,
 	opsShare, statesShare uint64,
 	maxOpsSize uint64,
@@ -100,7 +101,7 @@ func newFuncWorkerProcess(
 
 	extractSMVKeys, extractStateKeyClose := newFuncExtractSMVKeys(
 		ctx,
-		maxExtractStateKeyCacheSize, int(maxOpsSize*2))
+		maxExtractStateKeyCacheSize, maxOpsSize*2) //nolint:mnd
 
 	var getState GetStateFunc
 	var createState createStateFunc2
@@ -117,7 +118,7 @@ func newFuncWorkerProcess(
 	var traverseSVMsf func() (uint64, iter.Seq2[string, SVM])
 
 	switch g, t, err := newFuncSVMs(
-		maxOpsSize*2, // NOTE approximate states size
+		maxOpsSize*2, //nolint:mnd // NOTE approximate states size
 		getState,
 		extractSMVKeys,
 	); {
@@ -139,8 +140,6 @@ func newFuncWorkerProcess(
 		ctx,
 		local,
 		newJobWorker,
-		getState,
-		createState,
 		workers,
 		opsWorkers,
 		opsShare, statesShare, maxOpsSize,
@@ -258,8 +257,6 @@ func newFuncWorkerProcessSVM(
 	ctx context.Context,
 	local string,
 	newJobWorker dutil.NewJobWorkerFunc,
-	getState GetStateFunc,
-	createState createStateFunc2,
 	workers []string,
 	opsWorkers []string,
 	opsShare, statesShare, maxOpsSize uint64,
@@ -295,9 +292,8 @@ func newFuncWorkerProcessSVM(
 		ctx,
 		local,
 		newJobWorker,
-		getState,
 		getSVMs,
-		uint64(len(workers)), maxOpsSize, maxOpsSize*2, // NOTE approximate states size
+		maxOpsSize, maxOpsSize*2, //nolint:mnd // NOTE approximate states size
 		opsWorkers, opsShare, statesShare,
 	); {
 	case err != nil:
@@ -420,7 +416,7 @@ func newFuncWorkerProcessInitialInsert(
 	var extractorWait dutil.InErrorFunc[dutil.InErrorFunc[map[uint64]string]]
 
 	switch i, e, err := newFuncSMVExtractor(
-		context.WithValue(ctx, "local", local),
+		context.WithValue(ctx, dutil.ContextKey("local"), local),
 		newJobWorker, maxOpsSize); {
 	case err != nil:
 		return nil, err
@@ -457,9 +453,9 @@ func newFuncWorkerProcessInitialInsert(
 					func(),
 					iter.Seq[interface{}],
 				) {
-					return dutil.NewContextUnlimitedChans[interface{}](
+					return dutil.NewUnlimitedChans[interface{}](
 						ctx,
-						maxOpsSize*2, maxOpsSize*2, // NOTE approximate states size
+						maxOpsSize*2, maxOpsSize*2, //nolint:mnd // NOTE approximate states size
 					)
 				}); {
 			case err != nil:
@@ -478,7 +474,7 @@ func newFuncWorkerProcessInitialInsert(
 			case err != nil:
 				return err
 			default:
-				defer d(nil)
+				defer func() { _ = d(nil) }()
 
 				insert = i
 			}
@@ -570,9 +566,7 @@ func mergeStateOpFromValues(
 	facth util.Hash,
 	values []SMV,
 ) error {
-	var stateKeys []string
-
-	stateKeys = make([]string, len(values))
+	stateKeys := make([]string, len(values))
 
 	for i, value := range slices.All(values) {
 		stateKeys[i] = value.Key()
@@ -599,7 +593,7 @@ func workerProcessCloseSVMs(
 		var jobDone func()
 		var jobWait dutil.InErrorFunc[error]
 
-		switch n, d, w, err := dutil.NewFuncJobWorker(ctx, uint64(size)); {
+		switch n, d, w, err := dutil.NewFuncJobWorker(ctx, int64(size)); {
 		case err != nil:
 			return err
 		default:
@@ -653,7 +647,7 @@ func mergeUnusedReasons(reasons map[uint64]string, unusedOps *atomic.Value) map[
 	var u map[uint64]string
 
 	if i := unusedOps.Load(); i != nil {
-		u = maps.Clone(i.(map[uint64]string))
+		u = maps.Clone(i.(map[uint64]string)) //nolint:forcetypeassert
 	}
 
 	switch {
@@ -672,7 +666,9 @@ func mergeUnusedReasons(reasons map[uint64]string, unusedOps *atomic.Value) map[
 	return reasons
 }
 
-func newGetCreateStateFunc(size uint64, get GetStateFunc, create CreateStateFunc) (GetStateFunc, createStateFunc2, func(), error) {
+func newGetCreateStateFunc(size uint64, get GetStateFunc, create CreateStateFunc) (
+	GetStateFunc, createStateFunc2, func(), error,
+) {
 	var pool dutil.LockedMap[string, base.State]
 
 	switch i, err := dutil.NewLockedMap[string, base.State](nil, size); {

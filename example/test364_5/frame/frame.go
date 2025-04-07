@@ -64,7 +64,9 @@ func (t streamingChunkType) String() string {
 	}
 }
 
-func LoadReader(r io.Reader) (t frameType, _ io.Reader, _ error) {
+func LoadReader(r io.Reader) (frameType, io.Reader, error) {
+	var t frameType
+
 	switch i, n, err := readFrameType(r); {
 	case err != nil && !errors.Is(err, io.EOF),
 		n < 1 && errors.Is(err, io.EOF):
@@ -87,28 +89,28 @@ func LoadReader(r io.Reader) (t frameType, _ io.Reader, _ error) {
 	}
 }
 
-func readFrameTypeByte(r io.Reader) (t byte, _ int, _ error) {
+func readFrameTypeByte(r io.Reader) (byte, int, error) {
 	switch p, n, err := ReadSized(r, 1); {
 	case err != nil && !errors.Is(err, io.EOF),
 		n < 1 && errors.Is(err, io.EOF):
-		return t, n, err
+		return 0, n, err
 	default:
 		return p[0], n, err
 	}
 }
 
-func readFrameType(r io.Reader) (t frameType, _ int, _ error) {
+func readFrameType(r io.Reader) (frameType, int, error) {
 	switch i, n, err := readFrameTypeByte(r); {
 	case err != nil && !errors.Is(err, io.EOF),
 		n < 1 && errors.Is(err, io.EOF):
-		return t, n, err
+		return 0, n, err
 	default:
 		return frameType(i), n, err
 	}
 }
 
 func ReadSize(r io.Reader, i *uint32) (int, error) {
-	switch p, n, err := ReadSized(r, 4); {
+	switch p, n, err := ReadSized(r, 4); { //nolint:mnd
 	case err != nil && !errors.Is(err, io.EOF),
 		n < 1 && errors.Is(err, io.EOF):
 		return n, err
@@ -162,8 +164,8 @@ func ensureRead(r io.Reader, p []byte) (int, error) {
 	var b []byte
 
 	switch {
-	case len(p) > 512:
-		b = make([]byte, 512)
+	case len(p) > 512: //nolint:mnd
+		b = make([]byte, 512) //nolint:mnd
 	default:
 		b = make([]byte, len(p))
 	}
@@ -222,8 +224,13 @@ func readFixedBytes(r io.Reader) ([]byte, int, error) {
 	}
 }
 
-func clearSlice[T any](s []T) {
-	clear(s)
+func clearSlice[T any](s *[]T) {
+	if s == nil {
+		return
+	}
 
-	s = s[:0]
+	i := *s
+	clear(i)
+	i = i[:0]
+	*s = i
 }

@@ -31,8 +31,8 @@ func NewStatelessResetKey(b []byte) *quic.StatelessResetKey {
 func DefaultQuicConfig() *quic.Config {
 	return &quic.Config{
 		HandshakeIdleTimeout:  time.Second,
-		MaxIncomingStreams:    1 << 14,
-		MaxIncomingUniStreams: 1 << 14,
+		MaxIncomingStreams:    1 << 14, //nolint:mnd
+		MaxIncomingUniStreams: 1 << 14, //nolint:mnd
 		MaxIdleTimeout:        time.Second,
 		KeepAlivePeriod:       time.Second,
 		Allow0RTT:             true,
@@ -58,16 +58,6 @@ func closeConnection(conn quic.Connection, err error) error {
 	}
 
 	return errors.WithStack(conn.CloseWithError(errcode, errmsg))
-}
-
-func cancelStream(stream quic.Stream, code quic.StreamErrorCode) error {
-	stream.CancelRead(code)
-
-	if code != streamErrorCodeOK {
-		stream.CancelWrite(code)
-	}
-
-	return errors.WithStack(stream.Close())
 }
 
 func newFuncCloseStream(err error) func(quic.Stream) error {

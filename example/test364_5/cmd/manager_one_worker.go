@@ -5,6 +5,7 @@ import (
 	"io"
 	"iter"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -20,7 +21,6 @@ import (
 
 func managerRunOneWorker(
 	ctx context.Context,
-	enc encoder.Encoder,
 	height base.Height,
 	prevManiest util.Hash,
 	prevStates map[string]base.State,
@@ -39,14 +39,17 @@ func managerRunOneWorker(
 
 	ophs := func(yield func(uint64, [2]util.Hash) bool) {
 		for i, fact := range slices.All(ops) {
-			if !yield(uint64(i), [2]util.Hash{fact.Hash(), fact.Hash()}) {
+			if !yield(dutil.SafeIntToUint64(i), [2]util.Hash{fact.Hash(), fact.Hash()}) {
 				return
 			}
 		}
 	}
 
 	maxOpsSize := uint64(len(ops))
-	getOperationFact := func(_ context.Context, opindex uint64, oph, facth util.Hash) (dop5.OperationFact, bool, string, error) {
+
+	getOperationFact := func(_ context.Context, opindex uint64, oph, facth util.Hash) (
+		dop5.OperationFact, bool, string, error,
+	) {
 		if opindex >= maxOpsSize {
 			return nil, false, "", nil
 		}
@@ -98,7 +101,8 @@ func managerRunOneWorker(
 
 	mstates := map[string]base.State{}
 
-	generateNodesHash := fixedtree.NewFuncAsyncGenerateNodesHashByFollowingParent(1 << 9)
+	generateNodesHash := fixedtree.NewFuncAsyncGenerateNodesHashByFollowingParent(
+		min(int64(len(ops)), 1<<9)) //nolint:mnd
 
 	var opsTree, statesTree *fixedtree.Tree
 
@@ -209,7 +213,7 @@ func saveStatesToFile(
 	filename string,
 	sts []base.State, // NOTE sorted by key
 ) error {
-	size := uint64(len(sts))
+	size := int64(len(sts))
 
 	if size < 1 {
 		return nil
@@ -217,11 +221,11 @@ func saveStatesToFile(
 
 	var w io.Writer
 
-	switch f, err := os.Create(filename); {
+	switch f, err := os.Create(filepath.Clean(filename)); {
 	case err != nil:
-		return err
+		return errors.WithStack(err)
 	default:
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 
 		w = f
 	}
@@ -230,14 +234,14 @@ func saveStatesToFile(
 		return err
 	}
 
-	newJob, jobDone, jobWait, err := dutil.NewFuncJobWorker(ctx, size)
+	newJob, jobDone, jobWait, err := defaultNewFuncJobWorker(ctx, size)
 	if err != nil {
 		return err
 	}
 
 	for i, st := range slices.All(sts) {
 		if err := newJob(func(context.Context) error {
-			ib, err := dutil.EncodeInt(uint64(i))
+			ib, err := dutil.EncodeInt(dutil.SafeIntToUint64(i))
 			if err != nil {
 				return err
 			}
@@ -265,18 +269,18 @@ func loadStatesFromFile(
 ) ([]base.State, error) {
 	var r io.Reader
 
-	switch f, err := os.Open(filename); {
+	switch f, err := os.Open(filepath.Clean(filename)); {
 	case err != nil && !os.IsNotExist(err):
-		return nil, err
+		return nil, errors.WithStack(err)
 	case os.IsNotExist(err):
 		return nil, nil
 	default:
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 
 		r = f
 	}
 
-	var size uint64
+	var size int64
 
 	if err := dutil.ReadInt(r, &size); err != nil {
 		return nil, err
@@ -284,7 +288,7 @@ func loadStatesFromFile(
 
 	sts := make([]base.State, size)
 
-	newJob, jobDone, jobWait, err := dutil.NewFuncJobWorker(ctx, size)
+	newJob, jobDone, jobWait, err := defaultNewFuncJobWorker(ctx, size)
 	if err != nil {
 		return nil, err
 	}
@@ -332,6 +336,7 @@ func readFixedWithIndex(r io.Reader) (uint64, []byte, error) {
 	}
 
 	b, _, err := frame.ReadFixed(r)
+
 	return index, b, err
 }
 
@@ -340,11 +345,11 @@ func saveManifests(
 	filename string,
 	ms [2]base.Manifest,
 ) error {
-	switch f, err := os.Create(filename); {
+	switch f, err := os.Create(filepath.Clean(filename)); {
 	case err != nil:
-		return err
+		return errors.WithStack(err)
 	default:
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 
 		for m := range slices.Values(ms[:]) {
 			b, err := enc.Marshal(m)
@@ -361,31 +366,37 @@ func saveManifests(
 	}
 }
 
-func loadManifest(enc encoder.Encoder, r io.Reader) (manifest base.Manifest, _ error) {
+func loadManifest(enc encoder.Encoder, r io.Reader) (base.Manifest, error) {
 	switch b, n, err := frame.ReadFixed(r); {
 	case err != nil && !errors.Is(err, io.EOF):
 		return nil, err
 	case n < 1 && errors.Is(err, io.EOF):
-		return nil, nil
+		return nil, nil //nolint:nilnil
 	default:
+		var manifest base.Manifest
+
 		return manifest, encoder.Unmarshal(enc, b, &manifest)
 	}
 }
 
-func loadManifests(enc encoder.Encoder, filename string) (manifests [2]base.Manifest, _ error) {
-	switch f, err := os.Open(filename); {
+func loadManifests(enc encoder.Encoder, filename string) ([2]base.Manifest, error) {
+	var manifests [2]base.Manifest
+
+	switch f, err := os.Open(filepath.Clean(filename)); {
 	case err != nil && !os.IsNotExist(err):
-		return manifests, err
+		return manifests, errors.WithStack(err)
 	case os.IsNotExist(err):
 		return manifests, nil
 	default:
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 
 		var err error
+
 		manifests[0], err = loadManifest(enc, f)
 		if err != nil {
 			return manifests, err
 		}
+
 		if manifests[0] == nil {
 			return manifests, errors.Errorf("nil manifest, 33")
 		}
@@ -394,6 +405,7 @@ func loadManifests(enc encoder.Encoder, filename string) (manifests [2]base.Mani
 		if err != nil {
 			return manifests, err
 		}
+
 		if manifests[1] == nil {
 			return manifests, errors.Errorf("nil manifest, 34")
 		}
@@ -408,7 +420,7 @@ func saveOpsTreeToFile(
 	filename string,
 	tr *fixedtree.Tree,
 ) error {
-	size := uint64(tr.Len())
+	size := int64(tr.Len())
 
 	if size < 1 {
 		return nil
@@ -416,11 +428,11 @@ func saveOpsTreeToFile(
 
 	var w io.Writer
 
-	switch f, err := os.Create(filename); {
+	switch f, err := os.Create(filepath.Clean(filename)); {
 	case err != nil:
-		return err
+		return errors.WithStack(err)
 	default:
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 
 		w = f
 	}
@@ -429,14 +441,14 @@ func saveOpsTreeToFile(
 		return err
 	}
 
-	newJob, jobDone, jobWait, err := dutil.NewFuncJobWorker(ctx, size)
+	newJob, jobDone, jobWait, err := defaultNewFuncJobWorker(ctx, size)
 	if err != nil {
 		return err
 	}
 
 	for i, n := range tr.Traverse() {
 		if err := newJob(func(context.Context) error {
-			ib, err := dutil.EncodeInt(uint64(i))
+			ib, err := dutil.EncodeInt(i)
 			if err != nil {
 				return err
 			}
@@ -457,25 +469,21 @@ func saveOpsTreeToFile(
 	return jobWait(nil)
 }
 
-func loadOpsTreeFromFile(
-	ctx context.Context,
-	enc encoder.Encoder,
-	filename string,
-) (*fixedtree.Tree, error) {
+func loadOpsTreeFromFile(ctx context.Context, filename string) (*fixedtree.Tree, error) {
 	var r io.Reader
 
-	switch f, err := os.Open(filename); {
+	switch f, err := os.Open(filepath.Clean(filename)); {
 	case err != nil && !os.IsNotExist(err):
-		return nil, err
+		return nil, errors.WithStack(err)
 	case os.IsNotExist(err):
-		return nil, nil
+		return nil, nil //nolint:nilnil
 	default:
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 
 		r = f
 	}
 
-	var size uint64
+	var size int64
 
 	if err := dutil.ReadInt(r, &size); err != nil {
 		return nil, err
@@ -483,7 +491,7 @@ func loadOpsTreeFromFile(
 
 	nodes := make([]fixedtree.Node, size)
 
-	newJob, jobDone, jobWait, err := dutil.NewFuncJobWorker(ctx, size)
+	newJob, jobDone, jobWait, err := defaultNewFuncJobWorker(ctx, size)
 	if err != nil {
 		return nil, err
 	}

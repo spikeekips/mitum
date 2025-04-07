@@ -32,12 +32,6 @@ func (t *testWorkerStateOwners) owners(n int, prefix string) []string {
 	return s
 }
 
-func (t *testWorkerStateOwners) randomGetStateOwners() getStateOwnersFunc {
-	return func(stateKey string) []string {
-		return []string{stateKey}
-	}
-}
-
 func (t *testWorkerStateOwners) TestInsert() {
 	local := "local"
 
@@ -249,8 +243,6 @@ func (t *testWorkerStateOwners) TestInsert() {
 
 			return nil
 		}))
-
-		return
 
 		o := localOwners()
 		slices.Sort(o)

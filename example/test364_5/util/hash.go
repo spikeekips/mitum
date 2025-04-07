@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"math"
 	"math/big"
-	mathrand "math/rand"
 
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/valuehash"
@@ -12,14 +11,13 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
-func NewHashSeed() uint64 {
-	maxv := big.NewInt(0).SetUint64(uint64(math.MaxUint64))
+var maxv = big.NewInt(0).SetUint64(uint64(math.MaxUint64))
 
-	switch rnd, err := rand.Int(rand.Reader, maxv); {
-	case err != nil:
-		return mathrand.Uint64()
-	default:
-		return uint64(rnd.Uint64())
+func NewHashSeed() uint64 {
+	for {
+		if rnd, err := rand.Int(rand.Reader, maxv); err == nil {
+			return rnd.Uint64()
+		}
 	}
 }
 
@@ -32,43 +30,34 @@ func StringDjb2(seed uint64, k string) uint64 {
 		i = uint64(0)
 	)
 
-	if l >= 4 {
+	if l >= 4 { //nolint:mnd
 		for i < l-4 {
-			d = (d * 33) ^ uint64(k[i])
-			d = (d * 33) ^ uint64(k[i+1])
-			d = (d * 33) ^ uint64(k[i+2])
-			d = (d * 33) ^ uint64(k[i+3])
+			d = (d * 33) ^ uint64(k[i])   //nolint:mnd
+			d = (d * 33) ^ uint64(k[i+1]) //nolint:mnd
+			d = (d * 33) ^ uint64(k[i+2]) //nolint:mnd
+			d = (d * 33) ^ uint64(k[i+3]) //nolint:mnd
 			i += 4
 		}
 	}
 
 	switch l - i {
 	case 1:
-	case 2:
-		d = (d * 33) ^ uint64(k[i])
-	case 3:
-		d = (d * 33) ^ uint64(k[i])
-		d = (d * 33) ^ uint64(k[i+1])
-	case 4:
-		d = (d * 33) ^ uint64(k[i])
-		d = (d * 33) ^ uint64(k[i+1])
-		d = (d * 33) ^ uint64(k[i+2])
+	case 2: //nolint:mnd
+		d = (d * 33) ^ uint64(k[i]) //nolint:mnd
+	case 3: //nolint:mnd
+		d = (d * 33) ^ uint64(k[i])   //nolint:mnd
+		d = (d * 33) ^ uint64(k[i+1]) //nolint:mnd
+	case 4: //nolint:mnd
+		d = (d * 33) ^ uint64(k[i])   //nolint:mnd
+		d = (d * 33) ^ uint64(k[i+1]) //nolint:mnd
+		d = (d * 33) ^ uint64(k[i+2]) //nolint:mnd
 	}
 
-	return uint64(d ^ (d >> 16))
+	return d ^ (d >> 16) //nolint:mnd
 }
 
 func Murmur3(seed uint64, s string) uint64 {
 	return murmur3.SeedStringSum64(seed, s)
-}
-
-const (
-	SHA256Size int = 32
-	SHA512Size int = 64
-)
-
-func NewSHA256Hash(b []byte) util.Hash {
-	return valuehash.NewSHA256(b)
 }
 
 func NewSHA256HashWriter() (func([]byte), func() util.Hash) {

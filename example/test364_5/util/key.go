@@ -7,14 +7,14 @@ import (
 )
 
 func DistributeByCount[K mapIndexType](total, share uint64) (
-	_ func(K) []uint64,
-	closef func(),
-	_ error,
+	func(K) []uint64,
+	func(), /* close */
+	error,
 ) {
 	switch {
 	case total < 1:
 		return nil, nil, errors.Errorf("empty size")
-	case total < 2:
+	case total < 2: //nolint:mnd
 		return func(K) []uint64 { return []uint64{0} }, func() {}, nil
 	case share > total:
 		return nil, nil, errors.Errorf("share > total")
@@ -58,7 +58,7 @@ func DistributeByCount[K mapIndexType](total, share uint64) (
 		cache = i
 	}
 
-	return func(k K) (poses []uint64) {
+	return func(k K) []uint64 {
 			l.Lock()
 			defer l.Unlock()
 
@@ -66,7 +66,7 @@ func DistributeByCount[K mapIndexType](total, share uint64) (
 				return i
 			}
 
-			poses = make([]uint64, share)
+			poses := make([]uint64, share)
 
 			for i := range share {
 				p := findLow()

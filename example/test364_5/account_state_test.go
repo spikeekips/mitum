@@ -21,10 +21,7 @@ import (
 	"gonum.org/v1/gonum/stat/combin"
 )
 
-var (
-	dummyOpFactHint = hint.MustNewHint("dummy-fact-v0.0.1")
-	dummyOpHint     = hint.MustNewHint("dummy-operation-v0.0.1")
-)
+var dummyOpFactHint = hint.MustNewHint("dummy-fact-v0.0.1")
 
 type dummyOpFact struct {
 	base.BaseFact
@@ -195,12 +192,6 @@ func (t *baseTestAccountSVM) newState(pub base.Publickey, balance int64) base.St
 	)
 }
 
-func (t *baseTestAccountSVM) randomState() base.State {
-	pub := base.NewDummyPublickey(util.UUID().String())
-
-	return t.newState(pub, 1)
-}
-
 func (t *baseTestAccountSVM) newOpFact(issuer base.Privatekey, receiver base.Publickey, balance int64) *AccountOpFact {
 	var issuerPub base.Publickey
 
@@ -230,16 +221,6 @@ func (t *baseTestAccountSVM) randomAddFact(balance int64) *AccountOpFact {
 		base.NewDummyPublickey(util.UUID().String()),
 		balance,
 	)
-}
-
-func (t *baseTestAccountSVM) randomFacts(n int, amount int64) []OperationFact {
-	m := make([]OperationFact, n)
-
-	for i := 0; i < n; i++ {
-		m[i] = t.randomFact(amount)
-	}
-
-	return m
 }
 
 func (t *baseTestAccountSVM) randomAddFacts(n int, amount int64) []OperationFact {
@@ -765,7 +746,8 @@ func TestEncodeAccountSV(tt *testing.T) {
 	t := new(mencoder.BaseTestEncode)
 	t.SetT(tt)
 
-	enc := jsonenc.NewEncoder(1 << 9)
+	enc := jsonenc.NewEncoder(context.Background(), 1<<9)
+	defer enc.Close()
 
 	t.NoError(jsonenc.AddDecode(enc, base.MPublickeyHint, &base.MPublickey{}, DecodeJSONMPublickey))
 	t.NoError(jsonenc.AddDecode(enc, AccountSVHint, &AccountSV{}, AccountSVDecodeJSON))
