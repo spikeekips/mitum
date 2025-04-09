@@ -38,7 +38,7 @@ func (t *testWrite) TestWriteNodes() {
 			},
 			)
 		},
-		SyncronousGenerateNodesHash,
+		SynchronousGenerateNodesHash,
 	))
 
 	worker.Done()
@@ -90,7 +90,7 @@ func (t *testWrite) TestError() {
 		err := WriteNodes(context.Background(), 1<<9,
 			nodes,
 			func(uint64, Node) error { return nil },
-			SyncronousGenerateNodesHash,
+			SynchronousGenerateNodesHash,
 		)
 		t.Error(err)
 		t.ErrorContains(err, "nil node")
@@ -103,7 +103,7 @@ func (t *testWrite) TestError() {
 		err := WriteNodes(context.Background(), 1<<9,
 			nodes,
 			func(uint64, Node) error { return nil },
-			SyncronousGenerateNodesHash,
+			SynchronousGenerateNodesHash,
 		)
 		t.Error(err)
 		t.ErrorContains(err, "empty key")
@@ -226,7 +226,7 @@ func (t *testWrite) TestBenchmarkGenerateHash() {
 	}
 
 	runTests("sync", func(nodes []Node) error {
-		return SyncronousGenerateNodesHash(
+		return SynchronousGenerateNodesHash(
 			context.Background(),
 			nodes,
 			nil,

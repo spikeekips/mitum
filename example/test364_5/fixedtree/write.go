@@ -113,7 +113,7 @@ func GenerateNodeHash(index uint64, nodes []Node, w NodeWriteFunc) error {
 	return nil
 }
 
-func SyncronousGenerateNodesHash(_ context.Context, nodes []Node, w NodeWriteFunc) error {
+func SynchronousGenerateNodesHash(_ context.Context, nodes []Node, w NodeWriteFunc) error {
 	size := uint64(len(nodes))
 
 	for i := range size {
@@ -178,7 +178,7 @@ func AsyncGenerateNodesHashByFollowingParent( //nolint:funlen
 
 	last := indexHeight(nnodes - 1)
 	if last < 2 { //nolint:mnd
-		return SyncronousGenerateNodesHash(ctx, nodes, w)
+		return SynchronousGenerateNodesHash(ctx, nodes, w)
 	}
 
 	var cc []uint32
@@ -286,7 +286,7 @@ func AsyncGenerateNodesHashByHeight(
 	nnodes := uint64(len(nodes))
 
 	if last := indexHeight(nnodes - 1); last < 2 { //nolint:mnd
-		return SyncronousGenerateNodesHash(ctx, nodes, w)
+		return SynchronousGenerateNodesHash(ctx, nodes, w)
 	}
 
 	var it iter.Seq2[uint64, iter.Seq[uint64]]
