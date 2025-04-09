@@ -1,12 +1,14 @@
 package util
 
 import (
+	"fmt"
 	"maps"
 	"slices"
 	"testing"
 
 	"github.com/spikeekips/mitum/util"
 	"github.com/stretchr/testify/suite"
+	"github.com/zeebo/blake3"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -61,4 +63,24 @@ func TestSHA256HashWriter(tt *testing.T) {
 
 		t.Equal(expected, h.String())
 	})
+}
+
+func runBenchmarkHash(bb *testing.B, name string, f func([]byte) [32]byte) {
+	for i := uint64(1000); i <= 10000; i += 1000 {
+		n := make([]byte, i)
+
+		bb.Run(fmt.Sprintf(name+"%d", i), func(b *testing.B) {
+			for b.Loop() {
+				_ = f(n)
+			}
+		})
+	}
+}
+
+func BenchmarkHashSHA3(bb *testing.B) {
+	runBenchmarkHash(bb, "sha3", sha3.Sum256)
+}
+
+func BenchmarkHashBlake3(bb *testing.B) {
+	runBenchmarkHash(bb, "blake3", blake3.Sum256)
 }
