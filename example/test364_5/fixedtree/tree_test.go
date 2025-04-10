@@ -29,7 +29,7 @@ func (t *baseTestTree) nodesWithoutHash(n int) []Node {
 
 func (t *baseTestTree) nodes(n int) []Node {
 	nodes := t.nodesWithoutHash(n)
-	t.NoError(SyncronousGenerateNodesHash(context.Background(), nodes, func(uint64, Node) error { return nil }))
+	t.NoError(SynchronousGenerateNodesHash(context.Background(), nodes, func(uint64, Node) error { return nil }))
 
 	return nodes
 }
@@ -44,6 +44,8 @@ func (t *testTree) TestNew() {
 	tr := NewTree(treeHint, nodes)
 	t.NoError(tr.IsValid(nil))
 	t.Equal(len(nodes), tr.Len())
+
+	t.T().Log("root:", tr.Root())
 
 	for index, b := range tr.Traverse() {
 		a := nodes[index]
