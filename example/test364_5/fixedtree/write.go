@@ -214,27 +214,6 @@ func AsyncGenerateNodesHashByFollowingParent( //nolint:funlen
 
 	var gen func(index uint64) error
 	gen = func(index uint64) error {
-		if err := newJob(func(context.Context) error {
-			switch p, err := asyncGenerateNodeHash(index, nodes, cc, w); {
-			case err != nil:
-				return err
-			case p < index:
-				return gen(p)
-			default:
-				return nil
-			}
-		}); err != nil {
-			return err
-		}
-
-		if index == 0 {
-			jobDone()
-		}
-
-		return nil
-	}
-
-	gen = func(index uint64) error {
 		if index == 0 {
 			defer jobDone()
 		}
