@@ -132,7 +132,7 @@ func (t BaseTest) PrintIfErrCaller(err error, skip int, a string, b ...any) {
 
 func (t BaseTest) IfErrPanic(err error) {
 	if err != nil {
-		panic(err)
+		t.Panic(err)
 	}
 }
 
