@@ -10,9 +10,9 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	dhash "github.com/spikeekips/mitum/example/test364_5/hash"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 )
@@ -246,7 +246,7 @@ func (t *testWorkerProcess) TestCancel() {
 						return err
 					}
 
-					if err := insert(0, valuehash.RandomSHA256(), t.randomMergeValues(1, 2, 3)); err != nil {
+					if err := insert(0, dhash.RandomHex64(), t.randomMergeValues(1, 2, 3)); err != nil {
 						return err
 					}
 
@@ -532,7 +532,7 @@ func (t *testWorkerProcess) TestLocal() {
 				}
 
 				for opindex := range maps.Keys(expectedReasonsAfterExtracted) {
-					if err := f(opindex, valuehash.RandomSHA256(), valuehash.RandomSHA256()); err != nil {
+					if err := f(opindex, dhash.RandomHex64(), dhash.RandomHex64()); err != nil {
 						return err
 					}
 				}

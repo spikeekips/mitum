@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	dhash "github.com/spikeekips/mitum/example/test364_5/hash"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 )
@@ -263,7 +263,7 @@ func (t *testSMVExtractor) TestGetOperation() {
 			},
 			func(f OpindexOpHashesFunc) error {
 				for i := range 3 {
-					_ = f(uint64(i), valuehash.RandomSHA256(), valuehash.RandomSHA256())
+					_ = f(uint64(i), dhash.RandomHex64(), dhash.RandomHex64())
 				}
 
 				return nil
@@ -293,7 +293,7 @@ func (t *testSMVExtractor) TestGetOperation() {
 		t.NoError(insert(nil,
 			func(f OpindexOpHashesFunc) error {
 				for i := range 3 {
-					_ = f(uint64(i), valuehash.RandomSHA256(), valuehash.RandomSHA256())
+					_ = f(uint64(i), dhash.RandomHex64(), dhash.RandomHex64())
 
 					expectedReasons[uint64(i)] = reasonOperationNotFound
 				}

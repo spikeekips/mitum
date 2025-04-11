@@ -15,10 +15,10 @@ import (
 	"github.com/spikeekips/mitum/example/test364_5/encoder"
 	jsonenc "github.com/spikeekips/mitum/example/test364_5/encoder/json"
 	"github.com/spikeekips/mitum/example/test364_5/frame"
+	dhash "github.com/spikeekips/mitum/example/test364_5/hash"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
-	"github.com/spikeekips/mitum/util/valuehash"
 	"go.uber.org/goleak"
 )
 
@@ -165,7 +165,7 @@ func TestDecodeSMV(tt *testing.T) {
 				values, ok := next()
 				t.True(ok)
 
-				ops[i] = [2]any{valuehash.RandomSHA256(), values}
+				ops[i] = [2]any{dhash.RandomHex64(), values}
 			}
 
 			buf := bytes.NewBuffer(nil)

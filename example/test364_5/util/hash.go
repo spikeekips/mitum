@@ -5,10 +5,7 @@ import (
 	"math"
 	"math/big"
 
-	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/twmb/murmur3"
-	"golang.org/x/crypto/sha3"
 )
 
 var maxv = big.NewInt(0).SetUint64(uint64(math.MaxUint64))
@@ -58,21 +55,4 @@ func StringDjb2(seed uint64, k string) uint64 {
 
 func Murmur3(seed uint64, s string) uint64 {
 	return murmur3.SeedStringSum64(seed, s)
-}
-
-func NewSHA256HashWriter() (func([]byte), func() util.Hash) {
-	h := sha3.New256()
-
-	return func(b []byte) {
-			_, _ = h.Write(b)
-		},
-		func() util.Hash {
-			defer h.Reset()
-
-			var n [32]byte
-
-			h.Sum(n[:0])
-
-			return valuehash.L32(n)
-		}
 }

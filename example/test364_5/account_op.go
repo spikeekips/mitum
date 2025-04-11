@@ -8,6 +8,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	jsonenc "github.com/spikeekips/mitum/example/test364_5/encoder/json"
+	dhash "github.com/spikeekips/mitum/example/test364_5/hash"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
@@ -107,7 +108,7 @@ func (fact *AccountOpFact) IsValid([]byte) error {
 }
 
 func (fact *AccountOpFact) hash() util.Hash {
-	w, sum := dutil.NewSHA256HashWriter()
+	w, sum := dhash.NewHex64Writer()
 
 	w(fact.Token())
 

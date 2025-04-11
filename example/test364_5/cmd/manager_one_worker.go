@@ -147,7 +147,7 @@ func managerRunOneWorker(
 		return nil, nil, nil, err
 	}
 
-	return newManifest(height, prevManiest, opsTree, statesTree),
+	return newManagerManifest(height, prevManiest, opsTree, statesTree),
 		mstates,
 		opsTree,
 		nil

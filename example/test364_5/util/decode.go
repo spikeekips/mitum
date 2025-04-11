@@ -6,8 +6,8 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/example/test364_5/encoder"
+	dhash "github.com/spikeekips/mitum/example/test364_5/hash"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/valuehash"
 )
 
 func AssignJSONFunc[T any](v any, t *T, f func(any) (T, error)) ErrorFunc {
@@ -49,7 +49,7 @@ func AssignJSONHash(v any, h *util.Hash) ErrorFunc {
 			return nil, errors.Errorf("expected string, but %T", v)
 		}
 
-		return valuehash.NewBytesFromString(s)
+		return dhash.BytesFromString(s), nil
 	})
 }
 

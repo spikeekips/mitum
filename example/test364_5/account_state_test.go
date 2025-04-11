@@ -11,11 +11,11 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/example/test364_5/encoder"
 	jsonenc "github.com/spikeekips/mitum/example/test364_5/encoder/json"
+	dhash "github.com/spikeekips/mitum/example/test364_5/hash"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 	mencoder "github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
-	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 	"gonum.org/v1/gonum/stat/combin"
@@ -90,7 +90,7 @@ func (fact *dummyOpFact) hash() util.Hash {
 		_, _ = buf.Write(value.Value().HashBytes())
 	}
 
-	return valuehash.NewSHA256(buf.Bytes())
+	return dhash.NewSHA3(buf.Bytes())
 }
 
 type baseTestAccountSVM struct {
@@ -188,7 +188,7 @@ func (t *baseTestAccountSVM) newState(pub base.Publickey, balance int64) base.St
 		accountStateKey(pub),
 		NewAccountSV(pub, balance),
 		nil,
-		[]util.Hash{valuehash.RandomSHA256()},
+		[]util.Hash{dhash.RandomHex64()},
 	)
 }
 

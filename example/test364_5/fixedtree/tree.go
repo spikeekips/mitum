@@ -7,10 +7,10 @@ import (
 	"slices"
 
 	"github.com/pkg/errors"
+	dhash "github.com/spikeekips/mitum/example/test364_5/hash"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
-	"github.com/spikeekips/mitum/util/valuehash"
 )
 
 type Tree struct {
@@ -61,7 +61,7 @@ func (t *Tree) Root() util.Hash {
 	case len(t.nodes) < 1, t.nodes[0] == nil:
 		return nil
 	default:
-		return valuehash.NewBytes([]byte(t.nodes[0].Hash()))
+		return dhash.BytesFromString(t.nodes[0].Hash())
 	}
 }
 

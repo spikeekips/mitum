@@ -16,10 +16,10 @@ import (
 	dop5 "github.com/spikeekips/mitum/example/test364_5"
 	jsonenc "github.com/spikeekips/mitum/example/test364_5/encoder/json"
 	"github.com/spikeekips/mitum/example/test364_5/frame"
+	dhash "github.com/spikeekips/mitum/example/test364_5/hash"
 	"github.com/spikeekips/mitum/example/test364_5/quicstream"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 )
@@ -164,7 +164,7 @@ func (t *testHandlerSendOps) doHandler(
 ) {
 	ops := make([][2]util.Hash, maxItems)
 	for i := range ops {
-		ops[i] = [2]util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}
+		ops[i] = [2]util.Hash{dhash.RandomHex64(), dhash.RandomHex64()}
 	}
 
 	var addOp dutil.AppendSliceAddFunc[[3]interface{}]
@@ -182,7 +182,7 @@ func (t *testHandlerSendOps) doHandler(
 
 			for opindex, hs := range seq {
 				if added, _ := addOp([3]interface{}{opindex, hs[0], hs[1]}); added < 1 {
-					return errors.Errorf("not added")
+					return errors.New("not added")
 				}
 			}
 
@@ -333,7 +333,7 @@ type testHandlerWorkerResult struct {
 
 func (t *testHandlerWorkerResult) newState() base.State {
 	sv := dop5.NewAccountSV(base.NewDummyPublickey(util.UUID().String()), 1)
-	return dop5.NewBaseState(base.Height(33), util.UUID().String(), sv, valuehash.RandomSHA256(), nil)
+	return dop5.NewBaseState(base.Height(33), util.UUID().String(), sv, dhash.RandomHex64(), nil)
 }
 
 func (t *testHandlerWorkerResult) doHandlers(
@@ -515,7 +515,7 @@ func (t *testHandlerWorkerErr) doHandlers(
 ) {
 	var werr error
 	if werrstring != "" {
-		werr = errors.Errorf(werrstring)
+		werr = errors.New(werrstring)
 	}
 
 	request := requestHandlerWorkerErr(worker, werr)
@@ -631,7 +631,7 @@ func (t *testHandlerWorkerDistributeSMVs) doHandler(
 	ops := make([][2]interface{}, nops)
 	for i := range ops {
 		ops[i] = [2]interface{}{
-			valuehash.RandomSHA256(),
+			dhash.RandomHex64(),
 			t.randomMergeValues(3),
 		}
 	}
@@ -652,14 +652,14 @@ func (t *testHandlerWorkerDistributeSMVs) doHandler(
 
 		return func(opindex uint64, facth util.Hash, values []dop5.SMV) error {
 				if added, _ := addOp([3]interface{}{opindex, facth, values}); added < 1 {
-					return errors.Errorf("not added")
+					return errors.New("not added")
 				}
 
 				return nil
 			},
 			func(subs, affected []string) error {
 				if added, _ := addOp([3]interface{}{subs, affected, nil}); added < 1 {
-					return errors.Errorf("not added; owners")
+					return errors.New("not added; owners")
 				}
 
 				return nil
@@ -836,7 +836,7 @@ func (t *testHandlerWorkerDistributeSMVs) TestNilFuncs() {
 	ops := make([][2]interface{}, 3333)
 	for i := range ops {
 		ops[i] = [2]interface{}{
-			valuehash.RandomSHA256(),
+			dhash.RandomHex64(),
 			t.randomMergeValues(3),
 		}
 	}

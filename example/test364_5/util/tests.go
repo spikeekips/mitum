@@ -204,7 +204,7 @@ func (t BaseTest) MarshalIndent(i interface{}) string {
 }
 
 func (t BaseTest) RandomError() error {
-	return errors.Errorf(util.UUID().String())
+	return errors.New(util.UUID().String())
 }
 
 type BaseSuite struct {

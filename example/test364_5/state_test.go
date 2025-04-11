@@ -6,9 +6,9 @@ import (
 
 	"github.com/spikeekips/mitum/base"
 	jsonenc "github.com/spikeekips/mitum/example/test364_5/encoder/json"
+	dhash "github.com/spikeekips/mitum/example/test364_5/hash"
 	"github.com/spikeekips/mitum/util"
 	mencoder "github.com/spikeekips/mitum/util/encoder"
-	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -20,7 +20,7 @@ func TestBaseStateEncode(tt *testing.T) {
 
 	t.Encode = func() (interface{}, []byte) {
 		sv := NewAccountSV(base.NewDummyPublickey(util.UUID().String()), 1)
-		st := NewBaseState(base.Height(33), util.UUID().String(), sv, valuehash.RandomSHA256(), nil)
+		st := NewBaseState(base.Height(33), util.UUID().String(), sv, dhash.RandomHex64(), nil)
 
 		b, err := enc.Marshal(st)
 		t.NoError(err)

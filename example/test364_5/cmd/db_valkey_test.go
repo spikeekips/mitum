@@ -12,8 +12,8 @@ import (
 	"github.com/spikeekips/mitum/base"
 	dop5 "github.com/spikeekips/mitum/example/test364_5"
 	jsonenc "github.com/spikeekips/mitum/example/test364_5/encoder/json"
+	dhash "github.com/spikeekips/mitum/example/test364_5/hash"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 	"github.com/valkey-io/valkey-go"
 	"go.uber.org/goleak"
@@ -55,7 +55,7 @@ func (t *testValkeyOperationFact) TestGet() {
 
 		found, err := t.db.getOperationFact(
 			context.Background(),
-			valuehash.RandomSHA256(),
+			dhash.RandomHex64(),
 			&fact,
 		)
 		t.NoError(err)
@@ -141,11 +141,11 @@ func (t *testValkeyState) randomStates(n int) []base.State {
 			33,
 			util.UUID().String(),
 			sv,
-			valuehash.RandomSHA256(),
+			dhash.RandomHex64(),
 			[]util.Hash{
-				valuehash.RandomSHA256(),
-				valuehash.RandomSHA256(),
-				valuehash.RandomSHA256(),
+				dhash.RandomHex64(),
+				dhash.RandomHex64(),
+				dhash.RandomHex64(),
 			},
 		)
 	}

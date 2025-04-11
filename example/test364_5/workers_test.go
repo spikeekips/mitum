@@ -12,9 +12,9 @@ import (
 	"testing"
 
 	"github.com/pkg/errors"
+	dhash "github.com/spikeekips/mitum/example/test364_5/hash"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 )
@@ -37,8 +37,8 @@ func (t *baseTestWorkers) randomOphs(n int) [][2]util.Hash {
 	h := make([][2]util.Hash, n)
 	for i := range n {
 		h[i] = [2]util.Hash{
-			valuehash.RandomSHA256(),
-			valuehash.RandomSHA256(),
+			dhash.RandomHex64(),
+			dhash.RandomHex64(),
 		}
 	}
 
@@ -518,7 +518,7 @@ func (t *testSetStateOps) Test() {
 		t.NoError(err)
 
 		stateKeys := []string{"1", "2", "3"}
-		t.True(m(3, valuehash.RandomSHA256(), stateKeys))
+		t.True(m(3, dhash.RandomHex64(), stateKeys))
 		t.True(u([]uint64{3}))
 
 		var called bool
@@ -543,9 +543,9 @@ func (t *testSetStateOps) Test() {
 		t.NoError(err)
 
 		expectedFacts := []util.Hash{
-			valuehash.RandomSHA256(),
-			valuehash.RandomSHA256(),
-			valuehash.RandomSHA256(),
+			dhash.RandomHex64(),
+			dhash.RandomHex64(),
+			dhash.RandomHex64(),
 		}
 
 		slices.SortFunc(expectedFacts, func(a, b util.Hash) int {
@@ -557,7 +557,7 @@ func (t *testSetStateOps) Test() {
 		t.True(m(1, expectedFacts[1], stateKeys))
 		t.True(m(2, expectedFacts[2], stateKeys))
 
-		t.True(m(3, valuehash.RandomSHA256(), stateKeys))
+		t.True(m(3, dhash.RandomHex64(), stateKeys))
 		t.True(u([]uint64{3}))
 
 		var called bool
@@ -608,7 +608,7 @@ func (t *testSetStateOps) Test() {
 				stateKeys[((i*3)+1)%nstateKeys],
 				stateKeys[((i*3)+2)%nstateKeys],
 			}
-			facts[opindex] = valuehash.RandomSHA256()
+			facts[opindex] = dhash.RandomHex64()
 		}
 
 		unmergeOps := []uint64{0, 9, 30}
@@ -715,7 +715,7 @@ func (t *testDelayedWorkerDistributeSMVs) TestCtxCanceled() {
 		sendOp, sendOwners, wait, err := f(ctx, "w0")
 		t.NoError(err)
 
-		err = sendOp(3, valuehash.RandomSHA256(), t.randomMergeValues(3))
+		err = sendOp(3, dhash.RandomHex64(), t.randomMergeValues(3))
 		t.Error(err, context.Canceled)
 
 		err = sendOwners(
@@ -743,7 +743,7 @@ func (t *testDelayedWorkerDistributeSMVs) TestCtxCanceled() {
 		t.NoError(err)
 
 		for i := range 3 {
-			err = sendOp(uint64(i), valuehash.RandomSHA256(), t.randomMergeValues(3))
+			err = sendOp(uint64(i), dhash.RandomHex64(), t.randomMergeValues(3))
 			if i == 2 {
 				cancel(nil)
 			}
@@ -784,7 +784,7 @@ func (t *testDelayedWorkerDistributeSMVs) TestNew() {
 		for i := range ops {
 			ops[i] = [3]interface{}{
 				uint64(i),
-				valuehash.RandomSHA256(),
+				dhash.RandomHex64(),
 				t.randomMergeValues(3),
 			}
 		}
@@ -890,7 +890,7 @@ func (t *testDelayedWorkerDistributeSMVs) TestNew() {
 
 		err = sendOp(
 			3,
-			valuehash.RandomSHA256(),
+			dhash.RandomHex64(),
 			t.randomMergeValues(3),
 		)
 		switch {
@@ -927,7 +927,7 @@ func (t *testWorkerProcessWorkersDistributeSMVs) TestCancel() {
 	for i := range ops {
 		ops[i] = [3]interface{}{
 			uint64(i),
-			valuehash.RandomSHA256(),
+			dhash.RandomHex64(),
 			t.randomMergeValues(3),
 		}
 	}
@@ -1220,7 +1220,7 @@ func (t *testWorkerProcessWorkersDistributeSMVs) TestNew() {
 	for i := range ops {
 		ops[i] = [3]interface{}{
 			uint64(i),
-			valuehash.RandomSHA256(),
+			dhash.RandomHex64(),
 			t.randomMergeValues(3),
 		}
 	}

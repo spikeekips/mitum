@@ -63,7 +63,7 @@ linters:
     recvcheck:
       disable-builtin: true
       exclusions:
-        - "LazyMPublickey.UnmarshalText"
+        - "*.UnmarshalText"
 
     tagliatelle:
       case:

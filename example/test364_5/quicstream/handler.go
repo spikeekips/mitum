@@ -11,11 +11,11 @@ import (
 	"github.com/quic-go/quic-go"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
-	"golang.org/x/crypto/sha3"
+	"github.com/zeebo/blake3"
 )
 
 type (
-	HandlerPrefix = [28]byte
+	HandlerPrefix = [32]byte
 	StreamHandler func(context.Context, quic.Stream) (context.Context, error)
 )
 
@@ -98,7 +98,7 @@ func NewFuncPrefixRequest(request RequestFunc, p ...[]byte) RequestFunc {
 }
 
 func newStreamHandlerPrefix(b []byte) HandlerPrefix {
-	return sha3.Sum224(b)
+	return blake3.Sum256(b)
 }
 
 func readStreamHandlerPrefix(r io.Reader) (HandlerPrefix, error) {

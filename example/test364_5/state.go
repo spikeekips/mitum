@@ -8,6 +8,7 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/example/test364_5/encoder"
 	jsonenc "github.com/spikeekips/mitum/example/test364_5/encoder/json"
+	dhash "github.com/spikeekips/mitum/example/test364_5/hash"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
@@ -109,7 +110,7 @@ func (s *BaseState) Operations() []util.Hash {
 }
 
 func (s *BaseState) generateHash() util.Hash {
-	w, sum := dutil.NewSHA256HashWriter()
+	w, sum := dhash.NewHex64Writer()
 
 	if s.previous != nil {
 		w(s.previous.Bytes())

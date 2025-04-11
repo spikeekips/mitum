@@ -23,12 +23,11 @@ import (
 	dop5 "github.com/spikeekips/mitum/example/test364_5"
 	jsonenc "github.com/spikeekips/mitum/example/test364_5/encoder/json"
 	"github.com/spikeekips/mitum/example/test364_5/frame"
+	dhash "github.com/spikeekips/mitum/example/test364_5/hash"
 	"github.com/spikeekips/mitum/example/test364_5/quicstream"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
-	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
-	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/valkey-io/valkey-go"
 )
 
@@ -120,7 +119,7 @@ func (cmd *baseCommand) addHinters() error {
 		addDecode(cmd.enc, dop5.AccountSMVHint, &dop5.AccountSMV{}, dop5.AccountSMVDecodeJSON),
 		addDecode(cmd.enc, dop5.AccountSVHint, &dop5.AccountSV{}, dop5.AccountSVDecodeJSON),
 		addDecode(cmd.enc, dop5.BaseStateHint, &dop5.BaseState{}, dop5.BaseStateDecodeJSON),
-		addDecode(cmd.enc, isaac.ManifestHint, isaac.Manifest{}, dop5.DecodeJSONManifest),
+		addDecode(cmd.enc, manifestHint, &manifest{}, decodeManifest),
 	)
 }
 
@@ -543,13 +542,13 @@ func writeFixedFrameStringSlice(w io.Writer, i []string) error {
 
 func readFixedFrameHash(r io.Reader, i *util.Hash) (int, error) {
 	return frame.ReadFixedValue(r, i, func(b []byte) (util.Hash, error) {
-		return valuehash.NewBytes(b), nil
+		return dhash.BytesFromBytes(b), nil
 	})
 }
 
 func ensureReadFixedFrameHash(r io.Reader, i *util.Hash) (int, error) {
 	return frame.EnsureReadFixedValue(r, i, func(b []byte) (util.Hash, error) {
-		return valuehash.NewBytes(b), nil
+		return dhash.BytesFromBytes(b), nil
 	})
 }
 
@@ -616,7 +615,7 @@ func readError(r io.Reader, err *error) (int, error) {
 	switch {
 	case rerr != nil:
 	case len(b) > 0:
-		*err = errors.Errorf(string(b))
+		*err = errors.New(string(b))
 	}
 
 	return n, rerr

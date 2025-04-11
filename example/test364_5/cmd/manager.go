@@ -21,11 +21,10 @@ import (
 	"github.com/spikeekips/mitum/example/test364_5/encoder"
 	"github.com/spikeekips/mitum/example/test364_5/fixedtree"
 	"github.com/spikeekips/mitum/example/test364_5/frame"
+	dhash "github.com/spikeekips/mitum/example/test364_5/hash"
 	"github.com/spikeekips/mitum/example/test364_5/quicstream"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
-	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/valuehash"
 )
 
 var (
@@ -481,7 +480,7 @@ func (cmd *managerCommand) startManager(
 			return err
 		},
 		func(wopsTree, statesTree *fixedtree.Tree) (base.Manifest, error) {
-			manifest = newManifest(height, prevManiest, wopsTree, statesTree)
+			manifest = newManagerManifest(height, prevManiest, wopsTree, statesTree)
 			manifestElapsedLog().Msg("cmd/manifest")
 
 			pproff()
@@ -1110,7 +1109,7 @@ func loadFromFile[T any](
 	return items, nil
 }
 
-func newManifest(
+func newManagerManifest(
 	height base.Height,
 	prevManiest util.Hash,
 	opsTree, statesTree *fixedtree.Tree,
@@ -1124,13 +1123,13 @@ func newManifest(
 		statesr = statesTree.Root()
 	}
 
-	return isaac.NewManifest(
+	return newManifest(
 		height,
 		prevManiest,
-		valuehash.NewBytes([]byte("proposal")),
+		dhash.NewSHA3([]byte("proposal")),
 		opsr,
 		statesr,
-		valuehash.NewBytes([]byte("suffrage")),
+		dhash.NewSHA3([]byte("suffrage")),
 		time.Unix(1, 1),
 	)
 }

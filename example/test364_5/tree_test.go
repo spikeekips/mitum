@@ -5,10 +5,10 @@ import (
 	"testing"
 
 	"github.com/spikeekips/mitum/example/test364_5/fixedtree"
+	dhash "github.com/spikeekips/mitum/example/test364_5/hash"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 	mencoder "github.com/spikeekips/mitum/util/encoder"
-	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -17,7 +17,7 @@ type testStateTreeNode struct {
 }
 
 func (t *testStateTreeNode) nodeWithoutHash() *StateTreeNode {
-	n, _ := NewStateTreeNode(util.UUID().String(), valuehash.RandomSHA256())
+	n, _ := NewStateTreeNode(util.UUID().String(), dhash.RandomHex64())
 
 	return n
 }
@@ -47,7 +47,7 @@ func (t *testStateTreeNode) TestIsValid() {
 	})
 
 	t.Run("empty state key", func() {
-		n, err := NewStateTreeNode("", valuehash.RandomSHA256())
+		n, err := NewStateTreeNode("", dhash.RandomHex64())
 		t.NoError(err)
 
 		err = n.IsValid(nil)
@@ -63,7 +63,7 @@ func (t *testStateTreeNode) TestIsValid() {
 
 func (t *testStateTreeNode) TestHash() {
 	t.Run("ok", func() {
-		key, sh := util.UUID().String(), valuehash.RandomSHA256()
+		key, sh := util.UUID().String(), dhash.RandomHex64()
 		n, err := NewStateTreeNode(key, sh)
 		t.NoError(err)
 
@@ -83,7 +83,7 @@ func (t *testStateTreeNode) TestHash() {
 	})
 
 	t.Run("empty state key", func() {
-		sh := valuehash.RandomSHA256()
+		sh := dhash.RandomHex64()
 		n, err := NewStateTreeNode("", sh)
 		t.NoError(err)
 
@@ -101,7 +101,7 @@ type testOperationTreeNode struct {
 }
 
 func (t *testOperationTreeNode) nodeWithoutHash() *OperationTreeNode {
-	n, _ := NewOperationTreeNode(valuehash.RandomSHA256(), valuehash.RandomSHA256(), util.UUID().String())
+	n, _ := NewOperationTreeNode(dhash.RandomHex64(), dhash.RandomHex64(), util.UUID().String())
 
 	return n
 }
@@ -131,19 +131,19 @@ func (t *testOperationTreeNode) TestOperationNodeIsValid() {
 	})
 
 	t.Run("nil oph", func() {
-		_, err := NewOperationTreeNode(nil, valuehash.RandomSHA256(), util.UUID().String())
+		_, err := NewOperationTreeNode(nil, dhash.RandomHex64(), util.UUID().String())
 		t.ErrorContains(err, "nil oph")
 	})
 
 	t.Run("nil fact", func() {
-		_, err := NewOperationTreeNode(valuehash.RandomSHA256(), nil, util.UUID().String())
+		_, err := NewOperationTreeNode(dhash.RandomHex64(), nil, util.UUID().String())
 		t.ErrorContains(err, "nil fact")
 	})
 }
 
 func (t *testOperationTreeNode) TestOperationNodeHash() {
 	t.Run("ok", func() {
-		oph, fact, reason := valuehash.RandomSHA256(), valuehash.RandomSHA256(), util.UUID().String()
+		oph, fact, reason := dhash.RandomHex64(), dhash.RandomHex64(), util.UUID().String()
 		n, err := NewOperationTreeNode(oph, fact, reason)
 		t.NoError(err)
 
@@ -166,7 +166,7 @@ func (t *testOperationTreeNode) TestOperationNodeHash() {
 
 func (t *testOperationTreeNode) TestSetReason() {
 	t.Run("hash", func() {
-		oph, fact, reason := valuehash.RandomSHA256(), valuehash.RandomSHA256(), util.UUID().String()
+		oph, fact, reason := dhash.RandomHex64(), dhash.RandomHex64(), util.UUID().String()
 		n, err := NewOperationTreeNode(oph, fact, reason)
 		t.NoError(err)
 
@@ -190,7 +190,7 @@ func TestStateTreeNodeEncode(tt *testing.T) {
 	t := new(mencoder.BaseTestEncode)
 
 	t.Encode = func() (interface{}, []byte) {
-		n, err := NewStateTreeNode(util.UUID().String(), valuehash.RandomSHA256())
+		n, err := NewStateTreeNode(util.UUID().String(), dhash.RandomHex64())
 		t.NoError(err)
 		_, f, err := n.SetHash(nil, nil)
 		t.NoError(err)
@@ -229,7 +229,7 @@ func TestOperationTreeNodeEncode(tt *testing.T) {
 	t := new(mencoder.BaseTestEncode)
 
 	t.Encode = func() (interface{}, []byte) {
-		n, err := NewOperationTreeNode(valuehash.RandomSHA256(), valuehash.RandomSHA256(), util.UUID().String())
+		n, err := NewOperationTreeNode(dhash.RandomHex64(), dhash.RandomHex64(), util.UUID().String())
 		t.NoError(err)
 		_, f, err := n.SetHash(nil, nil)
 		t.NoError(err)

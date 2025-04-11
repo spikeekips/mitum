@@ -7,9 +7,9 @@ import (
 	"testing"
 
 	"github.com/pkg/errors"
+	dhash "github.com/spikeekips/mitum/example/test364_5/hash"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 )
@@ -91,7 +91,7 @@ func (t *testManagerCollectResult) TestCancel() {
 					checkError(err)
 				}
 
-				if err = s(util.UUID().String(), valuehash.RandomSHA256()); err != nil {
+				if err = s(util.UUID().String(), dhash.RandomHex64()); err != nil {
 					checkError(err)
 				}
 				if err = d(nil); err != nil {
@@ -117,7 +117,7 @@ func (t *testManagerCollectResult) TestCancel() {
 		r, s, d, err := wr("w0")
 		t.NoError(err)
 		t.NoError(r(nil))
-		t.NoError(s(util.UUID().String(), valuehash.RandomSHA256()))
+		t.NoError(s(util.UUID().String(), dhash.RandomHex64()))
 		t.NoError(d(nil))
 
 		cancel(nil)
@@ -137,7 +137,7 @@ func (t *testManagerCollectResult) TestCancel() {
 		r, s, d, err := wr("w0")
 		t.NoError(err)
 		t.NoError(r(nil))
-		t.NoError(s(util.UUID().String(), valuehash.RandomSHA256()))
+		t.NoError(s(util.UUID().String(), dhash.RandomHex64()))
 		t.NoError(d(nil))
 
 		t.NoError(or([]string{"w0"}, 1))
@@ -369,7 +369,7 @@ func (t *testManagerCollectResult) TestStatesTree() {
 
 		expectedStates := make([][2]interface{}, 3)
 		for i := range expectedStates {
-			expectedStates[i] = [2]interface{}{util.UUID().String(), valuehash.RandomSHA256()}
+			expectedStates[i] = [2]interface{}{util.UUID().String(), dhash.RandomHex64()}
 		}
 
 		_, s, d, err := wr("w0")

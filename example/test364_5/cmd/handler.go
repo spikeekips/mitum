@@ -529,12 +529,12 @@ func readSubStreamWorkResult(
 	case n < 1 && errors.Is(err, io.EOF):
 		return nil
 	case len(b) < 1:
-		return errors.Errorf("empty delm")
+		return errors.New("empty delm")
 	default:
 		delm = b[0]
 
 		if delm != workResultDelmReason && delm != workResultDelmStates {
-			return errors.Errorf("wrong delm")
+			return errors.New("wrong delm")
 		}
 
 		if errors.Is(err, io.EOF) {
@@ -553,10 +553,10 @@ func readSubStreamWorkResult(
 			case n < 1 && errors.Is(err, io.EOF):
 				return nil
 			case len(b) < 1:
-				return errors.Errorf("empty delm")
+				return errors.New("empty delm")
 			case len(b) == 1:
 				if b[0] != workResultDelmStates {
-					return errors.Errorf("wrong delm; states")
+					return errors.New("wrong delm; states")
 				}
 
 				break end0
@@ -570,7 +570,7 @@ func readSubStreamWorkResult(
 			}
 
 			if !setReason(opindex, reason) {
-				return errors.Errorf("failed to set reason")
+				return errors.New("failed to set reason")
 			}
 		}
 	}
@@ -630,7 +630,7 @@ func acceptHandlerWorkerErr(f dutil.In2ErrorFunc[string, error]) quicstream.Stre
 			return ctx, err
 		}
 
-		return ctx, f(worker, errors.Errorf(errs))
+		return ctx, f(worker, errors.New(errs))
 	}
 }
 

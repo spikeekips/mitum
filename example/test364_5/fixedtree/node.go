@@ -1,13 +1,11 @@
 package fixedtree
 
 import (
-	"encoding/hex"
-
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/example/test364_5/encoder"
+	dhash "github.com/spikeekips/mitum/example/test364_5/hash"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
-	"golang.org/x/crypto/sha3"
 )
 
 var emptyNodeBytes = []byte{0x0}
@@ -145,7 +143,7 @@ func MakeBaseNodeHash(self, left, right Node, nodeHashBytes func() ([]byte, erro
 		return "", errors.Errorf("empty key")
 	}
 
-	w, sum := sha256HashWriter()
+	w, sum := dhash.NewHex64Writer()
 	defer sum()
 
 	switch b, err := nodeHashBytes(); {
@@ -173,7 +171,7 @@ func MakeBaseNodeHash(self, left, right Node, nodeHashBytes func() ([]byte, erro
 		w([]byte(right.Hash()))
 	}
 
-	return hex.EncodeToString(sum()), nil
+	return sum().String(), nil
 }
 
 func IsEqualNode(a, b Node) bool {
@@ -190,17 +188,4 @@ func IsEqualNode(a, b Node) bool {
 	default:
 		return a.Hash() == b.Hash()
 	}
-}
-
-func sha256HashWriter() (func([]byte), func() []byte) {
-	h := sha3.New256()
-
-	return func(b []byte) {
-			_, _ = h.Write(b)
-		},
-		func() []byte {
-			defer h.Reset()
-
-			return h.Sum(nil)
-		}
 }

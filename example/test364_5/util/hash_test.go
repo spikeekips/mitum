@@ -1,15 +1,12 @@
 package util
 
 import (
-	"fmt"
 	"maps"
 	"slices"
 	"testing"
 
 	"github.com/spikeekips/mitum/util"
 	"github.com/stretchr/testify/suite"
-	"github.com/zeebo/blake3"
-	"golang.org/x/crypto/sha3"
 )
 
 type testMurmur3 struct {
@@ -35,52 +32,4 @@ func (t *testMurmur3) TestDistribution() {
 
 func TestMurmur3(t *testing.T) {
 	suite.Run(t, new(testMurmur3))
-}
-
-func TestSHA256HashWriter(tt *testing.T) {
-	t := new(suite.Suite)
-	t.SetT(tt)
-
-	t.Run("ok", func() {
-		b := []byte{0, 1, 2, 3, 4}
-
-		hb := sha3.Sum256(b)
-		expected := util.EncodeHash(hb[:])
-
-		w, s := NewSHA256HashWriter()
-		w(b)
-		h := s()
-
-		t.Equal(expected, h.String())
-	})
-
-	t.Run("empty", func() {
-		hb := sha3.Sum256(nil)
-		expected := util.EncodeHash(hb[:])
-
-		_, s := NewSHA256HashWriter()
-		h := s()
-
-		t.Equal(expected, h.String())
-	})
-}
-
-func runBenchmarkHash(bb *testing.B, name string, f func([]byte) [32]byte) {
-	for i := uint64(1000); i <= 10000; i += 1000 {
-		n := make([]byte, i)
-
-		bb.Run(fmt.Sprintf(name+"%d", i), func(b *testing.B) {
-			for b.Loop() {
-				_ = f(n)
-			}
-		})
-	}
-}
-
-func BenchmarkHashSHA3(bb *testing.B) {
-	runBenchmarkHash(bb, "sha3", sha3.Sum256)
-}
-
-func BenchmarkHashBlake3(bb *testing.B) {
-	runBenchmarkHash(bb, "blake3", blake3.Sum256)
 }
