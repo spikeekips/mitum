@@ -9,12 +9,6 @@ import (
 
 	"github.com/pkg/errors"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
-	"github.com/spikeekips/mitum/util"
-)
-
-var (
-	errNoParent   = util.NewIDError("no parent")
-	errNoChildren = util.NewIDError("no children")
 )
 
 type (
@@ -89,13 +83,7 @@ func GenerateNodeHash(index uint64, nodes []Node, w NodeWriteFunc) error {
 		return errors.Errorf("nil node at %d", index)
 	}
 
-	var children [2]Node
-
-	switch c, err := childrenNodes(index, nodes); {
-	case errors.Is(err, errNoChildren):
-	case err == nil:
-		children = c
-	}
+	children := childrenNodes(index, nodes)
 
 	switch _, c, err := n.SetHash(children[0], children[1]); {
 	case err != nil:
@@ -143,9 +131,9 @@ func asyncGenerateNodeHash(
 
 	var p uint64
 
-	switch i, err := parent(index); {
-	case err != nil:
-		return index, err
+	switch i, noParent := parent(index); {
+	case noParent:
+		return index, nil
 	default:
 		p = i
 	}

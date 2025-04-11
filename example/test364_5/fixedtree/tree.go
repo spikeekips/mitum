@@ -79,27 +79,23 @@ func (t *Tree) Traverse() iter.Seq2[uint64, Node] {
 	}
 }
 
-func childrenNodes(index uint64, nodes []Node) ([2]Node, error) {
+func childrenNodes(index uint64, nodes []Node) [2]Node {
 	var c [2]Node
 
-	i, err := children(uint64(len(nodes)), index)
-	if err != nil {
-		return c, err
+	i, noChildren := children(uint64(len(nodes)), index)
+	if noChildren {
+		return c
 	}
 
-	switch {
-	case i[0] >= uint64(len(nodes)):
-	default:
+	if i[0] < uint64(len(nodes)) {
 		c[0] = nodes[i[0]]
 	}
 
-	switch {
-	case i[1] >= uint64(len(nodes)):
-	default:
+	if i[1] < uint64(len(nodes)) {
 		c[1] = nodes[i[1]]
 	}
 
-	return c, nil
+	return c
 }
 
 func indexHeight(index uint64) uint64 {
@@ -146,7 +142,7 @@ func indicesInHeight(size, height uint64) iter.Seq[uint64] {
 	}
 }
 
-func children(size, index uint64) ([2]uint64, error) {
+func children(size, index uint64) ([2]uint64, bool /* no children */) {
 	var c [2]uint64
 
 	height := indexHeight(index)
@@ -157,20 +153,19 @@ func children(size, index uint64) ([2]uint64, error) {
 
 	switch i := nextFirst + pos*2; { //nolint:mnd
 	case i >= size:
-		return c, errNoChildren.WithStack()
+		return c, true
 	default:
 		c[0] = i
+		c[1] = nextFirst + pos*2 + 1
+
+		return c, false
 	}
-
-	c[1] = nextFirst + pos*2 + 1
-
-	return c, nil
 }
 
-func parent(index uint64) (uint64, error) {
+func parent(index uint64) (uint64, bool /* no parent */) {
 	height := indexHeight(index)
 	if height == 0 {
-		return 0, errNoParent.WithStack()
+		return 0, true
 	}
 
 	currentFirst := uint64(math.Pow(2, float64(height)) - 1) //nolint:mnd
@@ -182,7 +177,7 @@ func parent(index uint64) (uint64, error) {
 
 	upFirst := uint64(math.Pow(2, float64(height-1)) - 1) //nolint:mnd
 
-	return upFirst + pos/2, nil
+	return upFirst + pos/2, false
 }
 
 func baseTraverseByHeight(
@@ -260,15 +255,7 @@ func isValidNodeHash(b []byte, index uint64, nodes []Node) error {
 		return err
 	}
 
-	var children [2]Node
-
-	switch c, err := childrenNodes(index, nodes); {
-	case errors.Is(err, errNoChildren):
-	case err != nil:
-		return err
-	default:
-		children = c
-	}
+	children := childrenNodes(index, nodes)
 
 	switch h, _, err := n.SetHash(children[0], children[1]); {
 	case err != nil:
