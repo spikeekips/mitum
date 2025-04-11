@@ -9,7 +9,7 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-var ErrJobWorkerDone = util.NewIDError("job worker: no more new job")
+var ErrJobWorkerDone = NewSError("job worker: no more new job")
 
 type (
 	JobWorkerNewJobFunc = InErrorFunc[InErrorFunc[context.Context]]
@@ -49,7 +49,7 @@ func NewFuncBaseJobWorker(
 			err := newJobf(c)
 			switch {
 			case errors.Is(err, errNewJobDone):
-				return ErrJobWorkerDone.WithStack()
+				return ErrJobWorkerDone
 			default:
 				return iferr(err)
 			}
@@ -59,7 +59,7 @@ func NewFuncBaseJobWorker(
 		},
 		func(err error) error {
 			if err := context.Cause(wctx); err != nil {
-				return ErrorWithStack(err)
+				return err
 			}
 
 			if err != nil {
@@ -80,7 +80,7 @@ func NewFuncBaseJobWorker(
 			case err := <-waitch:
 				return err
 			case <-wctx.Done():
-				return ErrorWithStack(context.Cause(wctx))
+				return context.Cause(wctx)
 			}
 		},
 		nil
@@ -147,7 +147,7 @@ func NewFuncJobWorkerNewJobFunc(
 
 	return func(c InErrorFunc[context.Context]) error {
 		if err := context.Cause(newJobCtx); err != nil {
-			return errors.WithStack(err)
+			return err
 		}
 
 		if err := sem.Acquire(newJobCtx, 1); err != nil {
@@ -172,7 +172,7 @@ func NewFuncJobWorkerWaitFunc(
 	ErrorFunc,
 	error, /* doneErr */
 ) {
-	errNewJobDone := errors.New(util.UUID().String())
+	errNewJobDone := NewSError(util.UUID().String())
 
 	return func() error {
 			<-newJobCtx.Done()

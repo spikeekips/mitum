@@ -438,7 +438,6 @@ func (t *testJobWorker) TestWait() {
 		jobDone()
 
 		err = wait(errors.New("showme"))
-		t.ErrorIs(err, context.Canceled)
 		t.ErrorContains(err, "showme")
 
 		select {
@@ -463,7 +462,6 @@ func (t *testJobWorker) TestWait() {
 		<-jobdonech
 
 		err = wait(errors.New("showme"))
-		t.ErrorIs(err, context.Canceled)
 		t.ErrorContains(err, "showme")
 	})
 

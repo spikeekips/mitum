@@ -8,13 +8,12 @@ import (
 	"sync/atomic"
 
 	"github.com/pkg/errors"
-	"github.com/spikeekips/mitum/util"
 )
 
 var (
-	ErrLockedSetIgnore            = util.NewIDError("locked ignore")
-	ErrLockedMapClosed            = util.NewIDError("locked map closed")
-	ErrSetOnlyLockedMapNotAllowed = util.NewIDError("set only locked map")
+	ErrLockedSetIgnore            = NewSError("locked ignore")
+	ErrLockedMapClosed            = NewSError("locked map closed")
+	ErrSetOnlyLockedMapNotAllowed = NewSError("set only locked map")
 )
 
 type mapIndexType interface {
@@ -164,7 +163,7 @@ func (l *SingleLockedMap[K, V]) GetOrCreate(
 	defer l.l.Unlock()
 
 	if l.m == nil {
-		return ErrLockedMapClosed.WithStack()
+		return ErrLockedMapClosed
 	}
 
 	if i, found := l.m[k]; found {
@@ -176,7 +175,7 @@ func (l *SingleLockedMap[K, V]) GetOrCreate(
 		l.m[k] = i
 
 		return get(i, true)
-	case errors.Is(err, ErrLockedSetIgnore):
+	case err == ErrLockedSetIgnore:
 		return nil
 	default:
 		return err
@@ -191,7 +190,7 @@ func (l *SingleLockedMap[K, V]) GetOrRemove(
 	defer l.l.Unlock()
 
 	if l.m == nil {
-		return ErrLockedMapClosed.WithStack()
+		return ErrLockedMapClosed
 	}
 
 	v, found := l.m[k]
@@ -203,7 +202,7 @@ func (l *SingleLockedMap[K, V]) GetOrRemove(
 		}
 
 		return nil
-	case errors.Is(err, ErrLockedSetIgnore):
+	case err == ErrLockedSetIgnore:
 		return nil
 	default:
 		return err
@@ -218,7 +217,7 @@ func (l *SingleLockedMap[K, V]) Set(
 	defer l.l.Unlock()
 
 	if l.m == nil {
-		return false, ErrLockedMapClosed.WithStack()
+		return false, ErrLockedMapClosed
 	}
 
 	i, found := l.m[k]
@@ -228,7 +227,7 @@ func (l *SingleLockedMap[K, V]) Set(
 		l.m[k] = j
 
 		return !found, nil
-	case errors.Is(err, ErrLockedSetIgnore):
+	case err == ErrLockedSetIgnore:
 		return false, nil
 	default:
 		return false, err
@@ -243,13 +242,13 @@ func (l *SingleLockedMap[K, V]) SetOrRemove(
 	defer l.l.Unlock()
 
 	if l.m == nil {
-		return false, false, ErrLockedMapClosed.WithStack()
+		return false, false, ErrLockedMapClosed
 	}
 
 	i, found := l.m[k]
 
 	switch j, remove, err := f(i, found); {
-	case errors.Is(err, ErrLockedSetIgnore):
+	case err == ErrLockedSetIgnore:
 		return false, false, nil
 	case err != nil:
 		return false, false, err
@@ -274,7 +273,7 @@ func (l *SingleLockedMap[K, V]) Remove(
 	defer l.l.Unlock()
 
 	if l.m == nil {
-		return false, ErrLockedMapClosed.WithStack()
+		return false, ErrLockedMapClosed
 	}
 
 	i, found := l.m[k]
@@ -286,7 +285,7 @@ func (l *SingleLockedMap[K, V]) Remove(
 		}
 
 		return found, nil
-	case errors.Is(err, ErrLockedSetIgnore):
+	case err == ErrLockedSetIgnore:
 		return false, nil
 	default:
 		return false, err
@@ -604,7 +603,7 @@ func (l *ShardedLockedMap[K, V]) RemoveValues(ks ...K) int {
 func (l *ShardedLockedMap[K, V]) Get(k K, f func(V, bool) error) error {
 	switch i, found, isclosed := l.loadChild(k); {
 	case isclosed:
-		return ErrLockedMapClosed.WithStack()
+		return ErrLockedMapClosed
 	case !found:
 		var v V
 
@@ -621,7 +620,7 @@ func (l *ShardedLockedMap[K, V]) GetOrCreate(
 ) error {
 	switch i, isclosed := l.getOrCreateChild(k); {
 	case isclosed:
-		return ErrLockedMapClosed.WithStack()
+		return ErrLockedMapClosed
 	default:
 		return i.GetOrCreate(k, create, func(v V, created bool) error {
 			if created {
@@ -642,7 +641,7 @@ func (l *ShardedLockedMap[K, V]) GetOrRemove(
 
 	switch i, found, isclosed := l.unlockedloadChild(k); {
 	case isclosed:
-		return ErrLockedMapClosed.WithStack()
+		return ErrLockedMapClosed
 	case !found:
 		var v V
 
@@ -675,7 +674,7 @@ func (l *ShardedLockedMap[K, V]) GetOrRemove(
 func (l *ShardedLockedMap[K, V]) Set(k K, f func(V, bool) (V, error)) (bool, error) {
 	switch i, isclosed := l.getOrCreateChild(k); {
 	case isclosed:
-		return false, ErrLockedMapClosed.WithStack()
+		return false, ErrLockedMapClosed
 	default:
 		created, err := i.Set(k, f)
 		if err == nil && created {
@@ -689,7 +688,7 @@ func (l *ShardedLockedMap[K, V]) Set(k K, f func(V, bool) (V, error)) (bool, err
 func (l *ShardedLockedMap[K, V]) SetOrRemove(k K, f func(V, bool) (V, bool, error)) (bool, bool, error) {
 	switch i, isclosed := l.getOrCreateChild(k); {
 	case isclosed:
-		return false, false, ErrLockedMapClosed.WithStack()
+		return false, false, ErrLockedMapClosed
 	default:
 		switch created, removed, err := i.SetOrRemove(k, f); {
 		case err != nil:
@@ -710,12 +709,12 @@ func (l *ShardedLockedMap[K, V]) SetOrRemove(k K, f func(V, bool) (V, bool, erro
 func (l *ShardedLockedMap[K, V]) Remove(k K, f func(V, bool) error) (bool, error) {
 	switch i, found, isclosed := l.loadChild(k); {
 	case isclosed:
-		return false, ErrLockedMapClosed.WithStack()
+		return false, ErrLockedMapClosed
 	case !found:
 		var v V
 
 		switch err := f(v, false); {
-		case errors.Is(err, ErrLockedSetIgnore):
+		case err == ErrLockedSetIgnore:
 			return false, nil
 		default:
 			return false, err

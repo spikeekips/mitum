@@ -4,11 +4,9 @@ import (
 	"context"
 	"iter"
 	"sync"
-
-	"github.com/spikeekips/mitum/util"
 )
 
-var ErrContextUnlimitedChansInsertDone = util.NewIDError("insert done")
+var ErrContextUnlimitedChansInsertDone = NewSError("insert done")
 
 func NewUnlimitedChans[T any](ctx context.Context, bufSize, outBufSize uint64) (
 	InErrorFunc[T],
