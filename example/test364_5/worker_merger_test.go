@@ -668,6 +668,8 @@ func (t *testWorkerMerger) workerMergers(
 
 	minEnough, maxFailed, err := minEnoughMaxFailed(uint64(len(workers)), share)
 	if err != nil {
+		wctxCancel()
+
 		return nil, nil, nil, err
 	}
 	t.T().Logf("min enough ops=%d max failed ops=%d", minEnough, maxFailed)
