@@ -2,6 +2,7 @@ package dop5
 
 import (
 	"context"
+	stderrors "errors"
 	"iter"
 	"maps"
 	"math"
@@ -25,7 +26,7 @@ type (
 	traverseStateOpsFunc         = func(dutil.In2ErrorFunc[int, getStateOpsFunc]) error
 )
 
-var errWorkersFailed = util.NewIDError("workers failed")
+var errWorkersFailed = dutil.NewSError("workers failed")
 
 func minEnoughMaxFailed(workers, share uint64) (minEnough, maxFailed uint64, _ error) { //nolint:nonamedreturns
 	switch {
@@ -99,7 +100,7 @@ func newFuncCheckWeightFailedWorkers(
 			if ready && failedCount >= maxFailed {
 				var gerr error = errWorkersFailed
 				if lastError != nil {
-					gerr = errWorkersFailed.Wrap(lastError)
+					gerr = stderrors.Join(errWorkersFailed, lastError)
 				}
 
 				doneFailed = gerr

@@ -2,6 +2,7 @@ package dop5
 
 import (
 	"context"
+	stderrors "errors"
 	"iter"
 	"slices"
 
@@ -146,7 +147,7 @@ func NewFuncManager(
 			case err != nil:
 				return err
 			case failed:
-				return cancelWork(errWorkersFailed.Errorf("worker error; worker=%q err=%v", worker, gerr))
+				return cancelWork(errors.Wrapf(errWorkersFailed, "worker error; worker=%q err=%v", worker, gerr))
 			default:
 				return nil
 			}
@@ -175,7 +176,7 @@ func NewFuncManager(
 					case err != nil:
 						return cancelWork(err)
 					case failed:
-						return cancelWork(errWorkersFailed.Errorf("process wait"))
+						return cancelWork(errors.Wrap(errWorkersFailed, "process wait"))
 					}
 
 					// NOTE manager done to workers outside owners
@@ -317,7 +318,7 @@ func newFuncManagerWorkerInsertDone(
 		case err != nil:
 			_ = jobWait(err)
 		case failed, gerr != nil:
-			_ = jobWait(errWorkersFailed.WithMessage(gerr, "insert done"))
+			_ = jobWait(stderrors.Join(errWorkersFailed, errors.Wrap(gerr, "insert done")))
 		}
 	}()
 
@@ -357,7 +358,7 @@ func managerStartWorkers(
 
 	switch failed, seq := workerPool.activeWorkers(); {
 	case failed:
-		return jobWait(errWorkersFailed.Errorf("start workers"))
+		return jobWait(errors.Wrap(errWorkersFailed, "start workers"))
 	default:
 		for worker := range seq {
 			if err := newJob(func(ctx context.Context) error {
@@ -475,7 +476,7 @@ func managerCloseWork(
 
 	switch failed, seq := workerPool.activeWorkers(); {
 	case failed:
-		return jobWait(errWorkersFailed.Errorf("manager done workers"))
+		return jobWait(errors.Wrap(errWorkersFailed, "manager done workers"))
 	default:
 		for worker := range seq {
 			if err := newJob(func(ctx context.Context) error {
