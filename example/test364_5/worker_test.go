@@ -56,7 +56,7 @@ func (t *testWorker) TestCancelWork() {
 				getStateOwners,
 				t.defaultDistributeValuesFunc(local),
 				func(context.Context, uint64, util.Hash, util.Hash) (OperationFact, bool, string, error) {
-					return nil, false, "", errors.Errorf("showme")
+					return nil, false, "", errors.New("showme")
 				},
 				t.ophsSeq2(facts),
 				nil,
@@ -140,7 +140,7 @@ func (t *testWorker) TestCancelWork() {
 			waiterr <- wait(
 				func(context.Context, string, []uint64) error { return nil },
 				func(context.Context, map[uint64]string, uint64, dutil.InErrorFunc[dutil.InErrorFunc[base.State]]) error {
-					return errors.Errorf("findme")
+					return errors.New("findme")
 				},
 				func([]base.State) error { return nil },
 			)
@@ -292,7 +292,7 @@ func (t *testWorker) TestClose() {
 			)
 		}()
 
-		closeWork(errors.Errorf("eatme"))
+		closeWork(errors.New("eatme"))
 
 		t.T().Log("wait: initial insert")
 		select {

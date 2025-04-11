@@ -77,7 +77,7 @@ func (cmd *baseCommand) prepare(role string, log *zerolog.Logger) error {
 		case err != nil:
 			return errors.WithStack(err)
 		case !fi.IsDir():
-			return errors.Errorf("not directory")
+			return errors.New("not directory")
 		}
 	}
 

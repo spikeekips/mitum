@@ -326,7 +326,7 @@ func (t *testRequest) TestRequest() {
 		nctx, err := f(ctx, remoteListener.Addr(), nil, nil, func(ctx context.Context, stream quic.Stream) (context.Context, error) {
 			called = true
 
-			return ctx, &net.OpError{Err: errors.Errorf("showme")}
+			return ctx, &net.OpError{Err: errors.New("showme")}
 		})
 
 		var oerr *net.OpError
@@ -354,7 +354,7 @@ func (t *testRequest) TestRequest() {
 		nctx, err := f(ctx, remoteListener.Addr(), nil, nil, func(ctx context.Context, stream quic.Stream) (context.Context, error) {
 			called = true
 
-			return ctx, errors.Errorf("showme")
+			return ctx, errors.New("showme")
 		})
 
 		t.ErrorContains(err, "showme")

@@ -628,7 +628,7 @@ func workerProcessCloseSVMs(
 				case err != nil:
 					return err
 				case st == nil:
-					return errors.Errorf("nil state")
+					return errors.New("nil state")
 				default:
 					return h(st)
 				}

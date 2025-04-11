@@ -381,9 +381,9 @@ func NewShardedLockedMap[K mapIndexType, V any](
 ) (*ShardedLockedMap[K, V], error) {
 	switch {
 	case size < 1:
-		return nil, errors.Errorf("new ShardedLockedMap; empty size")
+		return nil, errors.New("new ShardedLockedMap; empty size")
 	case size == 1:
-		return nil, errors.Errorf("new ShardedLockedMap; 1 size; use LockedMap")
+		return nil, errors.New("new ShardedLockedMap; 1 size; use LockedMap")
 	}
 
 	if newMapf == nil {

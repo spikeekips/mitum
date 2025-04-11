@@ -366,7 +366,7 @@ func (t *testUnlimitedChans) TestSeq() {
 func (t *testUnlimitedChans) TestContext() {
 	t.RunWithGoLeak("cancel before new", func() {
 		ctx, cancel := t.Ctx()
-		cancel(errors.Errorf("showme"))
+		cancel(errors.New("showme"))
 
 		insert, done, seq := NewUnlimitedChans[int](ctx, 1<<9, 1<<9)
 		err := insert(1)
@@ -407,7 +407,7 @@ func (t *testUnlimitedChans) TestContext() {
 
 				go func() {
 					if i%33 == 0 && atomic.LoadInt64(&onceCollected) > 0 {
-						cancel(errors.Errorf("showme"))
+						cancel(errors.New("showme"))
 					}
 
 					_ = insert(i)
@@ -474,7 +474,7 @@ func (t *testUnlimitedChans) TestContext() {
 
 			wg.Wait()
 
-			cancel(errors.Errorf("showme"))
+			cancel(errors.New("showme"))
 			done()
 
 			close(insertdone)
@@ -509,7 +509,7 @@ func (t *testUnlimitedChans) TestContext() {
 			for count, i := range SeqAll(seq) {
 				collected = append(collected, i)
 				if count == 133 {
-					cancel(errors.Errorf("showme"))
+					cancel(errors.New("showme"))
 				}
 			}
 

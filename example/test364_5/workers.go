@@ -447,7 +447,7 @@ func NewDistributeSerialNShare(workers, items, share uint64) (
 ) {
 	switch {
 	case workers < 1:
-		return nil, nil, errors.Errorf("zero workers")
+		return nil, nil, errors.New("zero workers")
 	case items < 1:
 		return func(uint64) uint64 { return 0 },
 			func(uint64, dutil.InErrorFunc[uint64]) error {
@@ -455,7 +455,7 @@ func NewDistributeSerialNShare(workers, items, share uint64) (
 			},
 			nil
 	case share < 1:
-		return nil, nil, errors.Errorf("zero share")
+		return nil, nil, errors.New("zero share")
 	case share > workers:
 		share = workers
 	}
@@ -548,7 +548,7 @@ func (p *failedWorkerPool) Close() {
 
 func (p *failedWorkerPool) workerError(worker string, err error) (added, failed bool, _ error) { //nolint:nonamedreturns
 	if err == nil {
-		return false, false, errors.Errorf("nil error")
+		return false, false, errors.New("nil error")
 	}
 
 	p.l.Lock()
@@ -642,7 +642,7 @@ func (p *failedWorkerPool) statesOwners() ([]string, error) {
 	defer p.l.RUnlock()
 
 	if !p.isSosReady {
-		return nil, errors.Errorf("not ready")
+		return nil, errors.New("not ready")
 	}
 
 	return p.sos, nil
@@ -697,7 +697,7 @@ func (p *failedWorkerPool) activeStatesOwners(f func(iter.Seq[string])) (bool, e
 	}
 
 	if !p.isSosReady {
-		return false, errors.Errorf("not ready")
+		return false, errors.New("not ready")
 	}
 
 	f(func(yield func(string) bool) {
@@ -722,7 +722,7 @@ func (p *failedWorkerPool) activeNonStatesOwners(f func(iter.Seq[string])) (bool
 	}
 
 	if !p.isSosReady {
-		return false, errors.Errorf("not ready")
+		return false, errors.New("not ready")
 	}
 
 	f(func(yield func(string) bool) {

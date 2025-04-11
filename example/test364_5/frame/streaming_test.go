@@ -25,7 +25,7 @@ func (t *testStreaming) TestWriteError() {
 	t.Run("write first bytes", func() {
 		write, _, err := NewStreamingWriter(
 			ioWriterFunc(func([]byte) (int, error) {
-				return 0, errors.Errorf("showme")
+				return 0, errors.New("showme")
 			}),
 			1,
 		)
@@ -42,7 +42,7 @@ func (t *testStreaming) TestWriteError() {
 			ioWriterFunc(func(b []byte) (int, error) {
 				i++
 				if i == 3 {
-					return 0, errors.Errorf("showme")
+					return 0, errors.New("showme")
 				}
 
 				return len(b), nil

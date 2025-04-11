@@ -155,7 +155,7 @@ func (t *testWrite) TestAsyncGenerateNodesHashByFollowingParent() {
 			1<<14,
 			func(index uint64, _ Node) error {
 				if index == 3 {
-					cancel(errors.Errorf("findme"))
+					cancel(errors.New("findme"))
 				}
 
 				return nil
@@ -174,7 +174,7 @@ func (t *testWrite) TestAsyncGenerateNodesHashByFollowingParent() {
 			1<<14,
 			func(index uint64, _ Node) error {
 				if index == 3 {
-					return errors.Errorf("findme")
+					return errors.New("findme")
 				}
 
 				return nil

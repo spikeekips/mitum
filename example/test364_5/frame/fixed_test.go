@@ -181,7 +181,7 @@ func TestFixedSlice(tt *testing.T) {
 				for i, b := range slices.All(bs) {
 					var err error
 					if i == len(bs)-1 {
-						err = errors.Errorf("showme")
+						err = errors.New("showme")
 					}
 
 					if !yield(b, err) {

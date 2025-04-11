@@ -359,7 +359,7 @@ func newFuncExtractSMVKeys(ctx context.Context, maxSize, size uint64) (
 
 	return func(opindex uint64, values []SMV) ([]string, error) {
 			if len(values) < 1 {
-				return nil, errors.Errorf("empty state values")
+				return nil, errors.New("empty state values")
 			}
 
 			var stateKeys []string
@@ -377,7 +377,7 @@ func newFuncExtractSMVKeys(ctx context.Context, maxSize, size uint64) (
 			}
 
 			if len(stateKeys) < 1 {
-				return nil, errors.Errorf("empty extracted state keys")
+				return nil, errors.New("empty extracted state keys")
 			}
 
 			return stateKeys, nil
@@ -549,7 +549,7 @@ func xMergeOpValues(
 	valuesSize := uint64(len(values))
 
 	if valuesSize < 1 {
-		return false, nil, nil, errors.Errorf("xmergeOp; empty values")
+		return false, nil, nil, errors.New("xmergeOp; empty values")
 	}
 
 	var (

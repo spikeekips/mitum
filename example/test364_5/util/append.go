@@ -16,7 +16,7 @@ func newBaseAppendSlice[T any](size, grow uint64, filter func(T) bool) (
 	error,
 ) {
 	if size < 1 && grow < 1 {
-		return nil, nil, errors.Errorf("size and grow under 1")
+		return nil, nil, errors.New("size and grow under 1")
 	}
 
 	var s []T

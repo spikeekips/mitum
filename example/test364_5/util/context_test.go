@@ -19,7 +19,7 @@ func (t *testContext) TestContextDone() {
 	t.Run("cancel; with error", func() {
 		cancel, done := NewContextDone(context.Background())
 
-		err := errors.Errorf("findme")
+		err := errors.New("findme")
 		t.ErrorContains(cancel(err), "findme")
 
 		var wg sync.WaitGroup

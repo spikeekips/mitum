@@ -180,7 +180,7 @@ func (t *testMergeOp) TestMergeSingleValue() {
 		vs := t.randomMergeValuesVP(vp, 1, 1)
 
 		getMerger := func(value SMV) (SVM, error) {
-			return nil, errors.Errorf("showme")
+			return nil, errors.New("showme")
 		}
 
 		isMerged, nexts, reason, err := mergeOpValues(1, vs, getMerger)
@@ -273,7 +273,7 @@ func (t *testMergeOp) TestUnmergeSingleValue() {
 		vs := t.randomMergeValuesVP(vp, 1, 1)
 
 		getMerger := func(value SMV) (SVM, error) {
-			return nil, errors.Errorf("showme")
+			return nil, errors.New("showme")
 		}
 
 		isUnmerged, _, _, err := unmergeOpValues(1, vs, getMerger)
@@ -847,7 +847,7 @@ func (t *testPhaseMerger) TestMerge() {
 			}
 
 			if slices.Equal(stateKeys, vs0keys) {
-				return errors.Errorf("showme")
+				return errors.New("showme")
 			}
 
 			return origGetMergers(opindex, values, f)
@@ -1036,7 +1036,7 @@ func (t *testPhaseMerger) TestUnmerge() {
 			}
 
 			if slices.Equal(stateKeys, vs0keys) {
-				return errors.Errorf("showme")
+				return errors.New("showme")
 			}
 
 			return origGetMergers(opindex, values, f)

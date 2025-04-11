@@ -32,7 +32,7 @@ func NewFuncBaseJobWorker(
 	error,
 ) {
 	if semSize < 1 {
-		return nil, nil, nil, errors.Errorf("semSize under 1")
+		return nil, nil, nil, errors.New("semSize under 1")
 	}
 
 	wctx, wctxCancel := ContextWithCancelCause(ctx)

@@ -398,7 +398,7 @@ func loadManifests(enc encoder.Encoder, filename string) ([2]base.Manifest, erro
 		}
 
 		if manifests[0] == nil {
-			return manifests, errors.Errorf("nil manifest, 33")
+			return manifests, errors.New("nil manifest, 33")
 		}
 
 		manifests[1], err = loadManifest(enc, f)
@@ -407,7 +407,7 @@ func loadManifests(enc encoder.Encoder, filename string) ([2]base.Manifest, erro
 		}
 
 		if manifests[1] == nil {
-			return manifests, errors.Errorf("nil manifest, 34")
+			return manifests, errors.New("nil manifest, 34")
 		}
 
 		return manifests, nil

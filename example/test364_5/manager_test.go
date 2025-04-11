@@ -42,7 +42,7 @@ func (t *baseTestManager) checkOpsTree(ophs [][2]util.Hash, expectedReasons map[
 		}
 
 		if b.Hash() == "" {
-			return errors.Errorf("nil node hash")
+			return errors.New("nil node hash")
 		}
 
 		if op[0].String() != b.Key() {
@@ -732,7 +732,7 @@ func (t *testManager) TestCloseWork() {
 			workers[3:],
 			func(_ context.Context, worker string) error {
 				if worker == workers[0] {
-					return errors.Errorf("showme")
+					return errors.New("showme")
 				}
 
 				return nil
@@ -750,7 +750,7 @@ func (t *testManager) TestCloseWork() {
 				switch {
 				case worker == workers[0],
 					worker == workers[1]:
-					return errors.Errorf("showme")
+					return errors.New("showme")
 				}
 
 				return nil
@@ -768,7 +768,7 @@ func (t *testManager) TestCloseWork() {
 			func(_ context.Context, worker string) error {
 				switch {
 				case worker == workers[3]:
-					return errors.Errorf("showme")
+					return errors.New("showme")
 				}
 
 				return nil

@@ -108,7 +108,7 @@ func readStreamHandlerPrefix(r io.Reader) (HandlerPrefix, error) {
 	case err != nil && errors.Is(err, io.EOF):
 		return p, err //nolint:wrapcheck
 	case n != len(p):
-		return p, errors.Errorf("invalid handler prefix length")
+		return p, errors.New("invalid handler prefix length")
 	default:
 		return p, errors.WithStack(err)
 	}

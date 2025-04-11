@@ -93,11 +93,11 @@ func (db *valkeyDB) getStates(ctx context.Context) iter.Seq2[base.State, error] 
 
 			switch i := len(vs); {
 			case i < 1:
-				yield(nil, errors.Errorf("empty"))
+				yield(nil, errors.New("empty"))
 
 				return
 			case i != len(entry.Elements):
-				yield(nil, errors.Errorf("insufficient"))
+				yield(nil, errors.New("insufficient"))
 
 				return
 			}
@@ -144,9 +144,9 @@ func valkeyBulkSave[T any](
 	case len(items) < 1:
 		return nil
 	case semSize < 1:
-		return errors.Errorf("zero sem size")
+		return errors.New("zero sem size")
 	case bulkSize < 1:
-		return errors.Errorf("zero bulk size")
+		return errors.New("zero bulk size")
 	}
 
 	newJob, jobDone, jobWait, err := defaultNewFuncJobWorker(ctx, semSize)

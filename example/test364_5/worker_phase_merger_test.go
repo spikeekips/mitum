@@ -86,7 +86,7 @@ end:
 		case err != nil:
 			return err
 		case s == nil:
-			return errors.Errorf("nil State")
+			return errors.New("nil State")
 		default:
 			st = s
 		}
@@ -428,7 +428,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 				}
 
 				if worker == failedWorker {
-					_ = insertDone(errors.Errorf("findme"))
+					_ = insertDone(errors.New("findme"))
 				} else {
 					_ = insertDone(nil)
 				}

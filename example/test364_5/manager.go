@@ -243,13 +243,13 @@ func isValidManagerArgs(
 
 	switch {
 	case len(ophs) < 1:
-		err = errors.Errorf("empty ophs")
+		err = errors.New("empty ophs")
 	case nworkers < 1:
-		err = errors.Errorf("empty workers")
+		err = errors.New("empty workers")
 	case opsShare < 1:
-		err = errors.Errorf("zero ops share")
+		err = errors.New("zero ops share")
 	case statesShare < 1:
-		err = errors.Errorf("zero states share")
+		err = errors.New("zero states share")
 	}
 
 	if err != nil {

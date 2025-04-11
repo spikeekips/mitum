@@ -77,9 +77,9 @@ type AccountSMV struct {
 func NewAccountSMV(address base.Publickey, balance int64) (*AccountSMV, error) {
 	switch {
 	case address == nil:
-		return nil, errors.Errorf("empty address")
+		return nil, errors.New("empty address")
 	case balance == 0:
-		return nil, errors.Errorf("zero balance")
+		return nil, errors.New("zero balance")
 	default:
 		return &AccountSMV{
 			BaseHinter: hint.NewBaseHinter(AccountSMVHint),
@@ -345,9 +345,9 @@ func (m *AccountSVM) assertValue(value base.StateValue, t **AccountSV) error {
 
 	switch ac := *t; {
 	case ac.Balance == 0:
-		return errors.Errorf("zero balance")
+		return errors.New("zero balance")
 	case m.address != nil && !m.address.Equal(ac.Address):
-		return errors.Errorf("address not matched")
+		return errors.New("address not matched")
 	default:
 		return nil
 	}

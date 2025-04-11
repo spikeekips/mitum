@@ -266,7 +266,7 @@ func (t *testWorkerMerger) TestInsert() {
 
 		t.NoError(insert(0, t.randomMergeValues(1)))
 
-		err = insertDone(errors.Errorf("findme"))
+		err = insertDone(errors.New("findme"))
 		t.ErrorContains(err, "findme")
 
 		_, err = wait(nil)
@@ -294,7 +294,7 @@ func (t *testWorkerMerger) TestInsert() {
 
 		_, insertDone, err = insertf(opsWorkers[1])
 		t.NoError(err)
-		err = insertDone(errors.Errorf("findme"))
+		err = insertDone(errors.New("findme"))
 		t.ErrorContains(err, "findme")
 
 		err = unmerge(opsWorkers[1], nil)

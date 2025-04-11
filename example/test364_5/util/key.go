@@ -13,11 +13,11 @@ func DistributeByCount[K mapIndexType](total, share uint64) (
 ) {
 	switch {
 	case total < 1:
-		return nil, nil, errors.Errorf("empty size")
+		return nil, nil, errors.New("empty size")
 	case total < 2: //nolint:mnd
 		return func(K) []uint64 { return []uint64{0} }, func() {}, nil
 	case share > total:
-		return nil, nil, errors.Errorf("share > total")
+		return nil, nil, errors.New("share > total")
 	}
 
 	c := make(map[uint64]uint64, total)

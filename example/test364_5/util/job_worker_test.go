@@ -123,7 +123,7 @@ func (t *testJobWorker) TestError() {
 		var jobCount uint64
 		callback := func(context.Context) error {
 			if atomic.LoadUint64(&jobCount) == 1 {
-				return errors.Errorf("findme")
+				return errors.New("findme")
 			}
 
 			atomic.AddUint64(&jobCount, 1)
@@ -167,7 +167,7 @@ func (t *testJobWorker) TestError() {
 		callback := func(context.Context) error {
 			switch jobCount := atomic.LoadUint64(&jobCount); {
 			case jobCount == 1:
-				return errors.Errorf("findme")
+				return errors.New("findme")
 			case jobCount > 1:
 				cancel(nil)
 			}
@@ -437,7 +437,7 @@ func (t *testJobWorker) TestWait() {
 
 		jobDone()
 
-		err = wait(errors.Errorf("showme"))
+		err = wait(errors.New("showme"))
 		t.ErrorIs(err, context.Canceled)
 		t.ErrorContains(err, "showme")
 
@@ -462,7 +462,7 @@ func (t *testJobWorker) TestWait() {
 		jobDone()
 		<-jobdonech
 
-		err = wait(errors.Errorf("showme"))
+		err = wait(errors.New("showme"))
 		t.ErrorIs(err, context.Canceled)
 		t.ErrorContains(err, "showme")
 	})
@@ -561,7 +561,7 @@ func (t *testErrJobWorker) TestError() {
 		t.NoError(err)
 
 		t.NoError(newJob(func(context.Context) error {
-			return errors.Errorf("findme")
+			return errors.New("findme")
 		}))
 		jobDone()
 		t.NoError(wait(nil))
@@ -578,7 +578,7 @@ func (t *testErrJobWorker) TestError() {
 		t.NoError(err)
 
 		t.NoError(newJob(func(context.Context) error {
-			return errors.Errorf("findme")
+			return errors.New("findme")
 		}))
 
 		jobDone()

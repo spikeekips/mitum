@@ -111,7 +111,7 @@ func readStreamingChunk(r io.Reader, chunkSize uint32) ([]byte, error) {
 	case bodyStreamingChunkType:
 		switch p, _, err := ReadSized(r, chunkSize); {
 		case err != nil:
-			return nil, errors.Errorf("insufficient body chunk")
+			return nil, errors.New("insufficient body chunk")
 		default:
 			return p, nil
 		}
@@ -145,7 +145,7 @@ func NewStreamingWriter(w io.Writer, chunkSize uint32) (
 	error,
 ) {
 	if chunkSize < 1 {
-		return nil, nil, errors.Errorf("zero chunk size")
+		return nil, nil, errors.New("zero chunk size")
 	}
 
 	var gerr error
@@ -225,7 +225,7 @@ func streamingWriterWriteHeader(w io.Writer, chunkSize uint32) error {
 
 func streamingWriterWrite(w io.Writer, chunkSize uint32, left, b []byte) ([]byte, int, error) {
 	if len(b) > math.MaxUint32 {
-		return nil, 0, errors.Errorf("too big; over uint32")
+		return nil, 0, errors.New("too big; over uint32")
 	}
 
 	var l int

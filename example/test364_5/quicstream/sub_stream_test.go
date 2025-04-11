@@ -124,7 +124,7 @@ func (t *testConnAcceptSubStreams) TestError() {
 		t.NoError(err)
 
 		t.T().Log("done streams before wait streams")
-		t.ErrorContains(doneStreams(errors.Errorf("findme")), "findme")
+		t.ErrorContains(doneStreams(errors.New("findme")), "findme")
 
 		_, err = waitStreams()
 		t.ErrorContains(err, "findme")
@@ -454,7 +454,7 @@ func (t *testConnAcceptSubStreams) TestDoneStream() {
 	}
 
 	t.RunWithGoLeak("stream.Read after done stream with error", func() {
-		stream, closef := done(errors.Errorf("showme"))
+		stream, closef := done(errors.New("showme"))
 		defer closef()
 
 		_, err := io.ReadAll(stream)
@@ -476,7 +476,7 @@ func (t *testConnAcceptSubStreams) TestDoneStream() {
 	})
 
 	t.RunWithGoLeak("stream.Write after done stream with error", func() {
-		stream, closef := done(errors.Errorf("showme"))
+		stream, closef := done(errors.New("showme"))
 		defer closef()
 
 		_, err := stream.Write([]byte{0})

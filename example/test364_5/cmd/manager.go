@@ -93,21 +93,21 @@ func (cmd *managerCommand) Run(log *zerolog.Logger) error {
 func (cmd *managerCommand) prepare() error {
 	switch {
 	case cmd.Ops < 1:
-		return errors.Errorf("zero <ops>")
+		return errors.New("zero <ops>")
 	case len(cmd.Workers) < 1:
-		return errors.Errorf("empty workers")
+		return errors.New("empty workers")
 	}
 
 	switch {
 	case cmd.OpsShare < 1:
-		return errors.Errorf("zero <ops share>")
+		return errors.New("zero <ops share>")
 	case cmd.OpsShare > uint64(len(cmd.Workers)):
 		cmd.OpsShare = uint64(len(cmd.Workers))
 	}
 
 	switch {
 	case cmd.StatesShare < 1:
-		return errors.Errorf("zero <states share>")
+		return errors.New("zero <states share>")
 	case cmd.StatesShare > uint64(len(cmd.Workers)):
 		cmd.StatesShare = uint64(len(cmd.Workers))
 	}
@@ -857,7 +857,7 @@ func (cmd *managerCommand) checkProcessed(
 					Interface("result", b).
 					Msg("cmd/ops tree node")
 
-				return errors.Errorf("node not equal")
+				return errors.New("node not equal")
 			}
 		}
 	}

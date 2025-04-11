@@ -195,7 +195,7 @@ func (t *testSMVExtractor) TestGetOperation() {
 		t.NoError(err)
 
 		err = insert(nil, func(f OpindexOpHashesFunc) error {
-			return errors.Errorf("findme")
+			return errors.New("findme")
 		}, nil)
 		t.ErrorContains(err, "findme")
 
@@ -213,7 +213,7 @@ func (t *testSMVExtractor) TestGetOperation() {
 
 		t.NoError(insert(
 			func(context.Context, uint64, util.Hash, util.Hash) (OperationFact, bool, string, error) {
-				return nil, false, "", errors.Errorf("showme")
+				return nil, false, "", errors.New("showme")
 			}, nil, nil,
 		))
 
@@ -233,7 +233,7 @@ func (t *testSMVExtractor) TestGetOperation() {
 
 		t.NoError(insert(nil, nil,
 			func(uint64, util.Hash, SMV, []SMV) error {
-				return errors.Errorf("showme")
+				return errors.New("showme")
 			}))
 
 		err = wait(func(map[uint64]string) error {
@@ -328,7 +328,7 @@ func (t *testSMVExtractor) TestExtract() {
 			func(uint64, util.Hash, SMV, []SMV) error {
 				called++
 
-				return errors.Errorf("showme")
+				return errors.New("showme")
 			}))
 
 		t.NoError(wait(func(reasons map[uint64]string) error {

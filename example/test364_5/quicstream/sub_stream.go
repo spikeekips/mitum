@@ -32,7 +32,7 @@ func AcceptSubStreams( //nolint:funlen
 	case err != nil:
 		return nil, err
 	case len(b) < 1:
-		return nil, errors.Errorf("empty id")
+		return nil, errors.New("empty id")
 	default:
 		id = string(b)
 	}
@@ -156,7 +156,7 @@ func OpenSubStreams(
 	error,
 ) {
 	if id == "" {
-		return nil, errors.Errorf("empty id")
+		return nil, errors.New("empty id")
 	}
 
 	var wait func() ([]quic.Stream, error)
@@ -390,7 +390,7 @@ func newConnAcceptSubStreams(
 
 					if nsize != size {
 						if !atomic.CompareAndSwapUint64(&rsize, uint64(size), uint64(nsize)) {
-							return nil, errors.Errorf("already called")
+							return nil, errors.New("already called")
 						}
 					}
 
@@ -552,7 +552,7 @@ func readSubStreamsSize(stream quic.Stream, size uint16) (uint16, error) {
 	case size < 1, nrsize < 1:
 		return 0, nil
 	case nrsize > math.MaxUint16:
-		return 0, errors.Errorf("received size > max uint16")
+		return 0, errors.New("received size > max uint16")
 	default:
 		return min(size, uint16(nrsize)), nil
 	}

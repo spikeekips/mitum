@@ -39,7 +39,7 @@ func newFuncManagerCollectResult(
 	error,
 ) {
 	if len(ophs) < 1 {
-		return nil, nil, nil, errors.Errorf("empty ophs")
+		return nil, nil, nil, errors.New("empty ophs")
 	}
 
 	log := dutil.NewModuleLoggerFromContext(ctx, "manager-collect-result", nil)

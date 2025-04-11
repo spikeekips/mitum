@@ -190,7 +190,7 @@ func baseTraverseByHeight(
 	h func(uint64, uint64) uint64,
 ) (iter.Seq2[uint64 /* height */, iter.Seq[uint64] /* nodes */], error) {
 	if size < 1 {
-		return nil, errors.Errorf("zero size")
+		return nil, errors.New("zero size")
 	}
 
 	last := indexHeight(size - 1)
@@ -274,7 +274,7 @@ func isValidNodeHash(b []byte, index uint64, nodes []Node) error {
 	case err != nil:
 		return err
 	case n.Hash() != h:
-		return errors.Errorf("hash does not match")
+		return errors.New("hash does not match")
 	default:
 		return nil
 	}

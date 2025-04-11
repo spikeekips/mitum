@@ -31,7 +31,7 @@ type StateTreeNode struct {
 
 func NewStateTreeNode(stateKey string, h util.Hash) (*StateTreeNode, error) {
 	if h == nil {
-		return nil, errors.Errorf("nil state hash")
+		return nil, errors.New("nil state hash")
 	}
 
 	return &StateTreeNode{
@@ -79,9 +79,9 @@ type OperationTreeNode struct {
 func NewOperationTreeNode(oph, facth util.Hash, reason string) (*OperationTreeNode, error) {
 	switch {
 	case oph == nil:
-		return nil, errors.Errorf("nil oph")
+		return nil, errors.New("nil oph")
 	case facth == nil:
-		return nil, errors.Errorf("nil fact")
+		return nil, errors.New("nil fact")
 	}
 
 	key := oph.String()

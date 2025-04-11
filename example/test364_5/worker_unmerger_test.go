@@ -504,7 +504,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			wi := int(math.Floor(float64(opindex) / float64(share)))
 
 			if slices.Index(failedWorkers, workers[wi]) >= 0 {
-				return nil, errors.Errorf("findme")
+				return nil, errors.New("findme")
 			}
 
 			return t.randomMergeValues(2), nil

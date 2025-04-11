@@ -174,11 +174,11 @@ func NewFuncRequest(dial DialCloseFunc, defaultTLSConfig *tls.Config, defaultQui
 	RequestFunc, error,
 ) {
 	if defaultTLSConfig == nil {
-		return nil, errors.Errorf("nil tls config")
+		return nil, errors.New("nil tls config")
 	}
 
 	if defaultQuicConfig == nil {
-		return nil, errors.Errorf("nil quic config")
+		return nil, errors.New("nil quic config")
 	}
 
 	return func(ctx context.Context, addr net.Addr, tlsConfig *tls.Config, quicConfig *quic.Config, h StreamHandler) (

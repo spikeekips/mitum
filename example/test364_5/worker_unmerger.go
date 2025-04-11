@@ -238,7 +238,7 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 
 			if err := unmergef(func(f dutil.InErrorFunc[uint64]) error {
 				if f == nil {
-					return errors.Errorf("empty unmerge of unmerger")
+					return errors.New("empty unmerge of unmerger")
 				}
 
 				unmergeOp = f

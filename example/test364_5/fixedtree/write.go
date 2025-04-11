@@ -38,7 +38,7 @@ func WriteNodes(ctx context.Context, semSize int64, nodes []Node, w NodeWriteFun
 	case len(nodes) < 1:
 		return nil
 	case nodes[0] == nil:
-		return errors.Errorf("nil root")
+		return errors.New("nil root")
 	case nodes[0].Hash() == "":
 		if g == nil {
 			return nil

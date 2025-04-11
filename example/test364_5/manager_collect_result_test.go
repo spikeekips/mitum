@@ -84,7 +84,7 @@ func (t *testManagerCollectResult) TestCancel() {
 				}
 
 				if i == 1 {
-					cancel(errors.Errorf("showme"))
+					cancel(errors.New("showme"))
 				}
 
 				if err = r(nil); err != nil {
@@ -204,7 +204,7 @@ func (t *testManagerCollectResult) TestMaxFailed() {
 		_, _, d, err = wr("w1") // NOTE w1 error
 		t.NoError(err)
 
-		err = d(errors.Errorf("showme"))
+		err = d(errors.New("showme"))
 		t.NoError(err)
 
 		_, _, d, err = wr("w2") // NOTE w2 ok
@@ -242,7 +242,7 @@ func (t *testManagerCollectResult) TestMaxFailed() {
 		_, _, d, err = wr("w1") // NOTE w1 error
 		t.NoError(err)
 
-		err = d(errors.Errorf("showme"))
+		err = d(errors.New("showme"))
 		t.ErrorIs(err, errWorkersFailed)
 		t.ErrorContains(err, "showme")
 

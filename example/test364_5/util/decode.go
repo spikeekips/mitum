@@ -67,7 +67,7 @@ func AssignJSONBytes(v any, b *[]byte) ErrorFunc {
 func AssignJSONInts(v, k any) ErrorFunc {
 	return func() error {
 		if v == nil {
-			return errors.Errorf("nil value")
+			return errors.New("nil value")
 		}
 
 		x, ok := v.(float64)

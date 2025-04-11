@@ -46,7 +46,7 @@ func (n *BaseNode) Hash() string {
 func (n *BaseNode) UpdateHashFunc(h string) dutil.ErrorFunc {
 	return func() error {
 		if n.h != "" {
-			return errors.Errorf("already hashed")
+			return errors.New("already hashed")
 		}
 
 		n.h = h
@@ -140,7 +140,7 @@ func IsValidNode(n Node, b []byte) error {
 
 func MakeBaseNodeHash(self, left, right Node, nodeHashBytes func() ([]byte, error)) (string, error) {
 	if self.Key() == "" {
-		return "", errors.Errorf("empty key")
+		return "", errors.New("empty key")
 	}
 
 	w, sum := dhash.NewHex64Writer()
@@ -157,7 +157,7 @@ func MakeBaseNodeHash(self, left, right Node, nodeHashBytes func() ([]byte, erro
 	case left == nil:
 		w(emptyNodeBytes)
 	case left.Hash() == "":
-		return "", errors.Errorf("empty left hash")
+		return "", errors.New("empty left hash")
 	default:
 		w([]byte(left.Hash()))
 	}
@@ -166,7 +166,7 @@ func MakeBaseNodeHash(self, left, right Node, nodeHashBytes func() ([]byte, erro
 	case right == nil:
 		w(emptyNodeBytes)
 	case right.Hash() == "":
-		return "", errors.Errorf("empty right hash")
+		return "", errors.New("empty right hash")
 	default:
 		w([]byte(right.Hash()))
 	}

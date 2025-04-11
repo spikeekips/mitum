@@ -128,9 +128,9 @@ func redisBulkSave[T any](
 	case len(items) < 1:
 		return nil
 	case semSize < 1:
-		return errors.Errorf("zero sem size")
+		return errors.New("zero sem size")
 	case bulkSize < 1:
-		return errors.Errorf("zero bulk size")
+		return errors.New("zero bulk size")
 	}
 
 	newJob, jobDone, jobWait, err := defaultNewFuncJobWorker(ctx, semSize)

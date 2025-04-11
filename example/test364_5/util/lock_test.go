@@ -117,7 +117,7 @@ func (t *testSingleLockedMap) TestGet() {
 
 	t.Run("error", func() {
 		err := l.Get("showme", func(v int, found bool) error {
-			return errors.Errorf("findme")
+			return errors.New("findme")
 		})
 		t.Error(err)
 		t.ErrorContains(err, "findme")
@@ -174,7 +174,7 @@ func (t *testSingleLockedMap) TestGetOrCreate() {
 	t.Run("error", func() {
 		err := l.GetOrCreate("eatme",
 			func() (int, error) {
-				return 2, errors.Errorf("eatme")
+				return 2, errors.New("eatme")
 			},
 			func(int, bool) error {
 				return nil
@@ -236,7 +236,7 @@ func (t *testSingleLockedMap) TestSet() {
 			t.True(found)
 			t.Equal(2, i)
 
-			return 3, errors.Errorf("eatme")
+			return 3, errors.New("eatme")
 		})
 		t.Error(err)
 		t.False(created)
@@ -503,7 +503,7 @@ func (t *testSingleLockedMap) TestLock() {
 			remove func(int) bool,
 			_ iter.Seq2[int, int],
 		) error {
-			return errors.Errorf("showme")
+			return errors.New("showme")
 		})
 		t.ErrorContains(err, "showme")
 	})
@@ -720,7 +720,7 @@ func (t *testShardedLockedMap) TestGetOrCreate() {
 
 		err = m.GetOrCreate("showme",
 			func() (string, error) {
-				return "showme", errors.Errorf("findme")
+				return "showme", errors.New("findme")
 			},
 			func(string, bool) error {
 				return nil
@@ -747,7 +747,7 @@ func (t *testShardedLockedMap) TestGetOrCreate() {
 
 		t.NoError(m.GetOrCreate("showme",
 			func() (string, error) {
-				return "showme", errors.Errorf("findme")
+				return "showme", errors.New("findme")
 			},
 			func(i string, created bool) error {
 				t.False(created)
@@ -822,7 +822,7 @@ func (t *testShardedLockedMap) TestSet() {
 			t.True(found)
 			t.Equal("showme", i)
 
-			return "findme", errors.Errorf("eatme")
+			return "findme", errors.New("eatme")
 		})
 		t.Error(err)
 		t.False(created)
@@ -1080,7 +1080,7 @@ func (t *testShardedLockedMap) TestLock() {
 			remove func(int) bool,
 			_ iter.Seq2[int, int],
 		) error {
-			return errors.Errorf("showme")
+			return errors.New("showme")
 		})
 		t.ErrorContains(err, "showme")
 	})

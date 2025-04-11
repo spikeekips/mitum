@@ -327,7 +327,7 @@ func (t *testManagerWorkersOps) TestFailed() {
 			ophs,
 			func(_ context.Context, worker string, maxItems uint64) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 				if worker == failedWorker {
-					return nil, nil, errors.Errorf("showme")
+					return nil, nil, errors.New("showme")
 				}
 
 				return func(opindex uint64, oph, facth util.Hash) error {
@@ -398,7 +398,7 @@ func (t *testManagerWorkersOps) TestFailed() {
 
 						once.Do(func() {
 							if worker == failedWorker {
-								err = errors.Errorf("showme")
+								err = errors.New("showme")
 							}
 						})
 						if err != nil {
@@ -472,7 +472,7 @@ func (t *testManagerWorkersOps) TestFailed() {
 					},
 					func(err error) error {
 						if err == nil && worker == failedWorker {
-							err = errors.Errorf("showme")
+							err = errors.New("showme")
 						}
 
 						t.Print("send ops done: worker=%q err=%v", worker, err)

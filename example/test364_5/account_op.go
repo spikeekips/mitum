@@ -101,7 +101,7 @@ func (fact *AccountOpFact) IsValid([]byte) error {
 	}
 
 	if !fact.Hash().Equal(fact.hash()) {
-		return errors.Errorf("hash does not match")
+		return errors.New("hash does not match")
 	}
 
 	return nil

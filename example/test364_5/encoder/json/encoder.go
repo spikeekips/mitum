@@ -38,7 +38,7 @@ func NewEncoder(ctx context.Context, cacheSize int) *Encoder {
 
 func AddDecode[T any](enc *Encoder, ht hint.Hint, sample T, decode any) error {
 	if decode == nil {
-		return errors.Errorf("nil decode")
+		return errors.New("nil decode")
 	}
 
 	if err := ht.IsValid(nil); err != nil {
@@ -46,7 +46,7 @@ func AddDecode[T any](enc *Encoder, ht hint.Hint, sample T, decode any) error {
 	}
 
 	if reflect.TypeOf(sample) == nil {
-		return errors.Errorf("nil sample")
+		return errors.New("nil sample")
 	}
 
 	return enc.addDecode(ht, hinterDecodeFunc(ht, sample, decode))
@@ -129,7 +129,7 @@ func (enc *Encoder) decodeMap(m map[string]any) (any, error) {
 	var ht hint.Hint
 	switch i, found := m["_hint"]; {
 	case !found:
-		return nil, errors.Errorf("_hint not found")
+		return nil, errors.New("_hint not found")
 	default:
 		s, ok := i.(string)
 		if !ok {
