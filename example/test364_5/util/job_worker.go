@@ -3,6 +3,7 @@ package util
 import (
 	"context"
 	"slices"
+	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
@@ -54,9 +55,9 @@ func NewFuncBaseJobWorker(
 				return iferr(err)
 			}
 		},
-		func() {
+		sync.OnceFunc(func() {
 			_ = jctxCancel(errNewJobDone)
-		},
+		}),
 		func(err error) error {
 			if err := context.Cause(wctx); err != nil {
 				return err
