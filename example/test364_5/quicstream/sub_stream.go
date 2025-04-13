@@ -2,7 +2,6 @@ package quicstream
 
 import (
 	"context"
-	stderrors "errors"
 	"io"
 	"iter"
 	"math"
@@ -255,7 +254,7 @@ type (
 	addSubStreamFunc = func(quic.Stream) (enough bool)
 )
 
-var errConnAcceptSubStreamsClosed = errors.New("ConnAcceptSubStreamsClosed")
+var errConnAcceptSubStreamsClosed = dutil.NewSError("ConnAcceptSubStreamsClosed")
 
 func newConnAcceptSubStreams(
 	ctx context.Context,
@@ -308,12 +307,8 @@ func newConnAcceptSubStreams(
 			dutil.InErrorFunc[error],
 			error,
 		) {
-			switch err := context.Cause(gctx); {
-			case err == nil:
-			case errors.Is(err, errConnAcceptSubStreamsClosed):
-				return nil, nil, err //nolint:wrapcheck
-			default:
-				return nil, nil, stderrors.Join(errConnAcceptSubStreamsClosed, err)
+			if err := context.Cause(gctx); err != nil {
+				return nil, nil, errConnAcceptSubStreamsClosed
 			}
 
 			l.Lock()
@@ -321,7 +316,7 @@ func newConnAcceptSubStreams(
 
 			switch {
 			case ids == nil:
-				return nil, nil, errors.WithStack(errConnAcceptSubStreamsClosed)
+				return nil, nil, errConnAcceptSubStreamsClosed
 			case ids[id] != nil:
 				return nil, nil, util.ErrFound.Errorf("known id, %q", id)
 			}

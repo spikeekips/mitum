@@ -170,12 +170,12 @@ func (l *SingleLockedMap[K, V]) GetOrCreate(
 		return get(i, false)
 	}
 
-	switch i, err := create(); {
-	case err == nil:
+	switch i, err := create(); err {
+	case nil:
 		l.m[k] = i
 
 		return get(i, true)
-	case err == ErrLockedSetIgnore:
+	case ErrLockedSetIgnore: //nolint:errorlint
 		return nil
 	default:
 		return err
@@ -195,14 +195,14 @@ func (l *SingleLockedMap[K, V]) GetOrRemove(
 
 	v, found := l.m[k]
 
-	switch remove, err := get(v, found); {
-	case err == nil:
+	switch remove, err := get(v, found); err {
+	case nil:
 		if found && remove {
 			delete(l.m, k)
 		}
 
 		return nil
-	case err == ErrLockedSetIgnore:
+	case ErrLockedSetIgnore: //nolint:errorlint
 		return nil
 	default:
 		return err
@@ -222,12 +222,12 @@ func (l *SingleLockedMap[K, V]) Set(
 
 	i, found := l.m[k]
 
-	switch j, err := f(i, found); {
-	case err == nil:
+	switch j, err := f(i, found); err {
+	case nil:
 		l.m[k] = j
 
 		return !found, nil
-	case err == ErrLockedSetIgnore:
+	case ErrLockedSetIgnore: //nolint:errorlint
 		return false, nil
 	default:
 		return false, err
@@ -248,7 +248,7 @@ func (l *SingleLockedMap[K, V]) SetOrRemove(
 	i, found := l.m[k]
 
 	switch j, remove, err := f(i, found); {
-	case err == ErrLockedSetIgnore:
+	case err == ErrLockedSetIgnore: //nolint:errorlint
 		return false, false, nil
 	case err != nil:
 		return false, false, err
@@ -278,14 +278,14 @@ func (l *SingleLockedMap[K, V]) Remove(
 
 	i, found := l.m[k]
 
-	switch err := f(i, found); {
-	case err == nil:
+	switch err := f(i, found); err {
+	case nil:
 		if found {
 			delete(l.m, k)
 		}
 
 		return found, nil
-	case err == ErrLockedSetIgnore:
+	case ErrLockedSetIgnore: //nolint:errorlint
 		return false, nil
 	default:
 		return false, err
@@ -713,8 +713,8 @@ func (l *ShardedLockedMap[K, V]) Remove(k K, f func(V, bool) error) (bool, error
 	case !found:
 		var v V
 
-		switch err := f(v, false); {
-		case err == ErrLockedSetIgnore:
+		switch err := f(v, false); err {
+		case ErrLockedSetIgnore: //nolint:errorlint
 			return false, nil
 		default:
 			return false, err

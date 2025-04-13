@@ -30,7 +30,7 @@ func NewIfErrErrorInFunc(f InErrorFunc[error], ignores ...error) InErrorFunc[err
 			var found bool
 
 			for e := range slices.Values(ignores) {
-				if err == e || errors.Is(err, e) {
+				if err == e || errors.Is(err, e) { //nolint:errorlint
 					found = true
 
 					break

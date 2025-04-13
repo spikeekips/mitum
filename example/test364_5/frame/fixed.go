@@ -32,9 +32,9 @@ func NewFixedReader(r io.Reader) (io.Reader, error) {
 	case err != nil && !errors.Is(err, io.EOF):
 		return nil, errors.Wrap(err, "read frame size")
 	case size < 1:
-		return nil, errors.WithStack(err)
+		return nil, err
 	default:
-		return io.LimitReader(r, int64(size)), errors.WithStack(err)
+		return io.LimitReader(r, int64(size)), err
 	}
 }
 
@@ -50,7 +50,7 @@ func WriteFixed(w io.Writer, b []byte) error {
 	case size < 1:
 		_, err = w.Write(s)
 
-		return errors.WithStack(err)
+		return err
 	default:
 		p := make([]byte, len(s)+len(b))
 		copy(p, s)
@@ -58,7 +58,7 @@ func WriteFixed(w io.Writer, b []byte) error {
 
 		_, err = w.Write(p)
 
-		return errors.WithStack(err)
+		return err
 	}
 }
 
@@ -74,7 +74,7 @@ func WriteFixeds(w io.Writer, bs ...[]byte) error {
 
 	_, err := w.Write(buf.Bytes())
 
-	return errors.WithStack(err)
+	return err
 }
 
 func ReadFixedSlice(r io.Reader) (uint32, iter.Seq2[[]byte, error], error) {

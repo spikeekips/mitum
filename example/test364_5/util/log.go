@@ -6,7 +6,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 )
 
@@ -67,22 +66,6 @@ func UpdateModuleLoggerFromContext(ctx context.Context, module string, f func(ze
 	log := NewModuleLoggerFromContext(ctx, module, f)
 
 	return SetContextValueLogger(ctx, log), log
-}
-
-type stackTracer interface {
-	StackTrace() errors.StackTrace
-}
-
-func ErrorWithStack(err error) error {
-	if err == nil {
-		return nil
-	}
-
-	if _, ok := err.(stackTracer); ok {
-		return err
-	}
-
-	return errors.WithStack(err)
 }
 
 func ElapsedLogEvent(f func() *zerolog.Event) func() *zerolog.Event {

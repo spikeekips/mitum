@@ -25,7 +25,7 @@ func ContextWithCancelCause(ctx context.Context) (context.Context, InErrorFunc[e
 		once.Do(func() {
 			switch err {
 			case nil:
-				gerr = ErrorWithStack(context.Canceled)
+				gerr = context.Canceled
 
 				cancel(nil)
 			default:
@@ -47,7 +47,7 @@ func ContextWithCancelCause(ctx context.Context) (context.Context, InErrorFunc[e
 
 func ContextCauseError(ctx context.Context, ef InErrorFunc[error], f InErrorFunc[context.Context]) error {
 	if err := context.Cause(ctx); err != nil {
-		return ErrorWithStack(err)
+		return err
 	}
 
 	if ef == nil {
@@ -98,13 +98,13 @@ func CheckContextWait(ctx context.Context) (
 			return err
 		},
 		func() (bool, error) {
-			gerr := errors.WithStack(context.Cause(ctx))
+			gerr := context.Cause(ctx)
 
 			switch err := context.Cause(cctx); {
 			case errors.Is(err, errDone):
 				return false, gerr
 			case err != nil:
-				return false, errors.WithStack(err)
+				return false, err
 			default:
 				return true, gerr
 			}
@@ -196,10 +196,10 @@ func (c *JoinedContext) Done() <-chan struct{} {
 
 func (c *JoinedContext) Err() error {
 	if e := c.c1.Err(); e != nil {
-		return errors.WithStack(e)
+		return e
 	}
 
-	return errors.WithStack(c.c0.Err())
+	return c.c0.Err()
 }
 
 func (c *JoinedContext) Value(key any) any {

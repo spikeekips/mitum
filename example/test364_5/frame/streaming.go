@@ -241,7 +241,7 @@ func streamingWriterWrite(w io.Writer, chunkSize uint32, left, b []byte) ([]byte
 		copy(c[1+len(left):], b[l:])
 
 		if _, err := w.Write(c); err != nil {
-			return nil, 0, errors.WithStack(err)
+			return nil, 0, err
 		}
 
 		switch i := len(c) - len(left) - 1; {

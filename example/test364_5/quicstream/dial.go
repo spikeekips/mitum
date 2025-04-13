@@ -205,7 +205,7 @@ func NewFuncRequest(dial DialCloseFunc, defaultTLSConfig *tls.Config, defaultQui
 
 			switch s, err := conn.OpenStreamSync(ctx); {
 			case err != nil:
-				return nil, closef(err)
+				return nil, closef(errors.WithStack(err))
 			default:
 				nctx := context.WithValue(ctx, QuicConnectionContextKey, conn)
 				nctx = context.WithValue(nctx, RemoteAddrContextKey, conn.RemoteAddr())
@@ -213,7 +213,7 @@ func NewFuncRequest(dial DialCloseFunc, defaultTLSConfig *tls.Config, defaultQui
 
 				_ = closeStream(s, err)
 
-				return nctx, closef(err)
+				return nctx, closef(errors.WithStack(err))
 			}
 		},
 		nil

@@ -174,7 +174,7 @@ end:
 	for {
 		switch i, err := r.Read(b); {
 		case err != nil && !errors.Is(err, io.EOF):
-			return n + i, errors.WithStack(err)
+			return n + i, err
 		default:
 			gerr = err
 

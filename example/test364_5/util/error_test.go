@@ -17,7 +17,7 @@ func (t *testSError) TestNew() {
 	_ = any(err).(error)
 
 	t.Equal("showme", err.Error())
-	t.True(err == err)
+	t.True(err == err) //lint:ignore SA4000 ...
 	t.True(errors.Is(err, err))
 }
 
@@ -25,7 +25,7 @@ func (t *testSError) TestEqual() {
 	t.Run("equal", func() {
 		err := NewSError("showme")
 
-		t.True(err == err)
+		t.True(err == err) //lint:ignore SA4000 ...
 		t.True(errors.Is(err, err))
 	})
 
@@ -111,6 +111,6 @@ func BenchmarkEqualSError(b *testing.B) {
 	err := NewSError("showme")
 
 	for b.Loop() {
-		_ = err == err
+		_ = err == err //lint:ignore SA4000 ...
 	}
 }
