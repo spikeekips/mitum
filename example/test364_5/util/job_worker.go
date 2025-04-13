@@ -173,7 +173,7 @@ func NewFuncJobWorkerWaitFunc(
 	ErrorFunc,
 	error, /* doneErr */
 ) {
-	errNewJobDone := NewSError(util.UUID().String())
+	errNewJobDone := NewSError(util.UUID().String()) // FIXME remove
 
 	return func() error {
 			<-newJobCtx.Done()

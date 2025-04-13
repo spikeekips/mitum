@@ -251,68 +251,66 @@ func (t *testValkeyState) TestSave() {
 }
 
 func (t *testValkeyState) TestScan() {
-	t.Run("get all", func() {
-		sts := t.randomStates(1 << 10)
+	sts := t.randomStates(1 << 10)
 
-		t.NoError(t.db.saveStates(
-			context.Background(),
-			1<<9, 1<<9,
-			sts,
-		))
+	t.NoError(t.db.saveStates(
+		context.Background(),
+		1<<9, 1<<9,
+		sts,
+	))
 
-		seq := t.db.getStates(context.Background())
+	seq := t.db.getStates(context.Background())
 
-		rsts := make([]base.State, 0, len(sts))
+	rsts := make([]base.State, 0, len(sts))
 
-		for st, err := range seq {
-			t.NoError(err)
-			rsts = append(rsts, st)
-		}
+	for st, err := range seq {
+		t.NoError(err)
+		rsts = append(rsts, st)
+	}
 
-		t.Equal(len(sts), len(rsts))
+	t.Equal(len(sts), len(rsts))
 
-		slices.SortFunc(sts, func(a, b base.State) int {
-			return strings.Compare(a.Key(), b.Key())
-		})
-		slices.SortFunc(rsts, func(a, b base.State) int {
-			return strings.Compare(a.Key(), b.Key())
-		})
-
-		for i := range sts {
-			t.True(base.IsEqualState(sts[i], rsts[i]))
-		}
+	slices.SortFunc(sts, func(a, b base.State) int {
+		return strings.Compare(a.Key(), b.Key())
+	})
+	slices.SortFunc(rsts, func(a, b base.State) int {
+		return strings.Compare(a.Key(), b.Key())
 	})
 
-	t.Run("reading error", func() {
-		sts := t.randomStates(1 << 10)
+	for i := range sts {
+		t.True(base.IsEqualState(sts[i], rsts[i]))
+	}
+}
 
-		t.NoError(t.db.saveStates(
-			context.Background(),
-			1<<9, 1<<9,
-			sts,
-		))
+func (t *testValkeyState) TestScanReadingError() {
+	sts := t.randomStates(1 << 10)
 
-		facts := t.randomFacts(3)
-		for fact := range slices.Values(facts) {
-			b, err := t.enc.Marshal(fact)
-			t.NoError(err)
+	t.NoError(t.db.saveStates(
+		context.Background(),
+		1<<9, 1<<9,
+		sts,
+	))
 
-			t.NoError(t.client.Do(context.Background(), t.client.B().Set().Key(valkeyStateKey(fact.Hash().String())).Value(string(b)).Build()).Error())
+	facts := t.randomFacts(3)
+	for fact := range slices.Values(facts) {
+		b, err := t.enc.Marshal(fact)
+		t.NoError(err)
+
+		t.NoError(t.client.Do(context.Background(), t.client.B().Set().Key(valkeyStateKey(fact.Hash().String())).Value(string(b)).Build()).Error())
+	}
+
+	seq := t.db.getStates(
+		context.Background(),
+	)
+
+	var errcount int
+	for _, err := range seq {
+		if err != nil {
+			t.ErrorContains(err, "expected")
+			errcount++
 		}
-
-		seq := t.db.getStates(
-			context.Background(),
-		)
-
-		var errcount int
-		for _, err := range seq {
-			if err != nil {
-				t.ErrorContains(err, "expected")
-				errcount++
-			}
-		}
-		t.Equal(len(facts), errcount)
-	})
+	}
+	t.Equal(len(facts), errcount)
 }
 
 func TestValkeyState(t *testing.T) {

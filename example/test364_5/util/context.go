@@ -6,9 +6,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/pkg/errors"
-	"github.com/spikeekips/mitum/util"
 )
 
 type ContextKey string
@@ -79,17 +76,16 @@ func CheckContextWait(ctx context.Context) (
 	InErrorFunc[error],
 	func() (bool, error),
 ) {
-	errDone := errors.New(util.UUID().String())
+	var done int64
+
 	cctx, cctxCancel := ContextWithCancelCause(ctx)
 
 	var once sync.Once
 
 	return cctx, func(err error) error {
 			once.Do(func() {
-				if err == nil {
-					_ = cctxCancel(errDone)
-
-					return
+				if err == nil && atomic.CompareAndSwapInt64(&done, 0, 1) {
+					_ = cctxCancel(nil)
 				}
 
 				_ = cctxCancel(err)
@@ -101,9 +97,11 @@ func CheckContextWait(ctx context.Context) (
 			gerr := context.Cause(ctx)
 
 			switch err := context.Cause(cctx); {
-			case errors.Is(err, errDone):
-				return false, gerr
 			case err != nil:
+				if atomic.LoadInt64(&done) == 1 {
+					return false, gerr
+				}
+
 				return false, err
 			default:
 				return true, gerr
@@ -128,21 +126,15 @@ func NewContextDone(ctx context.Context) (
 ) {
 	done := make(chan struct{})
 
-	var gerr atomic.Value
+	var gerr error
 	var once sync.Once
 
 	return func(err error) error {
 			once.Do(func() {
+				gerr = err
+
 				close(done)
-
-				if err != nil {
-					gerr.Store(err)
-				}
 			})
-
-			if e, ok := gerr.Load().(error); ok && e != nil {
-				return e
-			}
 
 			return err
 		},
@@ -151,11 +143,7 @@ func NewContextDone(ctx context.Context) (
 			case <-ctx.Done():
 				return context.Cause(ctx)
 			case <-done:
-				if e, ok := gerr.Load().(error); ok && e != nil {
-					return e
-				}
-
-				return nil
+				return gerr
 			}
 		}
 }
