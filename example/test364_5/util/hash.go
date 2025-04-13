@@ -5,15 +5,15 @@ import (
 	"math"
 	"math/big"
 
-	"github.com/twmb/murmur3"
+	"github.com/spaolacci/murmur3"
 )
 
-var maxv = big.NewInt(0).SetUint64(uint64(math.MaxUint64))
+var maxv = big.NewInt(0).SetUint64(uint64(math.MaxUint32))
 
-func NewHashSeed() uint64 {
+func NewHashSeed() uint32 {
 	for {
 		if rnd, err := rand.Int(rand.Reader, maxv); err == nil {
-			return rnd.Uint64()
+			return uint32(rnd.Uint64())
 		}
 	}
 }
@@ -53,6 +53,6 @@ func StringDjb2(seed uint64, k string) uint64 {
 	return d ^ (d >> 16) //nolint:mnd
 }
 
-func Murmur3(seed uint64, s string) uint64 {
-	return murmur3.SeedStringSum64(seed, s)
+func Murmur3(seed uint32, s string) uint64 {
+	return murmur3.Sum64WithSeed([]byte(s), seed)
 }

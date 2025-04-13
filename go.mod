@@ -26,9 +26,9 @@ require (
 	github.com/quic-go/quic-go v0.50.1
 	github.com/redis/go-redis/v9 v9.7.3
 	github.com/rs/zerolog v1.34.0
+	github.com/spaolacci/murmur3 v1.1.0
 	github.com/stretchr/testify v1.10.0
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
-	github.com/twmb/murmur3 v1.1.8
 	github.com/valkey-io/valkey-go v1.0.56
 	github.com/zeebo/blake3 v0.2.4
 	go.uber.org/goleak v1.3.0
