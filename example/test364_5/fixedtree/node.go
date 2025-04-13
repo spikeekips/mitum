@@ -1,9 +1,11 @@
 package fixedtree
 
 import (
+	"encoding/hex"
+
+	"github.com/cespare/xxhash/v2"
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/example/test364_5/encoder"
-	dhash "github.com/spikeekips/mitum/example/test364_5/hash"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 )
@@ -143,35 +145,35 @@ func MakeBaseNodeHash(self, left, right Node, nodeHashBytes func() ([]byte, erro
 		return "", errors.New("empty key")
 	}
 
-	w, sum := dhash.NewHex64Writer()
-	defer sum()
+	h := xxhash.New()
+	defer h.Reset()
 
 	switch b, err := nodeHashBytes(); {
 	case err != nil:
 		return "", err
 	default:
-		w(b)
+		_, _ = h.Write(b)
 	}
 
 	switch {
 	case left == nil:
-		w(emptyNodeBytes)
+		_, _ = h.Write(emptyNodeBytes)
 	case left.Hash() == "":
 		return "", errors.New("empty left hash")
 	default:
-		w([]byte(left.Hash()))
+		_, _ = h.Write([]byte(left.Hash()))
 	}
 
 	switch {
 	case right == nil:
-		w(emptyNodeBytes)
+		_, _ = h.Write(emptyNodeBytes)
 	case right.Hash() == "":
 		return "", errors.New("empty right hash")
 	default:
-		w([]byte(right.Hash()))
+		_, _ = h.Write([]byte(right.Hash()))
 	}
 
-	return sum().String(), nil
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 func IsEqualNode(a, b Node) bool {

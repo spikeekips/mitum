@@ -67,6 +67,9 @@ func (t *testNode) TestHash() {
 		b := NewBaseNode(key)
 		t.NoError(t.updateHash(b, nil, nil))
 
+		t.T().Log("a:", a.Hash())
+		t.T().Log("b:", a.Hash())
+
 		t.True(a.Equal(b))
 	})
 

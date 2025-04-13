@@ -13,7 +13,7 @@ var maxv = big.NewInt(0).SetUint64(uint64(math.MaxUint32))
 func NewHashSeed() uint32 {
 	for {
 		if rnd, err := rand.Int(rand.Reader, maxv); err == nil {
-			return uint32(rnd.Uint64())
+			return uint32(rnd.Uint64()) //nolint:gosec // G115
 		}
 	}
 }
