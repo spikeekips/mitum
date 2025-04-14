@@ -605,11 +605,11 @@ func (t *testErrJobWorker) TestError() {
 	})
 }
 
-func TestErrJobWorker(t *testing.T) {
+func TestErrJobWorkerAsync(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	sem := semaphore.NewWeighted(33)
-	for i := 0; i < 99; i++ {
+	sem := semaphore.NewWeighted(99)
+	for range 99 {
 		_ = sem.Acquire(context.Background(), 1)
 
 		go func() {
@@ -619,5 +619,15 @@ func TestErrJobWorker(t *testing.T) {
 		}()
 	}
 
-	_ = sem.Acquire(context.Background(), 33)
+	_ = sem.Acquire(context.Background(), 99)
+}
+
+func TestErrJobWorker(t *testing.T) {
+	for range 99 {
+		func() {
+			defer goleak.VerifyNone(t)
+
+			suite.Run(t, new(testErrJobWorker))
+		}()
+	}
 }

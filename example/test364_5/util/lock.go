@@ -1408,3 +1408,20 @@ func compactLockedMapKeys[K mapIndexType](ks []K) []K {
 
 	return slices.Compact(n)
 }
+
+func NewOnceFunc(f InErrorFunc[error]) func(error) (bool /* called */, error) {
+	var once sync.Once
+	var gerr error
+
+	return func(err error) (bool, error) {
+		var called bool
+
+		once.Do(func() {
+			called = true
+
+			gerr = f(err)
+		})
+
+		return called, gerr
+	}
+}

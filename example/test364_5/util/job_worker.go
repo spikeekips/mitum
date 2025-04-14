@@ -3,10 +3,9 @@ package util
 import (
 	"context"
 	"slices"
-	"sync"
+	"sync/atomic"
 
 	"github.com/pkg/errors"
-	"github.com/spikeekips/mitum/util"
 	"golang.org/x/sync/semaphore"
 )
 
@@ -37,51 +36,76 @@ func NewFuncBaseJobWorker(
 	}
 
 	wctx, wctxCancel := ContextWithCancelCause(ctx)
-	jctx, jctxCancel := ContextWithCancelCause(wctx)
+	newJobCtx, newJobDone := ContextWithCancelCause(wctx)
 
 	sem := semaphore.NewWeighted(semSize)
 
-	newJobf := NewFuncJobWorkerNewJobFunc(wctx, jctx, sem, errf)
-	waitf, errNewJobDone := NewFuncJobWorkerWaitFunc(wctx, jctx, sem, semSize)
+	newJobf := newFuncJobWorkerNewJobFunc(wctx, newJobCtx, sem, func(err error) error {
+		if nerr := errf(err); nerr != nil {
+			return wctxCancel(err)
+		}
 
-	iferr := NewIfErrErrorInFunc(errf)
+		return nil
+	})
 
-	return func(c InErrorFunc[context.Context]) error {
-			err := newJobf(c)
-			switch {
-			case errors.Is(err, errNewJobDone):
-				return ErrJobWorkerDone
-			default:
-				return iferr(err)
-			}
-		},
-		sync.OnceFunc(func() {
-			_ = jctxCancel(errNewJobDone)
-		}),
-		func(err error) error {
-			if err := context.Cause(wctx); err != nil {
-				return err
-			}
+	var done int64
 
-			if err != nil {
-				return wctxCancel(err)
-			}
+	wait := NewOnceFunc(func(err error) error {
+		if err := context.Cause(wctx); err != nil {
+			return err
+		}
 
+		if err != nil {
+			return wctxCancel(err)
+		}
+
+		waitch := make(chan error, 1)
+
+		go func() {
+			<-newJobCtx.Done()
+
+			waitch <- sem.Acquire(ctx, semSize)
+		}()
+
+		select {
+		case err := <-waitch:
 			defer func() {
 				_ = wctxCancel(nil)
 			}()
 
-			waitch := make(chan error, 1)
-
-			go func() {
-				waitch <- waitf()
-			}()
-
-			select {
-			case err := <-waitch:
+			if err != nil {
 				return err
-			case <-wctx.Done():
-				return context.Cause(wctx)
+			}
+
+			return context.Cause(wctx)
+		case <-wctx.Done():
+			return context.Cause(wctx)
+		}
+	})
+
+	return func(c InErrorFunc[context.Context]) error {
+			switch err := newJobf(c); {
+			case err != nil && atomic.LoadInt64(&done) == 1:
+				return ErrJobWorkerDone
+			case err != nil:
+				return wctxCancel(err)
+			default:
+				return nil
+			}
+		},
+		func() {
+			if atomic.CompareAndSwapInt64(&done, 0, 1) {
+				_ = newJobDone(nil)
+			}
+		},
+		func(err error) error {
+			switch called, werr := wait(err); {
+			case werr != nil:
+				return werr
+			case !called:
+				return context.Canceled
+			default:
+				return nil
 			}
 		},
 		nil
@@ -93,22 +117,11 @@ func NewFuncJobWorker(ctx context.Context, semSize int64) (
 	InErrorFunc[error],
 	error,
 ) {
-	wctx, wctxCancel := ContextWithCancelCause(ctx)
-
-	newJob, jobDone, wait, err := NewFuncBaseJobWorker(
-		wctx,
+	return NewFuncBaseJobWorker(
+		ctx,
 		semSize,
-		wctxCancel,
+		func(err error) error { return err },
 	)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	return newJob, jobDone,
-		func(err error) error {
-			return wctxCancel(wait(err))
-		},
-		nil
 }
 
 func NewFuncErrJobWorker(ctx context.Context, semSize int64, errf InErrorFunc[error]) (
@@ -117,72 +130,37 @@ func NewFuncErrJobWorker(ctx context.Context, semSize int64, errf InErrorFunc[er
 	InErrorFunc[error],
 	error,
 ) {
-	wctx, wctxCancel := ContextWithCancelCause(ctx)
-
-	ierrf := NewIfErrErrorInFunc(wctxCancel)
-
-	newJob, jobDone, wait, err := NewFuncBaseJobWorker(
-		wctx,
+	return NewFuncBaseJobWorker(
+		ctx,
 		semSize,
-		func(err error) error {
-			return ierrf(errf(err))
-		},
+		errf,
 	)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	return newJob, jobDone,
-		func(err error) error {
-			return wctxCancel(wait(err))
-		},
-		nil
 }
 
-func NewFuncJobWorkerNewJobFunc(
+func newFuncJobWorkerNewJobFunc(
 	ctx, newJobCtx context.Context,
 	sem *semaphore.Weighted,
 	errf InErrorFunc[error],
 ) JobWorkerNewJobFunc {
-	iferr := NewIfErrErrorInFunc(errf)
-
 	return func(c InErrorFunc[context.Context]) error {
 		if err := context.Cause(newJobCtx); err != nil {
 			return err
 		}
 
-		if err := sem.Acquire(newJobCtx, 1); err != nil {
+		if sem.Acquire(newJobCtx, 1) != nil {
 			return context.Cause(newJobCtx)
 		}
 
 		go func() {
 			defer sem.Release(1)
 
-			_ = iferr(c(ctx))
+			if err := c(ctx); err != nil {
+				_ = errf(err)
+			}
 		}()
 
 		return nil
 	}
-}
-
-func NewFuncJobWorkerWaitFunc(
-	ctx, newJobCtx context.Context,
-	sem *semaphore.Weighted,
-	semSize int64,
-) (
-	ErrorFunc,
-	error, /* doneErr */
-) {
-	errNewJobDone := NewSError(util.UUID().String()) // FIXME remove
-
-	return func() error {
-			<-newJobCtx.Done()
-
-			return ContextCauseError(ctx, nil, func(ctx context.Context) error {
-				return sem.Acquire(ctx, semSize)
-			})
-		},
-		errNewJobDone
 }
 
 func NewFuncNewJobWorkerFunc(maxSemSize int64) NewJobWorkerFunc {
