@@ -86,6 +86,8 @@ func CheckContextWait(ctx context.Context) (
 			once.Do(func() {
 				if err == nil && atomic.CompareAndSwapInt64(&done, 0, 1) {
 					_ = cctxCancel(nil)
+
+					return
 				}
 
 				_ = cctxCancel(err)
@@ -94,17 +96,13 @@ func CheckContextWait(ctx context.Context) (
 			return err
 		},
 		func() (bool, error) {
-			gerr := context.Cause(ctx)
-
 			switch err := context.Cause(cctx); {
+			case atomic.LoadInt64(&done) == 1:
+				return false, context.Cause(ctx)
 			case err != nil:
-				if atomic.LoadInt64(&done) == 1 {
-					return false, gerr
-				}
-
 				return false, err
 			default:
-				return true, gerr
+				return true, nil
 			}
 		}
 }
