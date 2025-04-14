@@ -34,7 +34,7 @@ func newFuncManagerCollectOwners(
 		checkWorker = w
 	}
 
-	octx, ownersDone, ownersDoneContextError, ownersWait := dutil.NewContextWait(ctx)
+	_, ownersDone, ownersDoneContextError, ownersWait := dutil.NewContextWait(ctx)
 
 	var add dutil.AppendSliceAddFunc[string]
 	var done dutil.OutFunc[[]string]
@@ -49,7 +49,7 @@ func newFuncManagerCollectOwners(
 	checkContextError := dutil.NewFuncCheckContextError(ownersDoneContextError, dutil.DummyErrorInFunc)
 
 	return func(worker string, owners []string) error {
-			if ok, err := checkContextError(); err != nil || !ok {
+			if isDone, err := checkContextError(); err != nil || isDone {
 				return err
 			}
 
@@ -57,25 +57,23 @@ func newFuncManagerCollectOwners(
 				return errors.Errorf("worker, %q not ops worker", worker)
 			}
 
-			return dutil.ContextCauseError(octx, nil, func(context.Context) error {
-				l := log.With().Str("worker", worker).Logger()
+			l := log.With().Str("worker", worker).Logger()
 
-				_, _ = add(owners...)
+			_, _ = add(owners...)
 
-				switch ok, enough, failed := checkWorker(worker, nil); {
-				case failed != nil:
-					l.Error().Err(failed).Msg("worker states owners: failed")
+			switch ok, enough, failed := checkWorker(worker, nil); {
+			case failed != nil:
+				l.Error().Err(failed).Msg("worker states owners: failed")
 
-					return ownersDone(failed)
-				case !ok:
-				case enough:
-					l.Debug().Msg("worker states owners; enough")
+				return ownersDone(failed)
+			case !ok:
+			case enough:
+				l.Debug().Msg("worker states owners; enough")
 
-					return ownersDone(nil)
-				}
+				return ownersDone(nil)
+			}
 
-				return nil
-			})
+			return nil
 		},
 		func() ([]string, error) {
 			if err := ownersWait(); err != nil {

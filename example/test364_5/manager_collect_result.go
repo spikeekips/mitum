@@ -59,7 +59,7 @@ func newFuncManagerCollectResult(
 		opsNewJob, opsJobDone, opsJobWait = n, d, w
 	}
 
-	_, baseOpsDone, _, baseOpsWait := dutil.NewContextWait(ctx)
+	baseOpsDone, baseOpsWait := dutil.NewContextDone(ctx)
 
 	var unmergedOp dutil.In2ErrorFunc[uint64, string]
 	var doneOpsTree generateFixedTreeFunc
@@ -268,7 +268,7 @@ func newFuncManagerWorkersResult( //nolint:maintidx,gocyclo,funlen
 		newJob, jobDone, jobWait = n, d, w
 	}
 
-	wsctx, workersDone, workersDoneContextError, workersWait := dutil.NewContextWait(ctx)
+	_, workersDone, workersDoneContextError, workersWait := dutil.NewContextWait(ctx)
 
 	var addState dutil.AppendSliceAddFunc[fixedtree.Node]
 	var doneState dutil.OutFunc[[]fixedtree.Node]
@@ -337,70 +337,60 @@ func newFuncManagerWorkersResult( //nolint:maintidx,gocyclo,funlen
 		}
 	}
 
+	checkContextError := dutil.NewFuncCheckContextError(workersDoneContextError, workersDone)
+
 	return func(worker string) (
 			dutil.InErrorFunc[map[uint64]string],
 			dutil.In2ErrorFunc[string, util.Hash],
 			dutil.InErrorFunc[error],
 			error,
 		) {
-			if ok, err := workersDoneContextError(); err != nil || !ok {
+			if isDone, err := checkContextError(); err != nil || isDone {
 				return nil, nil, nil, err
 			}
 
-			wctx, cancel := dutil.ContextWithCancelCause(wsctx)
-			checkContextError := dutil.NewFuncCheckContextError(workersDoneContextError, cancel)
-
 			return func(reasons map[uint64]string) error {
-					if ok, err := checkContextError(); err != nil || !ok {
+					if isDone, err := checkContextError(); err != nil || isDone {
 						return err
 					}
 
-					switch err := dutil.ContextCauseError(wctx, dutil.NewIfErrErrorInFunc(cancel), func(context.Context) error {
-						return opsNewjob(func(context.Context) error {
-							return workerReasons(reasons)
-						})
+					switch err := opsNewjob(func(context.Context) error {
+						return workerReasons(reasons)
 					}); {
-					case errors.Is(err, dutil.ErrJobWorkerDone),
-						errors.Is(err, context.Canceled):
+					case errors.Is(err, dutil.ErrJobWorkerDone):
 						return nil // ignore error
 					default:
 						return err
 					}
 				},
 				func(stateKey string, stateHash util.Hash) error {
-					if ok, err := checkContextError(); err != nil || !ok {
+					if isDone, err := checkContextError(); err != nil || isDone {
 						return err
 					}
 
-					switch err := dutil.ContextCauseError(wctx, dutil.NewIfErrErrorInFunc(cancel), func(context.Context) error {
-						return newJob(func(context.Context) error {
-							switch n, err := NewStateTreeNode(stateKey, stateHash); {
-							case err != nil:
-								return err
-							default:
-								_, _ = addState(n)
+					switch err := newJob(func(context.Context) error {
+						switch n, err := NewStateTreeNode(stateKey, stateHash); {
+						case err != nil:
+							return err
+						default:
+							_, _ = addState(n)
 
-								return nil
-							}
-						})
+							return nil
+						}
 					}); {
-					case errors.Is(err, dutil.ErrJobWorkerDone),
-						errors.Is(err, context.Canceled):
+					case errors.Is(err, dutil.ErrJobWorkerDone):
 						return nil // ignore error
 					default:
 						return err
 					}
 				},
 				func(err error) error {
-					defer func() { _ = cancel(nil) }()
-
-					if ok, err := checkContextError(); err != nil || !ok {
+					if isDone, err := checkContextError(); err != nil || isDone {
 						return err
 					}
 
 					switch err := workerDone(worker, err); {
-					case errors.Is(err, dutil.ErrJobWorkerDone),
-						errors.Is(err, context.Canceled):
+					case errors.Is(err, dutil.ErrJobWorkerDone):
 						return nil // ignore error
 					default:
 						return err
@@ -409,48 +399,50 @@ func newFuncManagerWorkersResult( //nolint:maintidx,gocyclo,funlen
 				nil
 		},
 		func(statesOwners []string, statesShare uint64) error {
+			if isDone, err := checkContextError(); err != nil || isDone {
+				return err
+			}
+
 			if len(statesOwners) < 1 {
 				return workersDone(nil)
 			}
 
-			return dutil.ContextCauseError(wsctx, dutil.NewIfErrErrorInFunc(workersDone), func(context.Context) error {
-				if err := workerErrPool.Get(util.UUID().String(), func(error, bool) error {
-					if checkWorker != nil {
-						return nil
-					}
+			if err := workerErrPool.Get(util.UUID().String(), func(error, bool) error {
+				if checkWorker != nil {
+					return nil
+				}
 
-					log.Debug().
-						Strs("state_owners", statesOwners).
-						Uint64("states_share", statesShare).
-						Msg("ready")
+				log.Debug().
+					Strs("state_owners", statesOwners).
+					Uint64("states_share", statesShare).
+					Msg("ready")
 
-					switch w, err := newFuncCheckFailedWorkers(uint64(len(statesOwners)), statesShare, nil); {
-					case err != nil:
-						return err
-					default:
-						checkWorker = func(worker string, err error) (ok, enough bool, failed error) { //nolint:nonamedreturns
-							if slices.Index(statesOwners, worker) < 0 {
-								return false, false, nil
-							}
-
-							return w(worker, err)
+				switch w, err := newFuncCheckFailedWorkers(uint64(len(statesOwners)), statesShare, nil); {
+				case err != nil:
+					return err
+				default:
+					checkWorker = func(worker string, err error) (ok, enough bool, failed error) { //nolint:nonamedreturns
+						if slices.Index(statesOwners, worker) < 0 {
+							return false, false, nil
 						}
 
-						return nil
+						return w(worker, err)
 					}
-				}); err != nil {
-					return err
-				}
 
-				// NOTE exhaust errors in pool
-				for worker, err := range workerErrPool.Seq2 {
-					if _, gerr := checkWorkerDone(checkWorker, worker, err); gerr != nil {
-						return gerr
-					}
+					return nil
 				}
+			}); err != nil {
+				return err
+			}
 
-				return nil
-			})
+			// NOTE exhaust errors in pool
+			for worker, err := range workerErrPool.Seq2 {
+				if _, gerr := checkWorkerDone(checkWorker, worker, err); gerr != nil {
+					return gerr
+				}
+			}
+
+			return nil
 		},
 		func() error {
 			defer func() {
@@ -466,27 +458,21 @@ func newFuncManagerWorkersResult( //nolint:maintidx,gocyclo,funlen
 				_ = jobWait(context.Canceled)
 			}()
 
-			var tr *fixedtree.Tree
+			if err := jobWait(nil); err != nil {
+				return nil, err
+			}
 
-			return tr, dutil.ContextCauseError(ctx, workersDone, func(context.Context) error {
-				if err := jobWait(nil); err != nil {
-					return err
-				}
+			nodes := doneState()
 
-				nodes := doneState()
-
-				slices.SortFunc(nodes, func(a, b fixedtree.Node) int {
-					return strings.Compare(a.Key(), b.Key())
-				})
-
-				if err := g(ctx, nodes, nil); err != nil {
-					return err
-				}
-
-				tr = NewStatesTree(nodes)
-
-				return nil
+			slices.SortFunc(nodes, func(a, b fixedtree.Node) int {
+				return strings.Compare(a.Key(), b.Key())
 			})
+
+			if err := g(ctx, nodes, nil); err != nil {
+				return nil, err
+			}
+
+			return NewStatesTree(nodes), nil
 		},
 		nil
 }

@@ -337,7 +337,7 @@ func newConnAcceptSubStreams(
 			var controlStream quic.Stream
 
 			controlDone, controlWait := dutil.NewContextDone(jctx) //nolint:contextcheck
-			_, streamsDone, _, streamsWait := dutil.NewContextWait(jctx)
+			streamsDone, streamsWait := dutil.NewContextDone(jctx) //nolint:contextcheck
 
 			rsize := uint64(size)
 			left := uint64(size)

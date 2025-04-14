@@ -114,7 +114,7 @@ func NewFuncWorker( //nolint:maintidx
 		return cancelWork(err, true)
 	})
 
-	_, closeWork, _, closeWorkWait := dutil.NewContextWait(wctx)
+	closeWork, closeWorkWait := dutil.NewContextDone(wctx)
 
 	var initialInsert workerProcessInitialInsertFunc
 	var workerInsert WorkerProcessWorkerInsertSMVsFunc

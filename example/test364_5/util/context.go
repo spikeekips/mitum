@@ -57,32 +57,28 @@ func ContextCauseError(ctx context.Context, ef InErrorFunc[error], f InErrorFunc
 func NewContextWait(ctx context.Context) (
 	context.Context,
 	InErrorFunc[error],
-	func() (bool, error),
+	func() (bool /* canceled or done */, error),
 	ErrorFunc,
 ) {
-	cctx, cctxCancel, check := CheckContextWait(ctx)
-
-	return cctx, cctxCancel, check, func() error {
-		<-cctx.Done()
-
-		_, err := check()
-
-		return err
-	}
-}
-
-func CheckContextWait(ctx context.Context) (
-	context.Context,
-	InErrorFunc[error],
-	func() (bool, error),
-) {
 	var done int64
+	var once sync.Once
 
 	cctx, cctxCancel := ContextWithCancelCause(ctx)
 
-	var once sync.Once
+	isDone := func() (bool, error) {
+		if err := context.Cause(cctx); err != nil {
+			if atomic.LoadInt64(&done) == 1 {
+				return true, context.Cause(ctx)
+			}
 
-	return cctx, func(err error) error {
+			return true, err
+		}
+
+		return false, nil
+	}
+
+	return cctx,
+		func(err error) error {
 			once.Do(func() {
 				if err == nil && atomic.CompareAndSwapInt64(&done, 0, 1) {
 					_ = cctxCancel(nil)
@@ -95,26 +91,24 @@ func CheckContextWait(ctx context.Context) (
 
 			return err
 		},
-		func() (bool, error) {
-			switch err := context.Cause(cctx); {
-			case atomic.LoadInt64(&done) == 1:
-				return false, context.Cause(ctx)
-			case err != nil:
-				return false, err
-			default:
-				return true, nil
-			}
+		isDone,
+		func() error {
+			<-cctx.Done()
+
+			_, err := isDone()
+
+			return err
 		}
 }
 
 func NewFuncCheckContextError(f func() (bool, error), cancel InErrorFunc[error]) func() (bool, error) {
 	return func() (bool, error) {
-		ok, err := f()
-		if err != nil || !ok {
+		isDone, err := f()
+		if err != nil || isDone {
 			_ = cancel(err)
 		}
 
-		return ok, err
+		return isDone, err
 	}
 }
 
