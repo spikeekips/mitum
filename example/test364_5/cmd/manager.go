@@ -1008,7 +1008,7 @@ func prepareItems[T any]( //nolint:funlen
 		w = f
 	}
 
-	newJob, jobDone, jobWait, _ := defaultNewFuncJobWorker(ctx, dutil.SafeUint64toInt64(rem))
+	newJob, jobDone, jobWait, _ := defaultNewFuncJobWorker(ctx, dutil.SafeUint64ToInt64(rem))
 
 	for i := range rem {
 		if err := newJob(func(context.Context) error {
@@ -1071,7 +1071,7 @@ func loadFromFile[T any](
 
 	items := make([]T, nsize)
 
-	newJob, jobDone, jobWait, _ := defaultNewFuncJobWorker(ctx, dutil.SafeUint64toInt64(nsize))
+	newJob, jobDone, jobWait, _ := defaultNewFuncJobWorker(ctx, dutil.SafeUint64ToInt64(nsize))
 
 	var count uint64
 	for count < nsize {

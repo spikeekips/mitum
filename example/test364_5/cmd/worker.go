@@ -77,7 +77,7 @@ func (cmd *workerCommand) prepare() error {
 
 	cmd.getStateCache, _ = newFuncWorkersAwareStateCache(
 		cmd.ctx,
-		dutil.SafeUint64toInt(cmd.CapOpsSize),
+		dutil.SafeUint64ToInt(cmd.CapOpsSize),
 		1<<9, 1<<9, //nolint:mnd // NOTE will be enough :)
 	)
 

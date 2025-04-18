@@ -88,7 +88,7 @@ func NewFuncManager(
 		Uint64("states_share", statesShare).
 		Msg("new")
 
-	newJobWorker := dutil.NewFuncNewJobWorkerFunc(dutil.SafeUint64toInt64(options.JobWorkerMaxSemSize))
+	newJobWorker := dutil.NewFuncNewJobWorkerFunc(dutil.SafeUint64ToInt64(options.JobWorkerMaxSemSize))
 
 	var workerPool *failedWorkerPool
 	var sendOps dutil.InErrorFunc[newWorkerSendOpFunc]

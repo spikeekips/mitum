@@ -52,7 +52,7 @@ func newFuncManagerCollectResult(
 	var opsJobDone func()
 	var opsJobWait dutil.InErrorFunc[error]
 
-	switch n, d, w, err := dutil.NewFuncJobWorker(ctx, dutil.SafeUint64toInt64(approxStatesSize)); {
+	switch n, d, w, err := dutil.NewFuncJobWorker(ctx, dutil.SafeUint64ToInt64(approxStatesSize)); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -261,7 +261,7 @@ func newFuncManagerWorkersResult( //nolint:maintidx,gocyclo,funlen
 	var jobDone func()
 	var jobWait dutil.InErrorFunc[error]
 
-	switch n, d, w, err := dutil.NewFuncJobWorker(ctx, dutil.SafeUint64toInt64(approxStatesSize)); {
+	switch n, d, w, err := dutil.NewFuncJobWorker(ctx, dutil.SafeUint64ToInt64(approxStatesSize)); {
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:

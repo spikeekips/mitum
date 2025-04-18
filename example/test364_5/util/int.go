@@ -2,7 +2,7 @@ package util
 
 import "math"
 
-func SafeUint64toInt64(i uint64) int64 {
+func SafeUint64ToInt64(i uint64) int64 {
 	switch {
 	case i > uint64(math.MaxInt64):
 		return int64(math.MaxInt64)
@@ -20,7 +20,7 @@ func SafeIntToUint64(i int) uint64 {
 	}
 }
 
-func SafeUint64toInt(i uint64) int {
+func SafeUint64ToInt(i uint64) int {
 	return int(i) //nolint:gosec
 }
 

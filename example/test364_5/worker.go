@@ -124,7 +124,7 @@ func NewFuncWorker( //nolint:maintidx
 	switch i, w, u, p, err := newFuncWorkerProcess(
 		wctx,
 		options.Local,
-		dutil.NewFuncNewJobWorkerFunc(dutil.SafeUint64toInt64(options.JobWorkerMaxSemSize)),
+		dutil.NewFuncNewJobWorkerFunc(dutil.SafeUint64ToInt64(options.JobWorkerMaxSemSize)),
 		getState,
 		createState,
 		options.MaxExtractStateKeyCacheSize,

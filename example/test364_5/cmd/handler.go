@@ -766,7 +766,7 @@ func requestHandlerWorkerDistributeSMVs(
 		}
 
 		return ctx, subStreams(func(streams []quic.Stream) error {
-			semSize := dutil.SafeUint64toInt64(maxItems)
+			semSize := dutil.SafeUint64ToInt64(maxItems)
 			if semSize < 1 {
 				semSize = 1 << 9 //nolint:mnd
 			}
@@ -922,7 +922,7 @@ func acceptHandlerWorkerDistributeSMVs(
 		var jobDone func()
 		var jobWait dutil.InErrorFunc[error]
 
-		semSize := dutil.SafeUint64toInt64(maxItems)
+		semSize := dutil.SafeUint64ToInt64(maxItems)
 		if semSize < 1 {
 			semSize = 1 << 9 //nolint:mnd
 		}
@@ -1148,7 +1148,7 @@ func requestHandlerPreloadOps(
 		var jobDone func()
 		var jobWait dutil.InErrorFunc[error]
 
-		switch n, d, w, err := defaultNewFuncJobWorker(ctx, dutil.SafeUint64toInt64(maxItems)); {
+		switch n, d, w, err := defaultNewFuncJobWorker(ctx, dutil.SafeUint64ToInt64(maxItems)); {
 		case err != nil:
 			return ctx, err
 		default:
@@ -1230,7 +1230,7 @@ func acceptHandlerPreloadOps(
 		var jobDone func()
 		var jobWait dutil.InErrorFunc[error]
 
-		switch n, d, w, err := defaultNewFuncJobWorker(ctx, dutil.SafeUint64toInt64(maxItems)); {
+		switch n, d, w, err := defaultNewFuncJobWorker(ctx, dutil.SafeUint64ToInt64(maxItems)); {
 		case err != nil:
 			return ctx, err
 		default:
