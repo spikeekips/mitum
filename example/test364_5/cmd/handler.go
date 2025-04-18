@@ -132,7 +132,7 @@ func requestHandlerSendOps(
 	seq := func(func([3]interface{}) bool) {}
 
 	if maxItems > 0 {
-		add, addDone, seq = dutil.NewUnlimitedChans[[3]interface{}](ctx, maxItems, maxItems)
+		add, addDone, seq = dutil.NewUnlimitedChan[[3]interface{}](ctx, maxItems, maxItems)
 	}
 
 	done, wait := dutil.NewContextDone(ctx)
@@ -235,7 +235,7 @@ func acceptHandlerSendOps(
 			subStreams = s
 		}
 
-		add, addDone, seq := dutil.NewUnlimitedChans[[3]interface{}](ctx, maxItems, maxItems)
+		add, addDone, seq := dutil.NewUnlimitedChan[[3]interface{}](ctx, maxItems, maxItems)
 
 		done, wait := dutil.NewContextDone(ctx)
 
@@ -733,7 +733,7 @@ func requestHandlerWorkerDistributeSMVs(
 		chansize = maxSubStreamItems
 	}
 
-	addValues, addValuesDone, seq := dutil.NewUnlimitedChans[[3]interface{}](ctx, chansize, chansize)
+	addValues, addValuesDone, seq := dutil.NewUnlimitedChan[[3]interface{}](ctx, chansize, chansize)
 
 	var notOK atomic.Value
 

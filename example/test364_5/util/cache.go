@@ -34,7 +34,7 @@ func NewLazyCache[K comparable, V any, O cmp.Ordered](
 ) {
 	cache := util.NewLRUGCache[K, [2]any /* {V, <O: set time> } */](cacheSize)
 
-	add, addDone, seq := NewUnlimitedChans[[4]any /* {K, V, <expire>, <O:set time>} */](
+	add, addDone, seq := NewUnlimitedChan[[4]any /* {K, V, <expire>, <O:set time>} */](
 		ctx, bufSize, outBufSize)
 
 	donech := make(chan struct{})

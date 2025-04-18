@@ -453,7 +453,7 @@ func newFuncWorkerProcessInitialInsert(
 					func(),
 					iter.Seq[interface{}],
 				) {
-					return dutil.NewUnlimitedChans[interface{}](
+					return dutil.NewUnlimitedChan[interface{}](
 						ctx,
 						maxOpsSize*2, maxOpsSize*2, //nolint:mnd // NOTE approximate states size
 					)

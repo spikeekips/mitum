@@ -181,7 +181,7 @@ func (t *baseTestWorkers) newWorkerDistributeSMVsContextChans(ctx context.Contex
 	func(),
 	iter.Seq[interface{}],
 ) {
-	return dutil.NewUnlimitedChans[interface{}](ctx, 1<<9, 1<<9)
+	return dutil.NewUnlimitedChan[interface{}](ctx, 1<<9, 1<<9)
 }
 
 func (t *baseTestWorkers) newWorkersDistributeSMVsContextChans(ctx context.Context) (
@@ -189,7 +189,7 @@ func (t *baseTestWorkers) newWorkersDistributeSMVsContextChans(ctx context.Conte
 	func(),
 	iter.Seq[interface{}],
 ) {
-	return dutil.NewUnlimitedChans[interface{}](ctx, 1<<9, 1<<9)
+	return dutil.NewUnlimitedChan[interface{}](ctx, 1<<9, 1<<9)
 }
 
 type testCheckEnoughFailedWorkers struct {

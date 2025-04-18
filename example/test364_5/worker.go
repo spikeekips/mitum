@@ -170,7 +170,7 @@ func NewFuncWorker( //nolint:maintidx
 					func(),
 					iter.Seq[interface{}],
 				) {
-					return dutil.NewUnlimitedChans[interface{}](ctx, maxOpsSize*2, maxOpsSize*2) //nolint:mnd
+					return dutil.NewUnlimitedChan[interface{}](ctx, maxOpsSize*2, maxOpsSize*2) //nolint:mnd
 				},
 			)
 

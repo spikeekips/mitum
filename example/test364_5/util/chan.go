@@ -8,7 +8,7 @@ import (
 
 var ErrContextUnlimitedChansInsertDone = NewSError("insert done")
 
-func NewUnlimitedChans[T any](ctx context.Context, bufSize, outBufSize uint64) (
+func NewUnlimitedChan[T any](ctx context.Context, bufSize, outBufSize uint64) (
 	InErrorFunc[T],
 	func(),
 	iter.Seq[T],
@@ -26,10 +26,13 @@ func NewUnlimitedChans[T any](ctx context.Context, bufSize, outBufSize uint64) (
 		buf := make([]T, 0, bufSize)
 		defer ClearSlice(&buf)
 
-	end:
 		for {
 			for len(buf) > 0 {
 				select {
+				case <-ctx.Done():
+					close(out)
+
+					return
 				case t := <-in:
 					buf = append(buf, t)
 				case out <- buf[0]:
@@ -41,11 +44,11 @@ func NewUnlimitedChans[T any](ctx context.Context, bufSize, outBufSize uint64) (
 			case <-ctx.Done():
 				close(out)
 
-				break end
+				return
 			case <-donech:
 				close(out)
 
-				break end
+				return
 			case t := <-in:
 				buf = append(buf, t)
 			}
