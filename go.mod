@@ -14,6 +14,7 @@ require (
 	github.com/btcsuite/btcd/btcec/v2 v2.3.4
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0
 	github.com/bytedance/sonic v1.13.2
+	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/hashicorp/consul/api v1.31.2
 	github.com/hashicorp/memberlist v0.5.3
@@ -32,10 +33,10 @@ require (
 	github.com/valkey-io/valkey-go v1.0.56
 	github.com/zeebo/blake3 v0.2.4
 	go.uber.org/goleak v1.3.0
-	golang.org/x/crypto v0.36.0
+	golang.org/x/crypto v0.37.0
 	golang.org/x/exp v0.0.0-20250305212735-054e65f0b394
 	golang.org/x/mod v0.24.0
-	golang.org/x/sync v0.12.0
+	golang.org/x/sync v0.13.0
 	golang.org/x/time v0.11.0
 	gonum.org/v1/gonum v0.14.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -46,7 +47,6 @@ require (
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/bytedance/sonic/loader v0.2.4 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
-	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudwego/base64x v0.1.5 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 // indirect
@@ -92,9 +92,9 @@ require (
 	github.com/yuin/gopher-lua v1.1.1 // indirect
 	go.uber.org/mock v0.5.0 // indirect
 	golang.org/x/arch v0.15.0 // indirect
-	golang.org/x/net v0.37.0 // indirect
-	golang.org/x/sys v0.31.0 // indirect
-	golang.org/x/text v0.23.0 // indirect
+	golang.org/x/net v0.39.0 // indirect
+	golang.org/x/sys v0.32.0 // indirect
+	golang.org/x/text v0.24.0 // indirect
 	golang.org/x/tools v0.31.0 // indirect
 )
 
