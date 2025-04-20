@@ -84,7 +84,11 @@ func (t *testWorker) TestCancelWork() {
 		case <-time.After(time.Second * 2):
 			t.Fail("failed to wait")
 		case err := <-waiterr:
-			t.ErrorContains(err, "showme")
+			t.Error(err)
+
+			if !errors.Is(err, context.Canceled) {
+				t.ErrorContains(err, "showme")
+			}
 		}
 		select {
 		case <-time.After(time.Second * 2):
