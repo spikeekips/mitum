@@ -752,7 +752,7 @@ func (t *testDelayedWorkerDistributeSMVs) TestCtxCanceled() {
 			case i < 2:
 				t.NoError(err)
 			case i > 2:
-				if !errors.Is(err, context.Canceled) && !errors.Is(err, dutil.ErrContextUnlimitedChansInsertDone) {
+				if !errors.Is(err, context.Canceled) && !errors.Is(err, dutil.ErrContextUnlimitedChanInsertDone) {
 					t.Fail("unexpected error, %+v", err)
 				}
 			}
@@ -895,7 +895,7 @@ func (t *testDelayedWorkerDistributeSMVs) TestNew() {
 		)
 		switch {
 		case errors.Is(err, context.Canceled),
-			errors.Is(err, dutil.ErrContextUnlimitedChansInsertDone):
+			errors.Is(err, dutil.ErrContextUnlimitedChanInsertDone):
 		default:
 			t.Fail("unexpected error, %+v", err)
 		}
@@ -967,7 +967,7 @@ func (t *testWorkerProcessWorkersDistributeSMVs) TestCancel() {
 
 					switch err := sendOp(worker, j[0].(uint64), j[1].(util.Hash), j[2].([]SMV)); {
 					case errors.Is(err, context.Canceled),
-						errors.Is(err, dutil.ErrContextUnlimitedChansInsertDone):
+						errors.Is(err, dutil.ErrContextUnlimitedChanInsertDone):
 					default:
 						t.IfErrPanicf(err, "send op: worker=%q opindex=%d", worker, j[0])
 					}
@@ -990,7 +990,7 @@ func (t *testWorkerProcessWorkersDistributeSMVs) TestCancel() {
 
 					switch err := sendOwners(worker, j[0], j[1]); {
 					case errors.Is(err, context.Canceled),
-						errors.Is(err, dutil.ErrContextUnlimitedChansInsertDone):
+						errors.Is(err, dutil.ErrContextUnlimitedChanInsertDone):
 					default:
 						t.IfErrPanicf(err, "send owners: worker=%qv", worker)
 					}
@@ -1002,7 +1002,7 @@ func (t *testWorkerProcessWorkersDistributeSMVs) TestCancel() {
 
 		switch err = c(); {
 		case errors.Is(err, context.Canceled),
-			errors.Is(err, dutil.ErrContextUnlimitedChansInsertDone):
+			errors.Is(err, dutil.ErrContextUnlimitedChanInsertDone):
 		default:
 			t.IfErrPanicf(err, "c")
 		}
@@ -1042,7 +1042,7 @@ func (t *testWorkerProcessWorkersDistributeSMVs) TestCancel() {
 
 					switch {
 					case errors.Is(err, context.Canceled),
-						errors.Is(err, dutil.ErrContextUnlimitedChansInsertDone):
+						errors.Is(err, dutil.ErrContextUnlimitedChanInsertDone):
 					default:
 						t.IfErrPanicf(err, "send op: unexpected error: worker=%q", worker)
 					}
@@ -1065,7 +1065,7 @@ func (t *testWorkerProcessWorkersDistributeSMVs) TestCancel() {
 
 					switch err := sendOwners(worker, j[0], j[1]); {
 					case errors.Is(err, context.Canceled),
-						errors.Is(err, dutil.ErrContextUnlimitedChansInsertDone):
+						errors.Is(err, dutil.ErrContextUnlimitedChanInsertDone):
 					default:
 						t.IfErrPanicf(err, "send owners: worker=%qv", worker)
 					}
@@ -1077,7 +1077,7 @@ func (t *testWorkerProcessWorkersDistributeSMVs) TestCancel() {
 
 		switch err = c(); {
 		case errors.Is(err, context.Canceled),
-			errors.Is(err, dutil.ErrContextUnlimitedChansInsertDone):
+			errors.Is(err, dutil.ErrContextUnlimitedChanInsertDone):
 		default:
 			t.IfErrPanicf(err, "c")
 		}
@@ -1133,7 +1133,7 @@ func (t *testWorkerProcessWorkersDistributeSMVs) TestCancel() {
 
 					switch {
 					case errors.Is(err, context.Canceled),
-						errors.Is(err, dutil.ErrContextUnlimitedChansInsertDone):
+						errors.Is(err, dutil.ErrContextUnlimitedChanInsertDone):
 					default:
 						t.IfErrPanicf(err, "send owners: worker=%qv", worker)
 					}
@@ -1145,7 +1145,7 @@ func (t *testWorkerProcessWorkersDistributeSMVs) TestCancel() {
 
 		switch err = c(); {
 		case errors.Is(err, context.Canceled),
-			errors.Is(err, dutil.ErrContextUnlimitedChansInsertDone):
+			errors.Is(err, dutil.ErrContextUnlimitedChanInsertDone):
 		default:
 			t.IfErrPanicf(err, "c")
 		}
@@ -1205,7 +1205,7 @@ func (t *testWorkerProcessWorkersDistributeSMVs) TestCancel() {
 
 		switch err = c(); {
 		case errors.Is(err, context.Canceled),
-			errors.Is(err, dutil.ErrContextUnlimitedChansInsertDone):
+			errors.Is(err, dutil.ErrContextUnlimitedChanInsertDone):
 		default:
 			t.IfErrPanicf(err, "c")
 		}

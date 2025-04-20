@@ -839,7 +839,7 @@ func requestHandlerWorkerDistributeSMVs(
 
 			switch err := addValues([3]interface{}{opindex, facth, values}); {
 			case err == nil,
-				!errors.Is(err, dutil.ErrContextUnlimitedChansInsertDone):
+				!errors.Is(err, dutil.ErrContextUnlimitedChanInsertDone):
 				return err
 			default:
 				if v := notOK.Load(); v != nil && v.(bool) { //nolint:forcetypeassert

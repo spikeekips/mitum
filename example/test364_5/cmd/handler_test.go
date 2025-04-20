@@ -765,8 +765,8 @@ func (t *testHandlerWorkerDistributeSMVs) doHandler(
 func (t *testHandlerWorkerDistributeSMVs) TestOK() {
 	run := func(name string, f func()) {
 		t.RunWithGoLeak(name, f,
-			goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewUnlimitedChans[...].func2"),
-			goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewUnlimitedChans[...].func4"),
+			goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewUnlimitedChan[...].func2"),
+			goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewUnlimitedChan[...].func4"),
 		)
 	}
 
@@ -829,8 +829,8 @@ func (t *testHandlerWorkerDistributeSMVs) TestOK() {
 
 func (t *testHandlerWorkerDistributeSMVs) TestNilFuncs() {
 	defer goleak.VerifyNone(t.T(),
-		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewUnlimitedChans[...].func2"),
-		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewUnlimitedChans[...].func4"),
+		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewUnlimitedChan[...].func2"),
+		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewUnlimitedChan[...].func4"),
 	)
 
 	ops := make([][2]interface{}, 3333)
@@ -1074,8 +1074,8 @@ func (t *testHandlerPreloadOps) run(name string, n int) {
 				base.EqualFact(t.Assert(), fact, rops[i])
 			}
 		},
-		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewUnlimitedChans[...].func2"),
-		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewUnlimitedChans[...].func4"),
+		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewUnlimitedChan[...].func2"),
+		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewUnlimitedChan[...].func4"),
 	)
 }
 

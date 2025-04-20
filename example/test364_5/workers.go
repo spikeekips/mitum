@@ -815,7 +815,7 @@ func newFuncDelayedWorkerDistributeSMVs(
 
 		go func() { _ = wctxCancel(runseq()) }()
 
-		ifErrWctxCancel := dutil.NewIfErrErrorInFunc(wctxCancel, dutil.ErrContextUnlimitedChansInsertDone)
+		ifErrWctxCancel := dutil.NewIfErrErrorInFunc(wctxCancel, dutil.ErrContextUnlimitedChanInsertDone)
 
 		return func(opindex uint64, facth util.Hash, values []SMV) error {
 				return ifErrWctxCancel(insert([3]interface{}{opindex, facth, values}))

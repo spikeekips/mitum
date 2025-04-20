@@ -3,7 +3,6 @@ package jsonenc
 import (
 	"context"
 	"reflect"
-	"strconv"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/example/test364_5/encoder"
@@ -17,21 +16,22 @@ type (
 	decodeStringFunc = func(*Encoder, string) (any, error)
 )
 
-type Encoder struct {
-	set            map[string]any
-	hintCacheGet   func(string) (hint.Hint, bool, error)
-	hintCacheSet   func(string, *hint.Hint, error)
-	hintCacheClose func()
-}
-
 var defaultEncoderBufSize uint64 = 1 << 9
 
-func NewEncoder(ctx context.Context, cacheSize int) *Encoder {
-	enc := &Encoder{
-		set: map[string]any{},
-	}
+type Encoder struct {
+	hintsetSet   func(hint.Type, uint64, any) bool
+	hintsetGet   func(hint.Type, uint64) (any, bool)
+	hintsetClose func()
+	cacheGet     func(string) (hint.Hint, error)
+	cacheClose   func()
+}
 
-	enc.hintCacheGet, enc.hintCacheSet, enc.hintCacheClose = newFuncHintCache(ctx, cacheSize, defaultEncoderBufSize)
+func NewEncoder(ctx context.Context, cacheSize int) *Encoder {
+	enc := new(Encoder)
+
+	enc.hintsetSet, enc.hintsetGet, enc.hintsetClose = dutil.NewHintset[any]()
+	enc.cacheGet, enc.cacheClose = dutil.NewHintCache(
+		ctx, cacheSize, defaultEncoderBufSize)
 
 	return enc
 }
@@ -53,17 +53,16 @@ func AddDecode[T any](enc *Encoder, ht hint.Hint, sample T, decode any) error {
 }
 
 func (enc *Encoder) Close() {
-	enc.hintCacheClose()
+	enc.hintsetClose()
+	enc.cacheClose()
 }
 
 func (enc *Encoder) addDecode(ht hint.Hint, decode any) error {
-	decodeKey := enc.decodeKeyWithHint(ht, decode)
+	t, v := enc.decodeKey(ht, decode)
 
-	if _, found := enc.set[decodeKey]; found {
-		return errors.Errorf("already added, %q(%q)", ht, decodeKey)
+	if !enc.hintsetSet(t, v, decode) {
+		return errors.Errorf("already added, %q", ht)
 	}
-
-	enc.set[decodeKey] = decode
 
 	return nil
 }
@@ -136,7 +135,7 @@ func (enc *Encoder) decodeMap(m map[string]any) (any, error) {
 			return nil, errors.Errorf("expected hint string, but %T", i)
 		}
 
-		switch h, err := enc.getHint(s); {
+		switch h, err := enc.cacheGet(s); {
 		case err != nil:
 			return nil, err
 		default:
@@ -156,27 +155,8 @@ func (enc *Encoder) decodeMap(m map[string]any) (any, error) {
 	return decode(enc, m)
 }
 
-func (enc *Encoder) getHint(s string) (hint.Hint, error) {
-	if i, found, err := enc.hintCacheGet(s); found {
-		return i, err
-	}
-
-	ht, err := hint.ParseHint(s)
-
-	var h *hint.Hint
-	if err == nil {
-		h = &ht
-	}
-
-	enc.hintCacheSet(s, h, err)
-
-	return ht, err
-}
-
 func (enc *Encoder) getDecodeFunc(t hint.Type, v uint64) (any, error) {
-	decodeKey := enc.decodeKey(t, v)
-
-	switch f, found := enc.set[decodeKey]; {
+	switch f, found := enc.hintsetGet(t, v); {
 	case !found:
 		return nil, errors.Errorf("decode func not found, %q", t)
 	default:
@@ -184,17 +164,13 @@ func (enc *Encoder) getDecodeFunc(t hint.Type, v uint64) (any, error) {
 	}
 }
 
-func (*Encoder) decodeKey(t hint.Type, v uint64) string {
-	return t.String() + "-" + strconv.FormatUint(v, 10)
-}
-
-func (enc *Encoder) decodeKeyWithHint(ht hint.Hint, decode any) string {
+func (enc *Encoder) decodeKey(ht hint.Hint, decode any) (hint.Type, uint64) {
 	major := ht.Version().Major()
 	if _, ok := decode.(decodeStringFunc); ok {
 		major = 0
 	}
 
-	return enc.decodeKey(ht.Type(), major)
+	return ht.Type(), major
 }
 
 func hinterDecodeFunc[T any](ht hint.Hint, sample T, decode any) any {
@@ -253,29 +229,4 @@ func hinterDecodeFunc[T any](ht hint.Hint, sample T, decode any) any {
 			return sethint(k)
 		}
 	}
-}
-
-func newFuncHintCache(ctx context.Context, cacheSize int, bufSize uint64) (
-	func(string) (hint.Hint, bool, error),
-	func(string, *hint.Hint, error),
-	func(),
-) {
-	get, _, lazySet, closef := dutil.NewLastFirstLazyCache[string, [2]any /* {*hint.Hint, error} */](
-		ctx, cacheSize, bufSize, bufSize)
-
-	return func(s string) (hint.Hint, bool, error) {
-			if i, found := get(s); found {
-				if i[1] != nil {
-					return hint.Hint{}, false, i[1].(error) //nolint:forcetypeassert
-				}
-
-				return *(i[0].(*hint.Hint)), true, nil //nolint:forcetypeassert
-			}
-
-			return hint.Hint{}, false, nil
-		},
-		func(s string, ht *hint.Hint, err error) {
-			lazySet(s, [2]any{ht, err}, 0)
-		},
-		closef
 }

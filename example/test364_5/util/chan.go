@@ -6,7 +6,7 @@ import (
 	"sync"
 )
 
-var ErrContextUnlimitedChansInsertDone = NewSError("insert done")
+var ErrContextUnlimitedChanInsertDone = NewSError("insert done")
 
 func NewUnlimitedChan[T any](ctx context.Context, bufSize, outBufSize uint64) (
 	InErrorFunc[T],
@@ -62,7 +62,7 @@ func NewUnlimitedChan[T any](ctx context.Context, bufSize, outBufSize uint64) (
 
 				return ctx.Err()
 			case <-donech:
-				return ErrContextUnlimitedChansInsertDone
+				return ErrContextUnlimitedChanInsertDone
 			case in <- t:
 				return nil
 			}
