@@ -3,13 +3,16 @@ package dop5
 import (
 	"context"
 	"fmt"
+	"iter"
 	"maps"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	dhash "github.com/spikeekips/mitum/example/test364_5/hash"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 	"github.com/stretchr/testify/suite"
@@ -1456,4 +1459,131 @@ func TestPhaseMerger(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
 	suite.Run(t, new(testPhaseMerger))
+}
+
+func runBenchmarkPhaseMerger(n int) (func(int), func()) {
+	poolSize := uint64(min(n, 1<<9))
+
+	pubs := make([]base.Publickey, n)
+	for i := range pubs {
+		pubs[i] = base.NewDummyPublickey(strconv.FormatInt(int64(i), 10))
+	}
+
+	states := map[string]base.State{}
+	for i := range n {
+		st := NewBaseState(
+			33,
+			accountStateKey(pubs[i]),
+			NewAccountSV(pubs[i], 1),
+			nil,
+			[]util.Hash{dhash.RandomHex64()},
+		)
+		states[st.Key()] = st
+	}
+
+	values := make([][]SMV, n)
+
+	for i := range values {
+		sub, _ := NewAccountSMV(pubs[i], -1)
+		add, _ := NewAccountSMV(pubs[(i+1)%n], 1)
+
+		values[i] = []SMV{sub, add}
+	}
+
+	return func(n int) {
+			ctx, cancel := dutil.ContextWithCancelCause(context.Background())
+			defer cancel(nil)
+
+			extractSMVKeys, extractStateKeyClose := newFuncExtractSMVKeys(ctx, poolSize, poolSize)
+			defer extractStateKeyClose()
+
+			var getSVMs mergerGetSVMsFunc
+
+			switch g, t, err := newFuncSVMs(
+				poolSize,
+				func(stateKey string) (base.State, bool, error) {
+					i, found := states[stateKey]
+
+					return i, found, nil
+				},
+				extractSMVKeys,
+			); {
+			case err != nil:
+				panic(err)
+			default:
+				defer func() {
+					_, seq := t()
+					_, stop := iter.Pull2(seq)
+					stop()
+				}()
+
+				getSVMs = g
+			}
+
+			merge, _, done, wait, err := newFuncPhaseMerger(
+				ctx,
+				dutil.NewFuncNewJobWorkerFunc(int64(poolSize)),
+				uint64(n),
+				func(opindex uint64) ([]SMV, error) {
+					if opindex >= uint64(len(values)) {
+						return nil, errors.Errorf("unknown opindex, %d", opindex)
+					}
+
+					return values[opindex], nil
+				},
+				getSVMs,
+			)
+			if err != nil {
+				panic(err)
+			}
+
+			for i := range n {
+				if err := merge(uint64(i)); err != nil {
+					panic(err)
+				}
+			}
+
+			done()
+
+			if _, _, _, err := wait(); err != nil {
+				panic(err)
+			}
+		},
+		func() {
+			dutil.ClearSlice(&pubs)
+			dutil.ClearSlice(&values)
+			clear(states)
+		}
+}
+
+// BenchmarkPhaseMerger is for comparison with no phase meger.
+// https://gist.github.com/spikeekips/469fa37212d2d13ba7a24a8a04f5f404
+func BenchmarkPhaseMerger(bb *testing.B) {
+	size := 50000
+	run, closef := runBenchmarkPhaseMerger(size)
+	defer closef()
+
+	for i := 0; i <= 8000; i += 2000 {
+		if i < 1 {
+			continue
+		}
+
+		bb.Run(fmt.Sprintf("%d", i), func(b *testing.B) {
+			for b.Loop() {
+				run(i)
+			}
+		})
+	}
+
+	for i := 0; i <= size; i += 10000 {
+		if i < 1 {
+			continue
+		}
+
+		bb.Run(fmt.Sprintf("%d", i), func(b *testing.B) {
+			for b.Loop() {
+				run(i)
+			}
+		})
+	}
 }
