@@ -601,13 +601,9 @@ func (l *ShardedLockedMap[K, V]) RemoveValues(ks ...K) int {
 }
 
 func (l *ShardedLockedMap[K, V]) Get(k K, f func(V, bool) error) error {
-	switch i, found, isclosed := l.loadChild(k); {
+	switch i, isclosed := l.getOrCreateChild(k); {
 	case isclosed:
 		return ErrLockedMapClosed
-	case !found:
-		var v V
-
-		return f(v, false)
 	default:
 		return i.Get(k, f)
 	}
@@ -636,38 +632,22 @@ func (l *ShardedLockedMap[K, V]) GetOrRemove(
 	k K,
 	get func(V, bool) (bool, error),
 ) error {
-	l.l.Lock()
-	defer l.l.Unlock()
-
-	switch i, found, isclosed := l.unlockedloadChild(k); {
+	switch i, isclosed := l.getOrCreateChild(k); {
 	case isclosed:
 		return ErrLockedMapClosed
-	case !found:
-		var v V
-
-		_, err := get(v, false)
-
-		return err
 	default:
-		var remove bool
-
-		switch err := i.GetOrRemove(k, func(v V, found bool) (bool, error) {
-			switch r, err := get(v, found); {
+		return i.GetOrRemove(k, func(v V, found bool) (bool, error) {
+			switch remove, err := get(v, found); {
 			case err != nil:
-				return r, err
+				return remove, err
 			default:
-				remove = r
+				if remove {
+					atomic.AddInt64(&l.length, -1)
+				}
 
-				return r, nil
+				return remove, nil
 			}
-		}); {
-		case err != nil:
-			return err
-		case remove:
-			atomic.AddInt64(&l.length, -1)
-		}
-
-		return nil
+		})
 	}
 }
 
@@ -707,18 +687,9 @@ func (l *ShardedLockedMap[K, V]) SetOrRemove(k K, f func(V, bool) (V, bool, erro
 }
 
 func (l *ShardedLockedMap[K, V]) Remove(k K, f func(V, bool) error) (bool, error) {
-	switch i, found, isclosed := l.loadChild(k); {
+	switch i, isclosed := l.getOrCreateChild(k); {
 	case isclosed:
 		return false, ErrLockedMapClosed
-	case !found:
-		var v V
-
-		switch err := f(v, false); err {
-		case ErrLockedSetIgnore: //nolint:errorlint
-			return false, nil
-		default:
-			return false, err
-		}
 	default:
 		switch removed, err := i.Remove(k, f); {
 		case err != nil:
