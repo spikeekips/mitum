@@ -206,15 +206,18 @@ func (t *testMerger) TestMerge() {
 }
 
 func (t *testMerger) TestMerger() {
-	ctx, cancel := t.Ctx()
-	defer cancel(nil)
-
 	states, mergeValues, expectedMerged, expectedReasons := t.preset()
 	unmergeOps := []uint64{1, 5}
 	expectedMerged = map[string]int64{
 		"ta-p0dpu": 2,
 		"ta-p1dpu": 3,
 		"ta-p2dpu": 1,
+	}
+
+	expectedOps := map[string][]uint64{
+		"ta-p0dpu": {0, 2, 4},
+		"ta-p1dpu": {0, 2},
+		"ta-p2dpu": {4},
 	}
 
 	setSMVs, getSMVs, closeSMVs, err := newFuncAddValuePool(1 << 9)
@@ -249,14 +252,29 @@ func (t *testMerger) TestMerger() {
 	t.True(addSVMFunc(AccountSMVHint, getAccountSVM))
 
 	run := func(seq []int) {
+		ctx, cancel := t.Ctx()
+		defer cancel(nil)
+
 		getSVM, seqSVM, err := newGetSVM(1 << 9)
 		t.NoError(err)
+
+		reasons := util.NewSingleLockedMap[uint64, string]()
+		defer reasons.Close()
+
+		extractKeys, closeExtractKeys := newFuncExtractSMVKeys(ctx, 1<<9)
+		defer closeExtractKeys()
 
 		merge, mergeDone, unmerge, unmergeDone, wait, err := NewMerger(
 			ctx,
 			1<<9,
 			getSMVs,
 			getSVM,
+			extractKeys,
+			func(_ context.Context, opindex uint64, reason string) error {
+				_ = reasons.SetValue(opindex, reason)
+
+				return nil
+			},
 		)
 		t.NoError(err)
 
@@ -292,27 +310,37 @@ func (t *testMerger) TestMerger() {
 
 		mergeDone()
 
-		t.NoError(wait(func(reasons map[uint64]string) error {
-			t.Equal(expectedReasons, reasons)
+		t.NoError(wait(
+			func(size int, getStateOps getStateOpsFunc) error {
+				merged := map[string]int64{}
+				for m := range seqSVM() {
+					sv, err := m.Close()
+					t.NoError(err)
 
-			merged := map[string]int64{}
-			for m := range seqSVM() {
-				sv, err := m.Close()
-				t.NoError(err)
+					var balance int64
+					if sv != nil {
+						balance = sv.(*AccountSV).Balance
+					}
 
-				var balance int64
-				if sv != nil {
-					balance = sv.(*AccountSV).Balance
+					merged[m.Key()] = balance
+
+					ops := getStateOps(m.Key())
+					slices.Sort(ops)
+
+					t.Equal(expectedOps[m.Key()], ops)
 				}
 
-				merged[m.Key()] = balance
-			}
+				t.Equal(expectedMerged, merged)
 
-			t.Equal(expectedMerged, merged)
+				return nil
+			},
+		))
 
-			return nil
-		}))
+		t.Equal(expectedReasons, reasons.Map())
 	}
+
+	// run([]int{0, 4, 6, 3, 7, 5, 2, 1})
+	// return
 
 	gen := combin.NewPermutationGenerator(len(mergeValues)+2, len(mergeValues)+2)
 
@@ -396,11 +424,16 @@ func runBenchmarkMerger(n int) (func(int), func()) {
 			ctx, cancel := dutil.ContextWithCancelCause(context.Background())
 			defer cancel(nil)
 
-			merge, mergeDone, _, _, wait, err := NewMerger(
+			extractKeys, closeExtractKeys := newFuncExtractSMVKeys(ctx, 1<<9)
+			defer closeExtractKeys()
+
+			merge, mergeDone, _, unmergeDone, wait, err := NewMerger(
 				ctx,
 				poolSize,
 				getSMVs,
 				getSVM,
+				extractKeys,
+				func(_ context.Context, opindex uint64, reason string) error { return nil },
 			)
 			if err != nil {
 				panic(err)
@@ -415,10 +448,11 @@ func runBenchmarkMerger(n int) (func(int), func()) {
 			}
 
 			mergeDone()
+			unmergeDone()
 
-			if err := wait(func(map[uint64]string) error {
-				return nil
-			}); err != nil {
+			if err := wait(
+				func(int, getStateOpsFunc) error { return nil },
+			); err != nil {
 				panic(err)
 			}
 		},

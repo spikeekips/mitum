@@ -9,26 +9,47 @@ import (
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 )
 
-type mergerNewJobFunc func(dutil.InErrorFunc[context.Context], func() bool) error
+type (
+	mergerNewJobFunc     = func(dutil.InErrorFunc[context.Context], func() bool) error
+	mergerWaitResultFunc = func(int, getStateOpsFunc) error
+)
+
+var (
+	MergerMinSemSize  int64  = 1 << 9
+	MergerMinPoolSize uint64 = 1 << 9
+)
 
 func NewMerger(
 	ctx context.Context,
 	approxSize uint64,
 	getSMVs func(uint64) (SMV, []SMV, bool),
 	getSVM MergeSVMFunc,
+	extractSMVKeys extractSMVKeysFunc,
+	reportUnmerged func(context.Context, uint64, string) error,
 ) (
 	func(uint64) error,
 	func(),
 	func(uint64) error,
 	func(),
-	func(dutil.InErrorFunc[map[uint64]string]) error,
+	func(mergerWaitResultFunc) error,
 	error,
 ) {
 	semSize := dutil.SafeUint64ToInt64(approxSize)
 	poolSize := approxSize
 
 	if approxSize < 1 {
-		semSize, poolSize = 1<<9, 1<<9 //nolint:mnd
+		semSize, poolSize = MergerMinSemSize, MergerMinPoolSize //nolint:mnd
+	}
+
+	var newBgJob dutil.JobWorkerNewJobFunc
+	var bgJobDone func()
+	var bgJobWait dutil.InErrorFunc[error]
+
+	switch n, j, w, err := dutil.NewFuncJobWorker(ctx, semSize); {
+	case err != nil:
+		return nil, nil, nil, nil, nil, err
+	default:
+		newBgJob, bgJobDone, bgJobWait = n, j, w
 	}
 
 	var newJob mergerNewJobFunc
@@ -43,14 +64,21 @@ func NewMerger(
 		newJob = newFuncMergerNewJob(n, jobDone)
 	}
 
-	var setReason func(uint64, string) error
-	var doneReasons func() map[uint64]string
+	setReason := func(opindex uint64, reason string) error {
+		return newBgJob(func(ctx context.Context) error {
+			return reportUnmerged(ctx, opindex, reason)
+		})
+	}
 
-	switch s, d, err := newFuncUnmergedReason(poolSize); {
+	var collectOpsAddSMVs func(uint64, SMV, []SMV) bool
+	var collectOpsUnmerge func(uint64) bool
+	var collectOpsTraverse dutil.InErrorFunc[collectOpsTraverseFunc]
+
+	switch a, u, t, err := newFuncCollectStateOps(poolSize, extractSMVKeys); {
 	case err != nil:
 		return nil, nil, nil, nil, nil, err
 	default:
-		setReason, doneReasons = s, d
+		collectOpsAddSMVs, collectOpsUnmerge, collectOpsTraverse = a, u, t
 	}
 
 	var mergeCountDone func() (uint64, bool)
@@ -66,6 +94,8 @@ func NewMerger(
 		newJob,
 		jobDone,
 		setReason,
+		collectOpsAddSMVs,
+		collectOpsUnmerge,
 	); {
 	case err != nil:
 		return nil, nil, nil, nil, nil, err
@@ -97,17 +127,25 @@ func NewMerger(
 				jobDone()
 			}
 		},
-		func(unmerged dutil.InErrorFunc[map[uint64]string]) error {
-			defer func() {
-				closef()
-				clear(doneReasons())
-			}()
+		func(result mergerWaitResultFunc) error {
+			defer closef()
 
 			if err := jobWait(nil); err != nil {
 				return err
 			}
 
-			return unmerged(doneReasons())
+			if err := collectOpsTraverse(func(size int, getStateOps getStateOpsFunc) error {
+				return result(
+					size,
+					getStateOps,
+				)
+			}); err != nil {
+				return err
+			}
+
+			bgJobDone()
+
+			return bgJobWait(nil)
 		},
 		nil
 }
@@ -182,6 +220,8 @@ func newMergeValuesFuncs(
 	newJob mergerNewJobFunc,
 	jobDone func(),
 	setReason func(uint64, string) error,
+	collectOpsAddSMVs func(uint64, SMV, []SMV) bool,
+	collectOpsUnmerge func(uint64) bool,
 ) (
 	func() (uint64, bool),
 	func(uint64) error,
@@ -220,6 +260,8 @@ func newMergeValuesFuncs(
 				return 0, nil
 			}
 
+			_ = collectOpsUnmerge(opindex)
+
 			return emUnmerge(opindex)
 		},
 	)
@@ -238,6 +280,8 @@ func newMergeValuesFuncs(
 			default:
 				sub, adds = s, a
 			}
+
+			_ = collectOpsAddSMVs(opindex, sub, adds)
 
 			if sub != nil {
 				im()
@@ -274,6 +318,8 @@ func newMergeValuesFuncs(
 		},
 		du,
 		func(opindex uint64) error {
+			_ = collectOpsUnmerge(opindex)
+
 			if !setUnmerged(opindex) {
 				return nil
 			}
