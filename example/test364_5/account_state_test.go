@@ -558,8 +558,10 @@ func (t *testAccountSVM) TestMerges() {
 		xmerge = func(name string, op uint64, values []SMV, mergef, unmergef func(string) stateVlaueMergerXMergeFunc) error {
 			t.T().Logf("> op=%d %s", op, name)
 
-			addCommits, doneCommits := util.CompactAppendSlice[func() error](len(values))
-			addNextops, doneNextops := util.UniqCompactAppendSlice[uint64](len(values))
+			addCommits, doneCommits, err := dutil.NewAppendSlice[func() error](uint64(len(values)), 0)
+			t.NoError(err)
+			addNextops, doneNextops, err := dutil.NewUniqueAppendSlice[uint64, uint64](uint64(len(values)), 0, func(i uint64) uint64 { return i })
+			t.NoError(err)
 
 			for i := range values {
 				value := values[i]

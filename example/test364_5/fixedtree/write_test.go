@@ -2,12 +2,11 @@ package fixedtree
 
 import (
 	"context"
-	"math"
 	"testing"
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/spikeekips/mitum/util"
+	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -19,8 +18,8 @@ func (t *testWrite) TestWriteNodes() {
 	size := 1 << 14
 	nodes := t.nodesWithoutHash(size)
 
-	worker, _ := util.NewBaseJobWorker(context.Background(), math.MaxInt32)
-	defer worker.Close()
+	newJob, jobDone, jobWait, err := dutil.NewFuncJobWorker(context.Background(), 1<<14)
+	t.NoError(err)
 
 	written := make([]Node, len(nodes))
 
@@ -31,7 +30,7 @@ func (t *testWrite) TestWriteNodes() {
 		1<<9,
 		nodes,
 		func(index uint64, n Node) error {
-			return worker.NewJob(func(context.Context, uint64) error {
+			return newJob(func(context.Context) error {
 				written[index] = n
 
 				return nil
@@ -41,8 +40,8 @@ func (t *testWrite) TestWriteNodes() {
 		SynchronousGenerateNodesHash,
 	))
 
-	worker.Done()
-	t.NoError(worker.Wait())
+	jobDone()
+	t.NoError(jobWait(nil))
 
 	totalelapsed := time.Since(started)
 
