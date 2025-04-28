@@ -176,6 +176,11 @@ func (t *testMerger) TestMerger() {
 		mergeDone()
 
 		if err := wait(
+			func(err error) error {
+				t.NoError(err)
+
+				return err
+			},
 			func(size int, getStateOps getStateOpsFunc) error {
 				merged := map[string]int64{}
 				mergedOps := map[string][]uint64{}
@@ -320,6 +325,13 @@ func runBenchmarkMerger(n int) (func(int), func()) {
 			unmergeDone()
 
 			if err := wait(
+				func(err error) error {
+					if err != nil {
+						panic(err)
+					}
+
+					return nil
+				},
 				func(int, getStateOpsFunc) error { return nil },
 			); err != nil {
 				panic(err)

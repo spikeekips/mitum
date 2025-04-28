@@ -5,7 +5,10 @@ import (
 	"sync/atomic"
 )
 
-func newXMergeJobCounter(jobDone func()) (
+func newXMergeJobCounter(
+	mergeJobDone func(),
+	jobDone func(),
+) (
 	func(), /* count initial merge */
 	func() (uint64, bool), /* initial merge count done */
 	func(uint64) bool, /* count merge */
@@ -19,11 +22,11 @@ func newXMergeJobCounter(jobDone func()) (
 	var im, cm, ne, bn, cn uint64
 	var iu, cu uint64
 
-	checkf := func() bool {
+	checkMergeJobDone := func() bool {
 		switch {
-		case !initialMergeDone, !initialUnmergeDone:
+		case !initialMergeDone:
 			return false
-		case im < 1 && iu < 1:
+		case im < 1:
 			return true
 		}
 
@@ -37,6 +40,20 @@ func newXMergeJobCounter(jobDone func()) (
 		switch {
 		case bn != cn:
 			return false
+		default:
+			return true
+		}
+	}
+
+	checkUnmergeJobDone := func() bool {
+		switch {
+		case !initialUnmergeDone:
+			return false
+		case iu < 1:
+			return true
+		}
+
+		switch {
 		case iu != cu:
 			return false
 		default:
@@ -44,12 +61,28 @@ func newXMergeJobCounter(jobDone func()) (
 		}
 	}
 
+	checkf := func() (bool, bool) {
+		if !checkMergeJobDone() {
+			return false, false
+		}
+
+		return true, checkUnmergeJobDone()
+	}
+
+	if mergeJobDone == nil {
+		mergeJobDone = func() {}
+	}
+
 	if jobDone == nil {
 		jobDone = func() {}
 	}
 
 	check := func() bool {
-		ok := checkf()
+		lok, ok := checkf()
+		if lok {
+			mergeJobDone()
+		}
+
 		if ok {
 			jobDone()
 		}

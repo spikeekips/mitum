@@ -28,7 +28,7 @@ func NewMerger(
 	func(),
 	func(uint64) error,
 	func(),
-	func(mergerWaitResultFunc) error,
+	func(dutil.InErrorFunc[error], mergerWaitResultFunc) error,
 	error,
 ) {
 	wctx, wctxCancel := dutil.ContextWithCancelCause(ctx)
@@ -40,15 +40,15 @@ func NewMerger(
 		semSize, poolSize = MergerMinSemSize, MergerMinPoolSize
 	}
 
-	var newBgJob dutil.JobWorkerNewJobFunc
-	var bgJobDone func()
-	var bgJobWait dutil.InErrorFunc[error]
+	var newMergeNewJob dutil.JobWorkerNewJobFunc
+	var mergeJobDone func()
+	var mergeJobWait dutil.InErrorFunc[error]
 
 	switch n, j, w, err := dutil.NewFuncJobWorker(wctx, semSize); {
 	case err != nil:
 		return nil, nil, nil, nil, nil, err
 	default:
-		newBgJob, bgJobDone, bgJobWait = n, j, w
+		newMergeNewJob, mergeJobDone, mergeJobWait = n, j, w
 	}
 
 	var newJob dutil.JobWorkerNewJobFunc
@@ -85,7 +85,7 @@ func NewMerger(
 	}
 
 	setReason := func(opindex uint64, reason string) error {
-		return newBgJob(func(ctx context.Context) error {
+		return newMergeNewJob(func(ctx context.Context) error {
 			return reportUnmerged(ctx, opindex, reason)
 		})
 	}
@@ -104,6 +104,7 @@ func NewMerger(
 		collectOpsUnmerge,
 		setReason,
 		newJob,
+		mergeJobDone,
 		jobDone,
 	); {
 	case err != nil:
@@ -126,7 +127,10 @@ func NewMerger(
 			return iferrCancel(unmerge(opindex))
 		},
 		unmergeDone,
-		func(result mergerWaitResultFunc) error {
+		func(
+			mergeDone dutil.InErrorFunc[error],
+			result mergerWaitResultFunc,
+		) error {
 			defer func() {
 				_ = wctxCancel(nil)
 
@@ -134,19 +138,17 @@ func NewMerger(
 				closeXMerge()
 			}()
 
+			if err := mergeDone(mergeJobWait(nil)); err != nil {
+				return wctxCancel(err)
+			}
+
 			if err := jobWait(nil); err != nil {
-				return iferrCancel(err)
+				return wctxCancel(err)
 			}
 
-			if err := collectOpsTraverse(func(size int, getStateOps getStateOpsFunc) error {
+			return iferrCancel(collectOpsTraverse(func(size int, getStateOps getStateOpsFunc) error {
 				return result(size, getStateOps)
-			}); err != nil {
-				return iferrCancel(err)
-			}
-
-			bgJobDone()
-
-			return iferrCancel(bgJobWait(nil))
+			}))
 		},
 		nil
 }
@@ -159,6 +161,7 @@ func newXMergeFuncs(
 	collectOpsUnmerge func(uint64, string, string) bool,
 	setReason func(opindex uint64, reason string) error,
 	newJob dutil.JobWorkerNewJobFunc,
+	mergeJobDone func(),
 	jobDone func(),
 ) (
 	func(opindex uint64, subv SMV, addvs []SMV) error,
@@ -169,7 +172,7 @@ func newXMergeFuncs(
 	error,
 ) {
 	initialCountJob, doneInitialCount, countJob, endCountJob,
-		initialUnmergeCountJob, doneInitialUnmergeCountJob, unmergeCountJob := newXMergeJobCounter(jobDone)
+		initialUnmergeCountJob, doneInitialUnmergeCountJob, unmergeCountJob := newXMergeJobCounter(mergeJobDone, jobDone)
 
 	var mergeLock func(uint64) (bool, bool)
 	var unmergeLock func(uint64) int
