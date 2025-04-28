@@ -166,7 +166,7 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 ) {
 	addPool, _, traversePool := newFuncWorkerUnmergerUnmergedPool()
 
-	var checkWorker checkFailedWorkersFunc
+	var checkWorker CheckFailedWorkersFunc
 
 	workerOpindexFilterLocalReady, workerOpindexFilter,
 		newWorkerOpindexFilterClose := newFuncWorkerOpindexFilter(maxOpsSize, getSMVs)
@@ -186,7 +186,7 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 			nsubws++
 		}
 
-		switch w, err := newFuncCheckFailedWorkers(nsubws, statesShare, func(worker string) bool {
+		switch w, err := NewFuncCheckFailedWorkers(nsubws, statesShare, func(worker string) bool {
 			return worker == local
 		}); {
 		case err != nil:

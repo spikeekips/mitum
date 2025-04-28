@@ -65,9 +65,9 @@ func newFuncManagerWorkersOps( //nolint:funlen
 
 	l = l.Uint64("ops_workers_size", opsWorkersSize)
 
-	var checkWorker checkFailedWorkersFunc
+	var checkWorker CheckFailedWorkersFunc
 
-	switch w, err := newFuncCheckFailedWorkers(opsWorkersSize, opsShare, nil); {
+	switch w, err := NewFuncCheckFailedWorkers(opsWorkersSize, opsShare, nil); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:

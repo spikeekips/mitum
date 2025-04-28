@@ -281,11 +281,11 @@ func newFuncManagerWorkersResult( //nolint:maintidx,gocyclo,funlen
 		addState, doneState = a, d
 	}
 
-	var checkWorker checkFailedWorkersFunc
+	var checkWorker CheckFailedWorkersFunc
 
 	workerErrPool := dutil.NewSingleLockedMap[string, error]()
 
-	checkWorkerDone := func(cw checkFailedWorkersFunc, worker string, err error) (bool, error) {
+	checkWorkerDone := func(cw CheckFailedWorkersFunc, worker string, err error) (bool, error) {
 		l := log.With().Str("worker", worker).Logger()
 
 		switch ok, enough, failed := cw(worker, err); {
@@ -310,7 +310,7 @@ func newFuncManagerWorkersResult( //nolint:maintidx,gocyclo,funlen
 	workerDone := func(worker string, err error) error {
 		l := log.With().Str("worker", worker).Logger()
 
-		var cw checkFailedWorkersFunc
+		var cw CheckFailedWorkersFunc
 
 		switch created, _ := workerErrPool.Set(worker, func(_ error, found bool) (error, error) {
 			switch {
@@ -417,7 +417,7 @@ func newFuncManagerWorkersResult( //nolint:maintidx,gocyclo,funlen
 					Uint64("states_share", statesShare).
 					Msg("ready")
 
-				switch w, err := newFuncCheckFailedWorkers(uint64(len(statesOwners)), statesShare, nil); {
+				switch w, err := NewFuncCheckFailedWorkers(uint64(len(statesOwners)), statesShare, nil); {
 				case err != nil:
 					return err
 				default:

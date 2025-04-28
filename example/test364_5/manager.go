@@ -336,9 +336,9 @@ func managerStartWorkers(
 	workers := workerPool.workers()
 	opsWorkers := workerPool.opsWorkers()
 
-	var checkWorker checkFailedWorkersFunc
+	var checkWorker CheckFailedWorkersFunc
 
-	switch w, err := newFuncCheckFailedWorkers(uint64(len(workerPool.opsWorkers())), opsShare, nil); {
+	switch w, err := NewFuncCheckFailedWorkers(uint64(len(workerPool.opsWorkers())), opsShare, nil); {
 	case err != nil:
 		return err
 	default:
@@ -447,16 +447,16 @@ func managerCloseWork(
 		statesOwners = i
 	}
 
-	var checkWorkerOps, checkWorkerStates checkFailedWorkersFunc
+	var checkWorkerOps, checkWorkerStates CheckFailedWorkersFunc
 
-	switch w, err := newFuncCheckFailedWorkers(uint64(len(opsWorkers)), opsShare, nil); {
+	switch w, err := NewFuncCheckFailedWorkers(uint64(len(opsWorkers)), opsShare, nil); {
 	case err != nil:
 		return err
 	default:
 		checkWorkerOps = w
 	}
 
-	switch w, err := newFuncCheckFailedWorkers(uint64(len(statesOwners)), statesShare, nil); {
+	switch w, err := NewFuncCheckFailedWorkers(uint64(len(statesOwners)), statesShare, nil); {
 	case err != nil:
 		return err
 	default:

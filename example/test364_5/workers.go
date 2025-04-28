@@ -17,7 +17,7 @@ import (
 
 type (
 	workerOperationsFunc         = dutil.In2ErrorFunc[string /* worker */, OpindexOpHashesFunc]
-	checkFailedWorkersFunc       = func(worker string, err error) (ok, enough bool, failed error)
+	CheckFailedWorkersFunc       = func(worker string, err error) (ok, enough bool, failed error)
 	checkWeightFailedWorkersFunc = func(worker string, weight uint64, err error) (ok, enough bool, failed error)
 	getStateOwnersFunc           = func(stateKey string) []string
 	mergeStateOpFunc             = func(opindex uint64, facth util.Hash, stateKeys []string) bool
@@ -123,11 +123,11 @@ func newFuncCheckWeightFailedWorkers(
 		nil
 }
 
-func newFuncCheckFailedWorkers(
+func NewFuncCheckFailedWorkers(
 	workers, share uint64,
 	blockUntil func(worker string) bool,
 ) (
-	checkFailedWorkersFunc,
+	CheckFailedWorkersFunc,
 	error,
 ) {
 	var check checkWeightFailedWorkersFunc

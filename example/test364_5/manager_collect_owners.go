@@ -25,9 +25,9 @@ func newFuncManagerCollectOwners(
 		Uint64("ops_share", opsShare).
 		Msg("new")
 
-	var checkWorker checkFailedWorkersFunc
+	var checkWorker CheckFailedWorkersFunc
 
-	switch w, err := newFuncCheckFailedWorkers(uint64(len(opsWorkers)), opsShare, nil); {
+	switch w, err := NewFuncCheckFailedWorkers(uint64(len(opsWorkers)), opsShare, nil); {
 	case err != nil:
 		return nil, nil, err
 	default:

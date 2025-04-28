@@ -46,9 +46,9 @@ func newFuncWorkerPhaseMerger(
 
 	getSMVs = mustFuncGetSMVs(getSMVs)
 
-	var checkWorker checkFailedWorkersFunc
+	var checkWorker CheckFailedWorkersFunc
 
-	switch w, err := newFuncCheckFailedWorkers(opsWorkersSize, opsShare, func(worker string) bool {
+	switch w, err := NewFuncCheckFailedWorkers(opsWorkersSize, opsShare, func(worker string) bool {
 		return worker == local
 	}); {
 	case err != nil:
