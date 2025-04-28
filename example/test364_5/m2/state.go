@@ -1,11 +1,9 @@
 package m2
 
 import (
-	"context"
 	"maps"
 	"slices"
 
-	"github.com/pkg/errors"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 )
 
@@ -15,31 +13,57 @@ type (
 	collectOpsTraverseFunc = func(int, getStateOpsFunc) error
 )
 
+func newFuncSMVPool(size uint64) (
+	func(uint64, SMV, []SMV) bool,
+	func(uint64) (SMV, []SMV, bool),
+	func(), /* close */
+	error,
+) {
+	var pool dutil.LockedMap[uint64, [2][]SMV]
+
+	switch p, err := dutil.NewLockedMap[uint64, [2][]SMV](nil, size); {
+	case err != nil:
+		return nil, nil, nil, err
+	default:
+		pool = p
+	}
+
+	return func(opindex uint64, sub SMV, adds []SMV) bool {
+			created, _ := pool.Set(opindex, func(v [2][]SMV, found bool) ([2][]SMV, error) {
+				if found {
+					return v, dutil.ErrLockedSetIgnore
+				}
+
+				return [2][]SMV{{sub}, adds}, nil
+			})
+
+			return created
+		},
+		func(opindex uint64) (SMV, []SMV, bool) {
+			vs, found := pool.Value(opindex)
+			if !found {
+				return nil, nil, false
+			}
+
+			var sub SMV
+			if len(vs[0]) > 0 {
+				sub = vs[0][0]
+			}
+
+			return sub, vs[1], true
+		},
+		pool.Close,
+		nil
+}
+
 func newFuncCollectStateOps(
 	mapSize uint64,
-	extractSMVKeys extractSMVKeysFunc,
 ) (
-	func(uint64, SMV, []SMV) bool,
-	func(uint64) bool,
+	func(uint64, string, string) bool,
+	func(uint64, string, string) bool,
 	dutil.InErrorFunc[collectOpsTraverseFunc],
 	error,
 ) {
-	var unmerged dutil.LockedMap[uint64, struct{}]
-	switch m, err := dutil.NewLockedMap[uint64, struct{}](nil, mapSize); {
-	case err != nil:
-		return nil, nil, nil, err
-	default:
-		unmerged = m
-	}
-
-	var ops dutil.LockedMap[uint64, []string]
-	switch m, err := dutil.NewLockedMap[uint64, []string](nil, mapSize); {
-	case err != nil:
-		return nil, nil, nil, err
-	default:
-		ops = m
-	}
-
 	var sts dutil.LockedMap[string, map[uint64]struct{}]
 	switch m, err := dutil.NewLockedMap[string, map[uint64]struct{}](nil, mapSize); {
 	case err != nil:
@@ -48,81 +72,64 @@ func newFuncCollectStateOps(
 		sts = m
 	}
 
-	clearStates := func(opindex uint64, keys []string) {
-		for key := range slices.Values(keys) {
-			_, _ = sts.Set(key, func(v map[uint64]struct{}, found bool) (map[uint64]struct{}, error) {
-				if !found {
+	var unmerged dutil.LockedMap[uint64, struct{}]
+	switch m, err := dutil.NewLockedMap[uint64, struct{}](nil, mapSize); {
+	case err != nil:
+		return nil, nil, nil, err
+	default:
+		unmerged = m
+	}
+
+	return func(opindex uint64, key string, t string) bool {
+			if unmerged.Exists(opindex) {
+				return false
+			}
+
+			created, _ := sts.Set(key, func(r map[uint64]struct{}, _ bool) (map[uint64]struct{}, error) {
+				if _, f := r[opindex]; f {
 					return nil, dutil.ErrLockedSetIgnore
 				}
 
-				delete(v, opindex)
+				if r == nil {
+					r = map[uint64]struct{}{}
+				}
 
-				return v, nil
+				r[opindex] = struct{}{}
+
+				return r, nil
 			})
-		}
-	}
-
-	return func(opindex uint64, subv SMV, addvs []SMV) bool {
-			created, _ := ops.Set(
-				opindex,
-				func(keys []string, found bool) ([]string, error) {
-					if _, f := unmerged.Value(opindex); f {
-						if found {
-							clearStates(opindex, keys)
-						}
-
-						return nil, nil
-					}
-
-					if found {
-						return nil, dutil.ErrLockedSetIgnore
-					}
-
-					switch i, err := extractSMVKeys(opindex, subv, addvs); {
-					case err != nil:
-						return nil, err
-					default:
-						keys = i
-					}
-
-					for key := range slices.Values(keys) {
-						_, _ = sts.Set(key, func(v map[uint64]struct{}, _ bool) (map[uint64]struct{}, error) {
-							if v == nil {
-								v = map[uint64]struct{}{}
-							}
-
-							v[opindex] = struct{}{}
-
-							return v, nil
-						})
-					}
-
-					return keys, nil
-				},
-			)
 
 			return created
 		},
-		func(opindex uint64) bool {
-			removed, _ := ops.Remove(opindex, func(keys []string, found bool) error {
-				_ = unmerged.SetValue(opindex, struct{}{})
-
-				if !found {
-					return dutil.ErrLockedSetIgnore
+		func(opindex uint64, key string, t string) bool {
+			_, _ = unmerged.Set(opindex, func(_ struct{}, found bool) (struct{}, error) {
+				if found {
+					return struct{}{}, dutil.ErrLockedSetIgnore
 				}
 
-				clearStates(opindex, keys)
-
-				return nil
+				return struct{}{}, nil
 			})
 
-			return removed
+			created, _ := sts.Set(key, func(r map[uint64]struct{}, _ bool) (map[uint64]struct{}, error) {
+				if r == nil {
+					return nil, dutil.ErrLockedSetIgnore
+				}
+
+				if _, f := r[opindex]; !f {
+					return nil, dutil.ErrLockedSetIgnore
+				}
+
+				delete(r, opindex)
+
+				return r, nil
+			})
+
+			return created
 		},
 		func(f collectOpsTraverseFunc) error {
 			defer func() {
-				unmerged.Close()
-				ops.Close()
 				sts.Close()
+				unmerged.Close()
 			}()
 
 			return f(
@@ -131,8 +138,9 @@ func newFuncCollectStateOps(
 					var v []uint64
 
 					_ = sts.Get(stateKey, func(m map[uint64]struct{}, found bool) error {
-						if found {
+						if found && len(m) > 0 {
 							v = slices.Collect(maps.Keys(m))
+							slices.Sort(v)
 						}
 
 						return nil
@@ -143,59 +151,4 @@ func newFuncCollectStateOps(
 			)
 		},
 		nil
-}
-
-func extractSMVKeysFromValues(values ...SMV) []string {
-	switch i := len(values); {
-	case i < 1:
-		return nil
-	case i < 2: //nolint:mnd
-		return []string{values[0].Key()}
-	}
-
-	stateKeys := make([]string, len(values))
-
-	for i, value := range slices.All(values) {
-		stateKeys[i] = value.Key()
-	}
-
-	return stateKeys
-}
-
-func newFuncExtractSMVKeys(ctx context.Context, cacheSize int) (
-	extractSMVKeysFunc,
-	func(),
-) {
-	get, _, lazySet, closef := dutil.NewLastFirstLazyCache[uint64, []string](
-		ctx,
-		cacheSize,
-		1<<9, 1<<9,
-	)
-
-	return func(opindex uint64, subv SMV, addvs []SMV) ([]string, error) {
-			if subv == nil && len(addvs) < 1 {
-				return nil, errors.New("empty state values")
-			}
-
-			var stateKeys []string
-
-			switch i, found := get(opindex); {
-			case found:
-				stateKeys = i
-			default:
-				stateKeys = extractSMVKeysFromValues(addvs...)
-				if subv != nil {
-					stateKeys = append(stateKeys, extractSMVKeysFromValues(subv)...)
-				}
-
-				lazySet(opindex, stateKeys, 0)
-			}
-
-			if len(stateKeys) < 1 {
-				return nil, errors.New("empty extracted state keys")
-			}
-
-			return stateKeys, nil
-		},
-		closef
 }

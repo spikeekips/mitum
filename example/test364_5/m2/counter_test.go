@@ -6,6 +6,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 	"gonum.org/v1/gonum/stat/combin"
@@ -17,7 +18,7 @@ type testXMergeJobCounter struct {
 
 func (t *testXMergeJobCounter) TestDone() {
 	t.Run("done after 0 count", func() {
-		im, dm, _, _, _, _, _ := newXMergeJobCounter()
+		im, dm, _, _, _, _, _ := newXMergeJobCounter(nil)
 
 		im()
 		im()
@@ -29,7 +30,7 @@ func (t *testXMergeJobCounter) TestDone() {
 	})
 
 	t.Run("0 count after done", func() {
-		im, dm, _, _, _, _, _ := newXMergeJobCounter()
+		im, dm, _, _, _, _, _ := newXMergeJobCounter(nil)
 
 		im()
 		im()
@@ -46,7 +47,7 @@ func (t *testXMergeJobCounter) TestDone() {
 	})
 
 	t.Run("done before 0 count", func() {
-		im, dm, _, _, _, du, _ := newXMergeJobCounter()
+		im, dm, _, _, _, du, _ := newXMergeJobCounter(nil)
 
 		rm, isDone := dm()
 		t.EqualValues(0, rm)
@@ -71,7 +72,7 @@ func (t *testXMergeJobCounter) TestDone() {
 func (t *testXMergeJobCounter) TestCheck() {
 	t.Run("no next, no unmerge", func() {
 		t.Run("done true after count", func() {
-			im, dm, cm, _, _, du, _ := newXMergeJobCounter()
+			im, dm, cm, _, _, du, _ := newXMergeJobCounter(nil)
 
 			im()
 			im()
@@ -91,7 +92,7 @@ func (t *testXMergeJobCounter) TestCheck() {
 		})
 
 		t.Run("done false with count", func() {
-			im, dm, cm, _, _, du, _ := newXMergeJobCounter()
+			im, dm, cm, _, _, du, _ := newXMergeJobCounter(nil)
 
 			im()
 			im()
@@ -112,7 +113,7 @@ func (t *testXMergeJobCounter) TestCheck() {
 		})
 
 		t.Run("done false before count", func() {
-			im, dm, cm, _, _, du, _ := newXMergeJobCounter()
+			im, dm, cm, _, _, du, _ := newXMergeJobCounter(nil)
 
 			im()
 			im()
@@ -134,7 +135,7 @@ func (t *testXMergeJobCounter) TestCheck() {
 
 	t.Run("no next, unmerge", func() {
 		t.Run("done true after count", func() {
-			im, dm, cm, _, iu, du, cu := newXMergeJobCounter()
+			im, dm, cm, _, iu, du, cu := newXMergeJobCounter(nil)
 
 			im()
 			im()
@@ -162,7 +163,7 @@ func (t *testXMergeJobCounter) TestCheck() {
 		})
 
 		t.Run("done false with count", func() {
-			im, dm, cm, _, iu, du, cu := newXMergeJobCounter()
+			im, dm, cm, _, iu, du, cu := newXMergeJobCounter(nil)
 
 			im()
 			im()
@@ -189,7 +190,7 @@ func (t *testXMergeJobCounter) TestCheck() {
 		})
 
 		t.Run("done false before count", func() {
-			im, dm, cm, _, iu, du, cu := newXMergeJobCounter()
+			im, dm, cm, _, iu, du, cu := newXMergeJobCounter(nil)
 
 			im()
 			im()
@@ -218,7 +219,7 @@ func (t *testXMergeJobCounter) TestCheck() {
 
 	t.Run("next, no unmerge", func() {
 		t.Run("with 1 next; not done", func() {
-			im, dm, cm, _, _, du, _ := newXMergeJobCounter()
+			im, dm, cm, _, _, du, _ := newXMergeJobCounter(nil)
 
 			im()
 			im()
@@ -238,7 +239,7 @@ func (t *testXMergeJobCounter) TestCheck() {
 		})
 
 		t.Run("with 1 next; done", func() {
-			im, dm, cm, em, _, du, _ := newXMergeJobCounter()
+			im, dm, cm, em, _, du, _ := newXMergeJobCounter(nil)
 
 			im()
 			im()
@@ -260,7 +261,7 @@ func (t *testXMergeJobCounter) TestCheck() {
 		})
 
 		t.Run("with 2 next; done", func() {
-			im, dm, cm, em, _, du, _ := newXMergeJobCounter()
+			im, dm, cm, em, _, du, _ := newXMergeJobCounter(nil)
 
 			im()
 			im()
@@ -283,7 +284,7 @@ func (t *testXMergeJobCounter) TestCheck() {
 		})
 
 		t.Run("done after count", func() {
-			im, dm, cm, em, _, du, _ := newXMergeJobCounter()
+			im, dm, cm, em, _, du, _ := newXMergeJobCounter(nil)
 
 			im()
 			im()
@@ -308,7 +309,7 @@ func (t *testXMergeJobCounter) TestCheck() {
 
 	t.Run("next, unmerge", func() {
 		t.Run("with 1 next; not done", func() {
-			im, dm, cm, _, iu, du, cu := newXMergeJobCounter()
+			im, dm, cm, _, iu, du, cu := newXMergeJobCounter(nil)
 
 			im()
 			im()
@@ -334,7 +335,7 @@ func (t *testXMergeJobCounter) TestCheck() {
 		})
 
 		t.Run("with 1 next; done", func() {
-			im, dm, cm, em, iu, du, cu := newXMergeJobCounter()
+			im, dm, cm, em, iu, du, cu := newXMergeJobCounter(nil)
 
 			im()
 			im()
@@ -362,7 +363,7 @@ func (t *testXMergeJobCounter) TestCheck() {
 		})
 
 		t.Run("with 2 next; done", func() {
-			im, dm, cm, em, iu, du, cu := newXMergeJobCounter()
+			im, dm, cm, em, iu, du, cu := newXMergeJobCounter(nil)
 
 			im()
 			im()
@@ -392,7 +393,7 @@ func (t *testXMergeJobCounter) TestCheck() {
 		})
 
 		t.Run("done after count", func() {
-			im, dm, cm, em, iu, du, cu := newXMergeJobCounter()
+			im, dm, cm, em, iu, du, cu := newXMergeJobCounter(nil)
 
 			im()
 			im()
@@ -437,7 +438,9 @@ func (t *testXMergeJobCounter) TestPermutation() {
 		{4, 0},
 	}
 
-	run := func(seq []int, verbose bool) {
+	run := func(seq []int, verbose bool) error {
+		defer goleak.VerifyNone(t.T())
+
 		logf := func(s string, a ...any) {}
 
 		if verbose {
@@ -446,75 +449,75 @@ func (t *testXMergeJobCounter) TestPermutation() {
 			}
 		}
 
-		func() {
-			defer goleak.VerifyNone(t.T())
+		var menough, uenough uint64
+		var isDone bool
 
-			var menough, uenough uint64
-			var isDone bool
+		im, dm, cm, em, iu, du, cu := newXMergeJobCounter(nil)
 
-			im, dm, cm, em, iu, du, cu := newXMergeJobCounter()
+		for i := range slices.Values(seq) {
+			s := sets[i]
 
-			for i := range slices.Values(seq) {
-				s := sets[i]
+			var j bool
 
-				var j bool
+			switch s[0] {
+			case 0:
+				im()
+				menough++
 
-				switch s[0] {
-				case 0:
-					im()
-					menough++
+				if menough == 2 {
+					rm, i := dm()
 
-					if menough == 2 {
-						rm, i := dm()
-
-						if i {
-							if isDone {
-								panic("done: already done")
-							}
-
-							isDone = true
-
-							logf("merge done: %v, %d", i, rm)
+					if i {
+						if isDone {
+							return errors.New("done: already done")
 						}
+
+						isDone = true
+
+						logf("merge done: %v, %d", i, rm)
 					}
-				case 1:
-					j = cm(s[1])
-				case 2:
-					j = em()
-				case 3:
-					iu()
-					uenough++
+				}
+			case 1:
+				j = cm(s[1])
+			case 2:
+				j = em()
+			case 3:
+				iu()
+				uenough++
 
-					if uenough == 2 {
-						ru, i := du()
+				if uenough == 2 {
+					ru, i := du()
 
-						if i {
-							if isDone {
-								panic("done: already done")
-							}
-
-							isDone = true
-
-							logf("unmerge done: %v, %d", i, ru)
+					if i {
+						if isDone {
+							return errors.New("done: already done")
 						}
+
+						isDone = true
+
+						logf("unmerge done: %v, %d", i, ru)
 					}
-				case 4:
-					j = cu()
 				}
-
-				if j {
-					if isDone {
-						panic("already done")
-					}
-
-					isDone = true
-
-					logf("%v: %v", s, j)
-				}
+			case 4:
+				j = cu()
 			}
 
-			t.True(isDone)
-		}()
+			if j {
+				if isDone {
+					return errors.New("already done")
+				}
+
+				isDone = true
+
+				logf("%v: %v", s, j)
+			}
+		}
+
+		if !t.True(isDone) {
+			return errors.New("t.True(isDone)")
+		}
+
+		return nil
 	}
 
 	// run([]int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, true)
@@ -525,21 +528,20 @@ func (t *testXMergeJobCounter) TestPermutation() {
 
 	for gen.Next() {
 		count++
+
 		if count%36 != 0 {
 			continue
 		}
 
 		seq := gen.Permutation(nil)
 
-		fmt.Fprintf(os.Stdout, "%v ", seq)
-
-		if count%99 == 0 {
-			fmt.Fprintln(os.Stdout)
+		if count > 0 && count%999 == 0 {
+			fmt.Fprintf(os.Stdout, "%d ", count)
 		}
 
-		run(seq, false)
+		t.NoError(run(seq, false), "%v", seq)
 	}
-	fmt.Fprintln(os.Stdout)
+	fmt.Fprintf(os.Stdout, "%d\n", count)
 }
 
 func TestXMergeJobCounter(t *testing.T) {
@@ -734,7 +736,7 @@ func (t *testMergeJobCounter) TestPermutation() {
 		{2, 0},
 	}
 
-	run := func(seq []int, verbose bool) {
+	run := func(seq []int, verbose bool) error {
 		logf := func(s string, a ...any) {}
 
 		if verbose {
@@ -743,56 +745,58 @@ func (t *testMergeJobCounter) TestPermutation() {
 			}
 		}
 
-		func() {
-			defer goleak.VerifyNone(t.T())
+		defer goleak.VerifyNone(t.T())
 
-			var zeros uint64
-			var isDone bool
+		var zeros uint64
+		var isDone bool
 
-			in, c, e, d := newMergeJobCounter()
+		in, c, e, d := newMergeJobCounter()
 
-			for i := range slices.Values(seq) {
-				s := sets[i]
+		for i := range slices.Values(seq) {
+			s := sets[i]
 
-				var j bool
+			var j bool
 
-				switch s[0] {
-				case 0:
-					in()
-					zeros++
+			switch s[0] {
+			case 0:
+				in()
+				zeros++
 
-					if zeros == 3 {
-						c0, i := d()
+				if zeros == 3 {
+					c0, i := d()
 
-						if i {
-							if isDone {
-								panic("done: already done")
-							}
-
-							isDone = true
-
-							logf("done: %v, %d", i, c0)
+					if i {
+						if isDone {
+							panic("done: already done")
 						}
+
+						isDone = true
+
+						logf("done: %v, %d", i, c0)
 					}
-				case 1:
-					j = c(s[1])
-				case 2:
-					j = e()
 				}
-
-				if j {
-					if isDone {
-						panic("pc: already done")
-					}
-
-					isDone = true
-
-					logf("pc: %v: %v", s, j)
-				}
+			case 1:
+				j = c(s[1])
+			case 2:
+				j = e()
 			}
 
-			t.True(isDone)
-		}()
+			if j {
+				if isDone {
+					panic("pc: already done")
+				}
+
+				isDone = true
+
+				logf("pc: %v: %v", s, j)
+			}
+		}
+
+		if !t.True(isDone) {
+			return errors.New("t.True(isDone)")
+		}
+
+		return nil
 	}
 
 	// run([]int{0, 1, 2, 3, 5, 6, 4, 7}, true)
@@ -803,17 +807,15 @@ func (t *testMergeJobCounter) TestPermutation() {
 
 	for gen.Next() {
 		seq := gen.Permutation(nil)
-
-		fmt.Fprintf(os.Stdout, "%v ", seq)
 		count++
 
-		if count%99 == 0 {
-			fmt.Fprintln(os.Stdout)
+		if count > 0 && count%999 == 0 {
+			fmt.Fprintf(os.Stdout, "%d ", count)
 		}
 
-		run(seq, false)
+		t.NoError(run(seq, false), "%v", seq)
 	}
-	fmt.Fprintln(os.Stdout)
+	fmt.Fprintf(os.Stdout, "%d\n", count)
 }
 
 func TestMergeJobCounter(t *testing.T) {
@@ -1021,7 +1023,7 @@ func (t *testPhaseJobCounter) TestPermutation() {
 		{3, 0},
 	}
 
-	run := func(seq []int, verbose bool) {
+	run := func(seq []int, verbose bool) error {
 		logf := func(s string, a ...any) {}
 
 		if verbose {
@@ -1030,52 +1032,54 @@ func (t *testPhaseJobCounter) TestPermutation() {
 			}
 		}
 
-		func() {
-			defer goleak.VerifyNone(t.T())
+		defer goleak.VerifyNone(t.T())
 
-			var zeros uint64
-			var isDone bool
+		var zeros uint64
+		var isDone bool
 
-			p0, pc, d, c := newPhaseJobCounter()
-			defer c()
+		p0, pc, d, c := newPhaseJobCounter()
+		defer c()
 
-			for i := range slices.Values(seq) {
-				s := sets[i]
-				if s[0] == 0 {
-					p0()
-					zeros++
+		for i := range slices.Values(seq) {
+			s := sets[i]
+			if s[0] == 0 {
+				p0()
+				zeros++
 
+			}
+
+			j := pc(uint8(s[0]), s[1])
+			if j {
+				if isDone {
+					panic("pc: already done")
 				}
 
-				j := pc(uint8(s[0]), s[1])
-				if j {
+				isDone = true
+
+				logf("pc: %v: %v", s, j)
+			}
+
+			if zeros == 3 {
+				c0, i := d()
+
+				if i {
 					if isDone {
-						panic("pc: already done")
+						panic("done: already done")
 					}
 
 					isDone = true
 
-					logf("pc: %v: %v", s, j)
+					logf("done: %v, %d", i, c0)
 				}
-
-				if zeros == 3 {
-					c0, i := d()
-
-					if i {
-						if isDone {
-							panic("done: already done")
-						}
-
-						isDone = true
-
-						logf("done: %v, %d", i, c0)
-					}
-				}
-
 			}
 
-			t.True(isDone)
-		}()
+		}
+
+		if !t.True(isDone) {
+			return errors.New("t.True(isDone)")
+		}
+
+		return nil
 	}
 
 	// run([]int{0, 1, 2, 3, 5, 6, 4, 7}, true)
@@ -1086,17 +1090,15 @@ func (t *testPhaseJobCounter) TestPermutation() {
 
 	for gen.Next() {
 		seq := gen.Permutation(nil)
-
-		fmt.Fprintf(os.Stdout, "%v ", seq)
 		count++
 
-		if count%99 == 0 {
-			fmt.Fprintln(os.Stdout)
+		if count > 0 && count%999 == 0 {
+			fmt.Fprintf(os.Stdout, "%d ", count)
 		}
 
-		run(seq, false)
+		t.NoError(run(seq, false), "%v", seq)
 	}
-	fmt.Fprintln(os.Stdout)
+	fmt.Fprintf(os.Stdout, "%d\n", count)
 }
 
 func TestPhaseJobCounter(t *testing.T) {

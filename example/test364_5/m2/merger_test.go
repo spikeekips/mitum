@@ -10,7 +10,9 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	dop5 "github.com/spikeekips/mitum/example/test364_5"
 	dhash "github.com/spikeekips/mitum/example/test364_5/hash"
@@ -85,126 +87,6 @@ func (t *testMerger) preset() (
 	return
 }
 
-func (t *testMerger) TestMerge() {
-	states, mergeValues, expectedMerged, expectedReasons := t.preset()
-
-	setSMVs, getSMVs, closeSMVs, err := newFuncAddValuePool(1 << 9)
-	t.NoError(err)
-	defer closeSMVs()
-
-	for i, sv := range slices.All(mergeValues) {
-		if len(sv[1]) < 1 {
-			continue
-		}
-
-		var sub SMV
-		if len(sv[0]) > 0 {
-			sub = sv[0][0]
-		}
-
-		t.True(setSMVs(uint64(i), sub, sv[1]))
-	}
-
-	getAccountSVM := NewFuncAccountSVM(func(stateKey string) (base.StateValue, bool, error) {
-		sv, found := states[stateKey]
-		if found {
-			return sv.Value(), true, nil
-		}
-
-		return nil, false, nil
-	})
-
-	addSVMFunc, newGetSVM, closeSVMFuncSet := newSVMFuncSet()
-	defer closeSVMFuncSet()
-
-	t.True(addSVMFunc(AccountSMVHint, getAccountSVM))
-
-	run := func(seq []int, verbose bool) {
-		logf := func(s string, a ...any) {}
-
-		if verbose {
-			logf = func(s string, a ...any) {
-				t.T().Logf(s, a...)
-			}
-		}
-
-		getSVM, seqSVM, err := newGetSVM(1 << 9)
-		t.NoError(err)
-
-		setReason, doneReasons, err := newFuncUnmergedReason(1 << 9)
-		t.NoError(err)
-
-		subMergeJobf := newFuncSubMergeJob(getSVM)
-		addMergeJobf := newFuncAddMergeJob(getSVM)
-		unmergeJobf := newFuncUnmergeJob(getSVM)
-
-		{
-			for i := range slices.Values(seq) {
-				opindex := uint64(i)
-				vs := mergeValues[opindex]
-
-				for v := range slices.Values(vs[0]) {
-					next, reason, err := subMergeJobf(opindex, v)
-					logf("sub merge: opindex=%d next=%d reason=%q err=%v", opindex, next, reason, err)
-					t.NoError(err)
-
-					if reason != "" {
-						t.NoError(setReason(next, reason))
-
-						_, vs, found := getSMVs(next)
-						t.True(found)
-
-						logf("\tnext=%d values=%d", next, len(vs))
-
-						for v := range slices.Values(vs) {
-							err := unmergeJobf(next, v)
-							logf("unmerge: opindex=%d err=%v", next, err)
-						}
-					}
-				}
-
-				for v := range slices.Values(vs[1]) {
-					err := addMergeJobf(opindex, v)
-					logf("add merge: opindex=%d err=%v", opindex, err)
-					t.NoError(err)
-				}
-			}
-		}
-
-		merged := map[string]int64{}
-		for m := range seqSVM() {
-			sv, err := m.Close()
-			t.NoError(err)
-			if sv == nil {
-				continue
-			}
-
-			merged[m.Key()] = sv.(*AccountSV).Balance
-		}
-
-		t.Equal(expectedMerged, merged)
-		t.Equal(expectedReasons, doneReasons())
-	}
-
-	gen := combin.NewPermutationGenerator(len(mergeValues), len(mergeValues))
-
-	var count int
-
-	for gen.Next() {
-		seq := gen.Permutation(nil)
-
-		fmt.Fprintf(os.Stdout, "%v ", seq)
-		count++
-
-		if count%99 == 0 {
-			fmt.Fprintln(os.Stdout)
-		}
-
-		run(seq, false)
-	}
-	fmt.Fprintln(os.Stdout)
-}
-
 func (t *testMerger) TestMerger() {
 	states, mergeValues, expectedMerged, expectedReasons := t.preset()
 	unmergeOps := []uint64{1, 5}
@@ -220,23 +102,6 @@ func (t *testMerger) TestMerger() {
 		"ta-p2dpu": {4},
 	}
 
-	setSMVs, getSMVs, closeSMVs, err := newFuncAddValuePool(1 << 9)
-	t.NoError(err)
-	defer closeSMVs()
-
-	for i, sv := range slices.All(mergeValues) {
-		if len(sv[1]) < 1 {
-			continue
-		}
-
-		var sub SMV
-		if len(sv[0]) > 0 {
-			sub = sv[0][0]
-		}
-
-		t.True(setSMVs(uint64(i), sub, sv[1]))
-	}
-
 	getAccountSVM := NewFuncAccountSVM(func(stateKey string) (base.StateValue, bool, error) {
 		sv, found := states[stateKey]
 		if found {
@@ -251,25 +116,20 @@ func (t *testMerger) TestMerger() {
 
 	t.True(addSVMFunc(AccountSMVHint, getAccountSVM))
 
-	run := func(seq []int) {
+	run := func(seq []int) error {
 		ctx, cancel := t.Ctx()
 		defer cancel(nil)
 
 		getSVM, seqSVM, err := newGetSVM(1 << 9)
 		t.NoError(err)
 
-		reasons := util.NewSingleLockedMap[uint64, string]()
+		reasons := dutil.NewSingleLockedMap[uint64, string]()
 		defer reasons.Close()
-
-		extractKeys, closeExtractKeys := newFuncExtractSMVKeys(ctx, 1<<9)
-		defer closeExtractKeys()
 
 		merge, mergeDone, unmerge, unmergeDone, wait, err := NewMerger(
 			ctx,
 			1<<9,
-			getSMVs,
 			getSVM,
-			extractKeys,
 			func(_ context.Context, opindex uint64, reason string) error {
 				_ = reasons.SetValue(opindex, reason)
 
@@ -297,7 +157,12 @@ func (t *testMerger) TestMerger() {
 					t.IfErrPanic(unmerge(unmergeOps[1]))
 					atomic.AddInt64(&unmerged, 1)
 				default:
-					t.IfErrPanic(merge(opindex))
+					vs := mergeValues[opindex]
+					var sub SMV
+					if len(vs[0]) > 0 {
+						sub = vs[0][0]
+					}
+					t.IfErrPanic(merge(opindex, sub, vs[1]))
 				}
 
 				if atomic.LoadInt64(&unmerged) == int64(len(unmergeOps)) {
@@ -310,9 +175,11 @@ func (t *testMerger) TestMerger() {
 
 		mergeDone()
 
-		t.NoError(wait(
+		if err := wait(
 			func(size int, getStateOps getStateOpsFunc) error {
 				merged := map[string]int64{}
+				mergedOps := map[string][]uint64{}
+
 				for m := range seqSVM() {
 					sv, err := m.Close()
 					t.NoError(err)
@@ -327,19 +194,31 @@ func (t *testMerger) TestMerger() {
 					ops := getStateOps(m.Key())
 					slices.Sort(ops)
 
-					t.Equal(expectedOps[m.Key()], ops)
+					mergedOps[m.Key()] = ops
 				}
 
-				t.Equal(expectedMerged, merged)
+				if !t.Equal(expectedMerged, merged) {
+					return errors.Errorf("t.Equal(expectedMerged, merged)")
+				}
+
+				if !t.Equal(expectedOps, mergedOps) {
+					return errors.Errorf("t.Equal(expectedOps, mergedOps)")
+				}
 
 				return nil
 			},
-		))
+		); err != nil {
+			return err
+		}
 
-		t.Equal(expectedReasons, reasons.Map())
+		if !t.Equal(expectedReasons, reasons.Map()) {
+			return errors.Errorf("t.Equal(expectedReasons, reasons.Map())")
+		}
+
+		return nil
 	}
 
-	// run([]int{0, 4, 6, 3, 7, 5, 2, 1})
+	// run([]int{0, 1, 4, 6, 2, 5, 3, 7})
 	// return
 
 	gen := combin.NewPermutationGenerator(len(mergeValues)+2, len(mergeValues)+2)
@@ -349,17 +228,15 @@ func (t *testMerger) TestMerger() {
 	for gen.Next() {
 		seq := gen.Permutation(nil)
 
-		fmt.Fprintf(os.Stdout, "%v ", seq)
-
-		if count%99 == 0 {
-			fmt.Fprintln(os.Stdout)
+		if count > 0 && count%666 == 0 {
+			fmt.Fprintf(os.Stdout, "%d ", count)
 		}
 
-		run(seq)
+		t.NoError(run(seq), "%v", seq)
 
 		count++
 	}
-	fmt.Fprintln(os.Stdout)
+	fmt.Fprintf(os.Stdout, "%d\n", count)
 }
 
 func TestMerger(t *testing.T) {
@@ -388,18 +265,13 @@ func runBenchmarkMerger(n int) (func(int), func()) {
 		states[st.Key()] = st
 	}
 
-	setSMVs, getSMVs, closeSMVs, _ := newFuncAddValuePool(poolSize)
+	mergeValues := make([][2]SMV, n)
 
-	values := make([][2]SMV, n)
-
-	for i := range values {
-		opindex := uint64(i)
+	for i := range mergeValues {
 		sub, _ := NewAccountSMV(pubs[i], -1)
 		add, _ := NewAccountSMV(pubs[(i+1)%n], 1)
 
-		values[i] = [2]SMV{sub, add}
-
-		setSMVs(opindex, sub, []SMV{add})
+		mergeValues[i] = [2]SMV{sub, add}
 	}
 
 	addSVMFunc, newGetSVM, closeSVMFuncSet := newSVMFuncSet()
@@ -424,15 +296,10 @@ func runBenchmarkMerger(n int) (func(int), func()) {
 			ctx, cancel := dutil.ContextWithCancelCause(context.Background())
 			defer cancel(nil)
 
-			extractKeys, closeExtractKeys := newFuncExtractSMVKeys(ctx, 1<<9)
-			defer closeExtractKeys()
-
 			merge, mergeDone, _, unmergeDone, wait, err := NewMerger(
 				ctx,
 				poolSize,
-				getSMVs,
 				getSVM,
-				extractKeys,
 				func(_ context.Context, opindex uint64, reason string) error { return nil },
 			)
 			if err != nil {
@@ -442,7 +309,9 @@ func runBenchmarkMerger(n int) (func(int), func()) {
 			for i := range n {
 				opindex := uint64(i)
 
-				if err := merge(opindex); err != nil {
+				vs := mergeValues[opindex]
+
+				if err := merge(opindex, vs[0], []SMV{vs[1]}); err != nil {
 					panic(err)
 				}
 			}
@@ -457,13 +326,24 @@ func runBenchmarkMerger(n int) (func(int), func()) {
 			}
 		},
 		func() {
-			closeSMVs()
 			closeSVMFuncSet()
 
 			dutil.ClearSlice(&pubs)
-			dutil.ClearSlice(&values)
+			dutil.ClearSlice(&mergeValues)
 			clear(states)
 		}
+}
+
+func TestRunBenchmarkMerger(t *testing.T) {
+	size := 50000
+	run, closef := runBenchmarkMerger(size)
+	defer closef()
+
+	started := time.Now()
+
+	run(size)
+
+	t.Log("elapsed", time.Since(started))
 }
 
 func BenchmarkMerger(bb *testing.B) {
@@ -492,26 +372,6 @@ func BenchmarkMerger(bb *testing.B) {
 			for b.Loop() {
 				run(i)
 			}
-		})
-	}
-}
-
-func newFuncAddMergeJob(
-	mergeStateValueMerger MergeSVMFunc,
-) func(uint64, SMV) error {
-	return func(opindex uint64, value SMV) error {
-		return mergeStateValueMerger(value, func(merger SVM) error {
-			return merger.AddMerge(opindex, value.Value())
-		})
-	}
-}
-
-func newFuncUnmergeJob(
-	mergeStateValueMerger MergeSVMFunc,
-) func(uint64, SMV) error {
-	return func(opindex uint64, value SMV) error {
-		return mergeStateValueMerger(value, func(merger SVM) error {
-			return merger.Unmerge(opindex, value.Value())
 		})
 	}
 }

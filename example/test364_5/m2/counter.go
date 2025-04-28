@@ -5,7 +5,7 @@ import (
 	"sync/atomic"
 )
 
-func newXMergeJobCounter() (
+func newXMergeJobCounter(jobDone func()) (
 	func(), /* count initial merge */
 	func() (uint64, bool), /* initial merge count done */
 	func(uint64) bool, /* count merge */
@@ -19,7 +19,7 @@ func newXMergeJobCounter() (
 	var im, cm, ne, bn, cn uint64
 	var iu, cu uint64
 
-	check := func() bool {
+	checkf := func() bool {
 		switch {
 		case !initialMergeDone, !initialUnmergeDone:
 			return false
@@ -42,6 +42,19 @@ func newXMergeJobCounter() (
 		default:
 			return true
 		}
+	}
+
+	if jobDone == nil {
+		jobDone = func() {}
+	}
+
+	check := func() bool {
+		ok := checkf()
+		if ok {
+			jobDone()
+		}
+
+		return ok
 	}
 
 	return func() {
