@@ -48,7 +48,7 @@ func smvsBundleDecodeJSON(enc *jsonenc.Encoder, m map[string]any) (any, error) {
 	var w smvsBundle
 
 	return w, dutil.FuncChain(
-		dutil.AssignJSONInts(m["O"], &w.O),
+		dutil.NewFuncAssignJSONInts[uint64]()(m["O"], &w.O),
 		dutil.AssignJSONHash(m["F"], &w.F),
 		encoder.DecodeSlice(enc, m["V"], &w.V),
 	)

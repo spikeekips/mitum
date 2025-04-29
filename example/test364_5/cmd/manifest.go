@@ -179,6 +179,8 @@ func (m *manifest) MarshalJSON() ([]byte, error) {
 	})
 }
 
+var manifestHeightAssingJSON = dutil.NewFuncAssignJSONInts[int64]()
+
 func decodeManifest(_ *jsonenc.Encoder, m map[string]any) (any, error) {
 	mf := new(manifest)
 
@@ -191,7 +193,7 @@ func decodeManifest(_ *jsonenc.Encoder, m map[string]any) (any, error) {
 		dutil.AssignJSONHash(m["operations_tree"], &mf.operationsTree),
 		dutil.AssignJSONHash(m["states_tree"], &mf.statesTree),
 		dutil.AssignJSONHash(m["suffrage"], &mf.suffrage),
-		dutil.AssignJSONInts(m["height"], &height),
+		manifestHeightAssingJSON(m["height"], &height),
 		func() error {
 			var s string
 

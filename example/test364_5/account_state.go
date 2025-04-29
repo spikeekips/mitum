@@ -51,12 +51,14 @@ func (s *AccountSV) IsValid([]byte) error {
 	return util.CheckIsValiders(nil, false, s.Address)
 }
 
+var accountSVBalanceAssingJSON = dutil.NewFuncAssignJSONInts[int64]()
+
 func AccountSVDecodeJSON(enc *jsonenc.Encoder, m map[string]any) (any, error) {
 	u := new(AccountSV)
 
 	return u, dutil.FuncChain(
 		AssignJSONPublickey(m["address"], &u.Address, enc),
-		dutil.AssignJSONInts(m["balance"], &u.Balance),
+		accountSVBalanceAssingJSON(m["balance"], &u.Balance),
 	)
 }
 

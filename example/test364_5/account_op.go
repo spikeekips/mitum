@@ -143,6 +143,8 @@ func (fact *AccountOpFact) MarshalJSON() ([]byte, error) {
 	})
 }
 
+var accountOpAmountAssignJSON = dutil.NewFuncAssignJSONInts[int64]()
+
 func AccountOpFactDecodeJSON(enc *jsonenc.Encoder, m map[string]any) (any, error) {
 	fact := &AccountOpFact{}
 
@@ -153,7 +155,7 @@ func AccountOpFactDecodeJSON(enc *jsonenc.Encoder, m map[string]any) (any, error
 		dutil.AssignJSONBytes(m["token"], &token),
 		AssignJSONPublickey(m["issuer"], &fact.Issuer, enc),
 		AssignJSONPublickey(m["receiver"], &fact.Receiver, enc),
-		dutil.AssignJSONInts(m["amount"], &fact.Amount),
+		accountOpAmountAssignJSON(m["amount"], &fact.Amount),
 	); err != nil {
 		return nil, err
 	}

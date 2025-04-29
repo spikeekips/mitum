@@ -153,6 +153,8 @@ func (s *BaseState) MarshalJSON() ([]byte, error) {
 	})
 }
 
+var baseStateHeightAssignJSON = dutil.NewFuncAssignJSONInts[int64]()
+
 func BaseStateDecodeJSON(enc *jsonenc.Encoder, m map[string]any) (any, error) {
 	s := new(BaseState)
 
@@ -162,7 +164,7 @@ func BaseStateDecodeJSON(enc *jsonenc.Encoder, m map[string]any) (any, error) {
 		dutil.AssignJSONFunc(m["height"], &s.height, func(i any) (base.Height, error) {
 			var height int64
 
-			return base.Height(height), dutil.AssignJSONInts(i, &height)()
+			return base.Height(height), baseStateHeightAssignJSON(i, &height)()
 		}),
 		dutil.AssignJSON(m["key"], &s.k),
 		dutil.AssignJSONSlice(m["operations"], &s.ops, func(i any) (util.Hash, error) {

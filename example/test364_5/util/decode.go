@@ -104,6 +104,74 @@ func AssignJSONInts(v, k any) ErrorFunc {
 	}
 }
 
+func NewFuncAssignJSONInts[T any]() func(v any, k *T) ErrorFunc {
+	var f func(float64) any
+
+	var k T
+
+	switch any(k).(type) {
+	case int:
+		f = func(x float64) any {
+			return int(x)
+		}
+	case int8:
+		f = func(x float64) any {
+			return int8(x)
+		}
+	case int16:
+		f = func(x float64) any {
+			return int16(x)
+		}
+	case int32:
+		f = func(x float64) any {
+			return int32(x)
+		}
+	case int64:
+		f = func(x float64) any {
+			return int64(x)
+		}
+	case uint:
+		f = func(x float64) any {
+			return uint(x)
+		}
+	case uint8:
+		f = func(x float64) any {
+			return uint8(x)
+		}
+	case uint16:
+		f = func(x float64) any {
+			return uint16(x)
+		}
+	case uint32:
+		f = func(x float64) any {
+			return uint32(x)
+		}
+	case uint64:
+		f = func(x float64) any {
+			return uint64(x)
+		}
+	default:
+		panic(errors.Errorf("unsupported target type, %T", k))
+	}
+
+	return func(v any, k *T) ErrorFunc {
+		return func() error {
+			if v == nil {
+				return errors.New("nil value")
+			}
+
+			x, ok := v.(float64)
+			if !ok {
+				return errors.Errorf("unsupported type, %T", v)
+			}
+
+			*k = f(x).(T)
+
+			return nil
+		}
+	}
+}
+
 func AssignJSONSlice[T any](v any, t *[]T, f func(any) (T, error)) ErrorFunc {
 	return func() error {
 		if v == nil {
