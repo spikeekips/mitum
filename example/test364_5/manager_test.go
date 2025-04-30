@@ -468,7 +468,7 @@ func (t *testManager) TestStartWorkers() {
 				return nil
 			},
 		)
-		t.ErrorIs(err, errWorkersFailed)
+		t.ErrorIs(err, ErrWorkersFailed)
 		t.True(cancelCalled > 0)
 		t.True(doneCalled < 1)
 	})
@@ -756,7 +756,7 @@ func (t *testManager) TestCloseWork() {
 				return nil
 			},
 		)
-		t.ErrorIs(err, errWorkersFailed)
+		t.ErrorIs(err, ErrWorkersFailed)
 	})
 
 	t.Run("states owner, not in ops owners failed; under max failed", func() {

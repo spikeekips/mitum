@@ -26,7 +26,7 @@ type (
 	traverseStateOpsFunc         = func(dutil.In2ErrorFunc[int, getStateOpsFunc]) error
 )
 
-var errWorkersFailed = dutil.NewSError("workers failed")
+var ErrWorkersFailed = dutil.NewSError("workers failed")
 
 func minEnoughMaxFailed(workers, share uint64) (minEnough, maxFailed uint64, _ error) { //nolint:nonamedreturns
 	switch {
@@ -98,9 +98,9 @@ func newFuncCheckWeightFailedWorkers(
 			}
 
 			if ready && failedCount >= maxFailed {
-				var gerr error = errWorkersFailed
+				var gerr error = ErrWorkersFailed
 				if lastError != nil {
-					gerr = stderrors.Join(errWorkersFailed, lastError)
+					gerr = stderrors.Join(ErrWorkersFailed, lastError)
 				}
 
 				doneFailed = gerr

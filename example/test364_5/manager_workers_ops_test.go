@@ -102,7 +102,7 @@ func (t *testManagerWorkersOps) TestCancel() {
 
 		switch err = wait(); {
 		case errors.Is(err, context.Canceled):
-		case errors.Is(err, errWorkersFailed):
+		case errors.Is(err, ErrWorkersFailed):
 		default:
 			t.NoError(err)
 		}
@@ -369,7 +369,7 @@ func (t *testManagerWorkersOps) TestFailed() {
 			var opsShare uint64 = 1
 
 			err := runFailedNewSendFunc(workers, failedWorker, opsShare, t.randomOphs(33))
-			t.ErrorIs(err, errWorkersFailed)
+			t.ErrorIs(err, ErrWorkersFailed)
 
 			switch {
 			case errors.Is(err, context.Canceled):
@@ -443,7 +443,7 @@ func (t *testManagerWorkersOps) TestFailed() {
 			var opsShare uint64 = 1
 
 			err := runFailedSendFunc(workers, failedWorker, opsShare, t.randomOphs(33))
-			t.ErrorIs(err, errWorkersFailed)
+			t.ErrorIs(err, ErrWorkersFailed)
 
 			switch {
 			case errors.Is(err, context.Canceled):
@@ -508,7 +508,7 @@ func (t *testManagerWorkersOps) TestFailed() {
 			var opsShare uint64 = 1
 
 			err := runFailedSendDoneFunc(workers, failedWorker, opsShare, t.randomOphs(33))
-			t.ErrorIs(err, errWorkersFailed)
+			t.ErrorIs(err, ErrWorkersFailed)
 
 			switch {
 			case errors.Is(err, context.Canceled):

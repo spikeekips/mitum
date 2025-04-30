@@ -319,7 +319,7 @@ func (t *testCheckEnoughFailedWorkers) TestBlockUntil() {
 		t.True(ok)
 		t.False(enough)
 		t.Error(failed)
-		t.ErrorIs(failed, errWorkersFailed)
+		t.ErrorIs(failed, ErrWorkersFailed)
 	})
 
 	t.Run("ready, but failed", func() {
@@ -335,7 +335,7 @@ func (t *testCheckEnoughFailedWorkers) TestBlockUntil() {
 		t.True(ok)
 		t.False(enough)
 		t.Error(failed)
-		t.ErrorIs(failed, errWorkersFailed)
+		t.ErrorIs(failed, ErrWorkersFailed)
 	})
 }
 
@@ -348,7 +348,7 @@ func (t *testCheckEnoughFailedWorkers) TestFailed() {
 		t.True(ok)
 		t.False(enough)
 		t.Error(failed)
-		t.ErrorIs(failed, errWorkersFailed)
+		t.ErrorIs(failed, ErrWorkersFailed)
 	})
 
 	t.Run("failed; weight", func() {
@@ -364,7 +364,7 @@ func (t *testCheckEnoughFailedWorkers) TestFailed() {
 		t.True(ok)
 		t.False(enough)
 		t.Error(failed)
-		t.ErrorIs(failed, errWorkersFailed)
+		t.ErrorIs(failed, ErrWorkersFailed)
 	})
 
 	t.Run("error after failed", func() {
@@ -375,13 +375,13 @@ func (t *testCheckEnoughFailedWorkers) TestFailed() {
 		t.True(ok)
 		t.False(enough)
 		t.Error(failed)
-		t.ErrorIs(failed, errWorkersFailed)
+		t.ErrorIs(failed, ErrWorkersFailed)
 
 		ok, enough, failed = w("w1", 1, nil)
 		t.False(ok)
 		t.False(enough)
 		t.Error(failed)
-		t.ErrorIs(failed, errWorkersFailed)
+		t.ErrorIs(failed, ErrWorkersFailed)
 	})
 
 	t.Run("error, but under max failed", func() {
@@ -397,7 +397,7 @@ func (t *testCheckEnoughFailedWorkers) TestFailed() {
 		t.True(ok)
 		t.False(enough)
 		t.Error(failed)
-		t.ErrorIs(failed, errWorkersFailed)
+		t.ErrorIs(failed, ErrWorkersFailed)
 	})
 
 	t.Run("ok, but after closed", func() {
@@ -408,13 +408,13 @@ func (t *testCheckEnoughFailedWorkers) TestFailed() {
 		t.True(ok)
 		t.False(enough)
 		t.Error(failed)
-		t.ErrorIs(failed, errWorkersFailed)
+		t.ErrorIs(failed, ErrWorkersFailed)
 
 		ok, enough, failed = w("w1", 1, nil)
 		t.False(ok)
 		t.False(enough)
 		t.Error(failed)
-		t.ErrorIs(failed, errWorkersFailed)
+		t.ErrorIs(failed, ErrWorkersFailed)
 	})
 }
 

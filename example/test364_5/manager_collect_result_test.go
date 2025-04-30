@@ -243,11 +243,11 @@ func (t *testManagerCollectResult) TestMaxFailed() {
 		t.NoError(err)
 
 		err = d(errors.New("showme"))
-		t.ErrorIs(err, errWorkersFailed)
+		t.ErrorIs(err, ErrWorkersFailed)
 		t.ErrorContains(err, "showme")
 
 		_, _, err = w(t.baseGenerateNodesHashFunc())
-		t.ErrorIs(err, errWorkersFailed)
+		t.ErrorIs(err, ErrWorkersFailed)
 
 		switch {
 		case errors.Is(err, context.Canceled):
