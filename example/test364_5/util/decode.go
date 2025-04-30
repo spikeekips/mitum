@@ -165,7 +165,7 @@ func NewFuncAssignJSONInts[T any]() func(v any, k *T) ErrorFunc {
 				return errors.Errorf("unsupported type, %T", v)
 			}
 
-			*k = f(x).(T)
+			*k = f(x).(T) //nolint:forcetypeassert
 
 			return nil
 		}
