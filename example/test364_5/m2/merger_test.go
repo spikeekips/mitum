@@ -14,53 +14,110 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
-	dop5 "github.com/spikeekips/mitum/example/test364_5"
-	dhash "github.com/spikeekips/mitum/example/test364_5/hash"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
-	"github.com/spikeekips/mitum/util"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 	"gonum.org/v1/gonum/stat/combin"
 )
 
-type testMerger struct {
+type baseMergerSuite struct {
 	dutil.BaseSuite
 }
 
-func (t *testMerger) newState(pub base.Publickey, balance int64) base.State {
-	return dop5.NewBaseState(
-		33,
-		accountStateKey(pub),
-		NewAccountSV(pub, balance),
-		nil,
-		[]util.Hash{dhash.RandomHex64()},
-	)
+func (t *baseMergerSuite) workers(n int) (string, []string) {
+	w := make([]string, n)
+	for i := range w {
+		w[i] = fmt.Sprintf("w%d", i)
+	}
+
+	return w[0], w
 }
 
-func (t *testMerger) newMergeValue(address base.Publickey, balance int64) *AccountSMV {
+func (t *baseMergerSuite) newState(pub base.Publickey, balance int64) (string, base.StateValue) {
+	return accountStateKey(pub),
+		NewAccountSV(pub, balance)
+}
+
+func (t *baseMergerSuite) newMergeValue(address base.Publickey, balance int64) *AccountSMV {
 	v, err := NewAccountSMV(address, balance)
 	t.NoError(err)
 
 	return v
 }
 
-func (t *testMerger) preset() (
-	states map[string]base.State,
+func (t *baseMergerSuite) randomMergeValues(n int) []SMV {
+	v := make([]SMV, n)
+
+	for i := range v {
+		v[i] = t.newMergeValue(base.NewDummyPublickey("p0"), 1)
+	}
+
+	return v
+}
+
+func (t *baseMergerSuite) newGetSVM(states map[string]base.StateValue) NewSVMPoolFunc {
+	addSVMFunc, newGetSVM, closeSVMFuncSet := newSVMFuncSet()
+
+	t.T().Cleanup(closeSVMFuncSet)
+
+	getAccountSVM := NewFuncAccountSVM(func(stateKey string) (base.StateValue, bool, error) {
+		sv, found := states[stateKey]
+		if found {
+			return sv, true, nil
+		}
+
+		return nil, false, nil
+	})
+	_ = addSVMFunc(AccountSMVHint, getAccountSVM)
+
+	return newGetSVM
+}
+
+func (t baseMergerSuite) closeMergers(getStateOps getStateOpsFunc, seqSVM iter.Seq[SVM]) (
+	merged map[string]int64,
+	mergedOps map[string][]uint64,
+) {
+	merged = map[string]int64{}
+	mergedOps = map[string][]uint64{}
+
+	for m := range seqSVM {
+		sv, err := m.Close()
+		t.NoError(err)
+
+		var balance int64
+		if sv != nil {
+			balance = sv.(*AccountSV).Balance
+		}
+
+		merged[m.Key()] = balance
+
+		ops := getStateOps(m.Key())
+		slices.Sort(ops)
+
+		mergedOps[m.Key()] = ops
+	}
+
+	return
+}
+
+func (t *baseMergerSuite) preset() (
+	states map[string]base.StateValue,
 	mergeValues [][2][]SMV,
 	expectedMerged map[string]int64,
 	expectedReasons map[uint64]string,
+	expectedOps map[string][]uint64,
 ) {
 	pub0 := base.NewDummyPublickey("p0")
 	pub1 := base.NewDummyPublickey("p1")
 	pub2 := base.NewDummyPublickey("p2")
 
-	s0 := t.newState(pub0, 1)
-	s1 := t.newState(pub1, 2)
-	s2 := t.newState(pub2, 3)
-	states = map[string]base.State{
-		s0.Key(): s0,
-		s1.Key(): s1,
-		s2.Key(): s2,
+	k0, s0 := t.newState(pub0, 1)
+	k1, s1 := t.newState(pub1, 2)
+	k2, s2 := t.newState(pub2, 3)
+	states = map[string]base.StateValue{
+		k0: s0,
+		k1: s1,
+		k2: s2,
 	}
 
 	nv, nnv := t.newMergeValue, t.newMergeValue
@@ -75,20 +132,30 @@ func (t *testMerger) preset() (
 	}
 
 	expectedMerged = map[string]int64{
-		s0.Key(): 2,
-		s1.Key(): 4,
-		s2.Key(): 4,
+		k0: 2,
+		k1: 4,
+		k2: 4,
 	}
 	expectedReasons = map[uint64]string{
 		1: "previous issuer found",
 		3: "previous issuer found",
 	}
 
+	expectedOps = map[string][]uint64{
+		"ta-p0dpu": {0, 2, 4},
+		"ta-p1dpu": {0, 2, 5},
+		"ta-p2dpu": {4, 5},
+	}
+
 	return
 }
 
+type testMerger struct {
+	baseMergerSuite
+}
+
 func (t *testMerger) TestMerger() {
-	states, mergeValues, expectedMerged, expectedReasons := t.preset()
+	states, mergeValues, expectedMerged, expectedReasons, expectedOps := t.preset()
 	unmergeOps := []uint64{1, 5}
 	expectedMerged = map[string]int64{
 		"ta-p0dpu": 2,
@@ -96,25 +163,13 @@ func (t *testMerger) TestMerger() {
 		"ta-p2dpu": 1,
 	}
 
-	expectedOps := map[string][]uint64{
+	expectedOps = map[string][]uint64{
 		"ta-p0dpu": {0, 2, 4},
 		"ta-p1dpu": {0, 2},
 		"ta-p2dpu": {4},
 	}
 
-	getAccountSVM := NewFuncAccountSVM(func(stateKey string) (base.StateValue, bool, error) {
-		sv, found := states[stateKey]
-		if found {
-			return sv.Value(), true, nil
-		}
-
-		return nil, false, nil
-	})
-
-	addSVMFunc, newGetSVM, closeSVMFuncSet := newSVMFuncSet()
-	defer closeSVMFuncSet()
-
-	t.True(addSVMFunc(AccountSMVHint, getAccountSVM))
+	newGetSVM := t.newGetSVM(states)
 
 	run := func(seq []int) error {
 		ctx, cancel := t.Ctx()
@@ -126,11 +181,11 @@ func (t *testMerger) TestMerger() {
 		reasons := dutil.NewSingleLockedMap[uint64, string]()
 		defer reasons.Close()
 
-		merge, mergeDone, unmerge, unmergeDone, wait, err := NewMerger(
+		merge, mergeDone, unmerge, unmergeDone, wait, err := newMerger(
 			ctx,
 			1<<9,
 			getSVM,
-			func(_ context.Context, opindex uint64, reason string) error {
+			func(opindex uint64, reason string) error {
 				_ = reasons.SetValue(opindex, reason)
 
 				return nil
@@ -176,31 +231,8 @@ func (t *testMerger) TestMerger() {
 		mergeDone()
 
 		if err := wait(
-			func(err error) error {
-				t.NoError(err)
-
-				return err
-			},
 			func(size int, getStateOps getStateOpsFunc) error {
-				merged := map[string]int64{}
-				mergedOps := map[string][]uint64{}
-
-				for m := range seqSVM() {
-					sv, err := m.Close()
-					t.NoError(err)
-
-					var balance int64
-					if sv != nil {
-						balance = sv.(*AccountSV).Balance
-					}
-
-					merged[m.Key()] = balance
-
-					ops := getStateOps(m.Key())
-					slices.Sort(ops)
-
-					mergedOps[m.Key()] = ops
-				}
+				merged, mergedOps := t.closeMergers(getStateOps, seqSVM())
 
 				if !t.Equal(expectedMerged, merged) {
 					return errors.Errorf("t.Equal(expectedMerged, merged)")
@@ -258,16 +290,9 @@ func runBenchmarkMerger(n int) (func(int), func()) {
 		pubs[i] = base.NewDummyPublickey(strconv.FormatInt(int64(i), 10))
 	}
 
-	states := map[string]base.State{}
+	states := map[string]base.StateValue{}
 	for i := range n {
-		st := dop5.NewBaseState(
-			33,
-			accountStateKey(pubs[i]),
-			NewAccountSV(pubs[i], 1),
-			nil,
-			[]util.Hash{dhash.RandomHex64()},
-		)
-		states[st.Key()] = st
+		states[accountStateKey(pubs[i])] = NewAccountSV(pubs[i], 1)
 	}
 
 	mergeValues := make([][2]SMV, n)
@@ -284,7 +309,7 @@ func runBenchmarkMerger(n int) (func(int), func()) {
 	getAccountSVM := NewFuncAccountSVM(func(stateKey string) (base.StateValue, bool, error) {
 		sv, found := states[stateKey]
 		if found {
-			return sv.Value(), true, nil
+			return sv, true, nil
 		}
 
 		return nil, false, nil
@@ -301,11 +326,11 @@ func runBenchmarkMerger(n int) (func(int), func()) {
 			ctx, cancel := dutil.ContextWithCancelCause(context.Background())
 			defer cancel(nil)
 
-			merge, mergeDone, _, unmergeDone, wait, err := NewMerger(
+			merge, mergeDone, _, unmergeDone, wait, err := newMerger(
 				ctx,
 				poolSize,
 				getSVM,
-				func(_ context.Context, opindex uint64, reason string) error { return nil },
+				func(opindex uint64, reason string) error { return nil },
 			)
 			if err != nil {
 				panic(err)
@@ -325,13 +350,6 @@ func runBenchmarkMerger(n int) (func(int), func()) {
 			unmergeDone()
 
 			if err := wait(
-				func(err error) error {
-					if err != nil {
-						panic(err)
-					}
-
-					return nil
-				},
 				func(int, getStateOpsFunc) error { return nil },
 			); err != nil {
 				panic(err)

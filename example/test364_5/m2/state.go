@@ -8,7 +8,6 @@ import (
 )
 
 type (
-	extractSMVKeysFunc     = func(opindex uint64, _ SMV, _ []SMV) ([]string, error)
 	getStateOpsFunc        = func(string) []uint64
 	collectOpsTraverseFunc = func(int, getStateOpsFunc) error
 )

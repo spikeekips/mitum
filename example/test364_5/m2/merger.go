@@ -9,8 +9,10 @@ import (
 )
 
 type (
-	reportUnmergedFunc   = func(context.Context, uint64, string) error
+	reportUnmergedFunc   = func(uint64, string) error
+	mergerInsertSMVsFunc = func(uint64, SMV, []SMV) error
 	mergerWaitResultFunc = func(int, getStateOpsFunc) error
+	mergerWaitFunc       = func(mergerWaitResultFunc) error
 )
 
 var (
@@ -18,37 +20,25 @@ var (
 	MergerMinPoolSize uint64 = 1 << 9
 )
 
-func NewMerger(
+func newMerger(
 	ctx context.Context,
 	approxSize uint64,
 	getSVM MergeSVMFunc,
 	reportUnmerged reportUnmergedFunc,
 ) (
-	func(uint64, SMV, []SMV) error,
+	mergerInsertSMVsFunc,
 	func(),
-	func(uint64) error,
+	dutil.InErrorFunc[uint64],
 	func(),
-	func(dutil.InErrorFunc[error], mergerWaitResultFunc) error,
+	mergerWaitFunc,
 	error,
 ) {
 	wctx, wctxCancel := dutil.ContextWithCancelCause(ctx)
 
-	semSize := dutil.SafeUint64ToInt64(approxSize)
-	poolSize := approxSize
+	semSize, poolSize := dutil.SafeUint64ToInt64(approxSize), approxSize
 
 	if approxSize < 1 {
 		semSize, poolSize = MergerMinSemSize, MergerMinPoolSize
-	}
-
-	var newMergeNewJob dutil.JobWorkerNewJobFunc
-	var mergeJobDone func()
-	var mergeJobWait dutil.InErrorFunc[error]
-
-	switch n, j, w, err := dutil.NewFuncJobWorker(wctx, semSize); {
-	case err != nil:
-		return nil, nil, nil, nil, nil, err
-	default:
-		newMergeNewJob, mergeJobDone, mergeJobWait = n, j, w
 	}
 
 	var newJob dutil.JobWorkerNewJobFunc
@@ -84,12 +74,6 @@ func NewMerger(
 		collectOpsMerge, collectOpsUnmerge, collectOpsTraverse = a, u, t
 	}
 
-	setReason := func(opindex uint64, reason string) error {
-		return newMergeNewJob(func(ctx context.Context) error {
-			return reportUnmerged(ctx, opindex, reason)
-		})
-	}
-
 	var merge func(uint64, SMV, []SMV) error
 	var mergeDone func()
 	var unmerge func(uint64) error
@@ -102,9 +86,8 @@ func NewMerger(
 		getSVM,
 		collectOpsMerge,
 		collectOpsUnmerge,
-		setReason,
+		reportUnmerged,
 		newJob,
-		mergeJobDone,
 		jobDone,
 	); {
 	case err != nil:
@@ -117,7 +100,7 @@ func NewMerger(
 
 	return func(opindex uint64, subv SMV, addvs []SMV) error {
 			if !setSMVs(opindex, subv, addvs) {
-				return nil
+				return errors.Errorf("known, %d", opindex)
 			}
 
 			return iferrCancel(merge(opindex, subv, addvs))
@@ -127,20 +110,13 @@ func NewMerger(
 			return iferrCancel(unmerge(opindex))
 		},
 		unmergeDone,
-		func(
-			mergeDone dutil.InErrorFunc[error],
-			result mergerWaitResultFunc,
-		) error {
+		func(result mergerWaitResultFunc) error {
 			defer func() {
 				_ = wctxCancel(nil)
 
 				closeSMVPool()
 				closeXMerge()
 			}()
-
-			if err := mergeDone(mergeJobWait(nil)); err != nil {
-				return wctxCancel(err)
-			}
 
 			if err := jobWait(nil); err != nil {
 				return wctxCancel(err)
@@ -159,9 +135,8 @@ func newXMergeFuncs(
 	getSVM MergeSVMFunc,
 	collectOpsMerge func(uint64, string, string) bool,
 	collectOpsUnmerge func(uint64, string, string) bool,
-	setReason func(opindex uint64, reason string) error,
+	reportUnmerged func(opindex uint64, reason string) error,
 	newJob dutil.JobWorkerNewJobFunc,
-	mergeJobDone func(),
 	jobDone func(),
 ) (
 	func(opindex uint64, subv SMV, addvs []SMV) error,
@@ -172,7 +147,7 @@ func newXMergeFuncs(
 	error,
 ) {
 	initialCountJob, doneInitialCount, countJob, endCountJob,
-		initialUnmergeCountJob, doneInitialUnmergeCountJob, unmergeCountJob := newXMergeJobCounter(mergeJobDone, jobDone)
+		initialUnmergeCountJob, doneInitialUnmergeCountJob, unmergeCountJob := newXMergeJobCounter(func() {}, jobDone)
 
 	var mergeLock func(uint64) (bool, bool)
 	var unmergeLock func(uint64) int
@@ -186,29 +161,7 @@ func newXMergeFuncs(
 		mergeLock, unmergeLock, ignoreLock, closeMergeLock = m, u, i, c
 	}
 
-	subMerge := func(opindex uint64, subv SMV) (uint64, string, error) {
-		var next uint64
-		var reason string
-
-		return next, reason, getSVM(subv, func(merger SVM) error {
-			var err error
-
-			next, reason, err = merger.SubMerge(opindex, subv.Value())
-			if err == nil {
-				switch {
-				case reason == "":
-					_ = collectOpsMerge(opindex, subv.Key(), "sub")
-				case next == opindex:
-					_ = collectOpsUnmerge(opindex, subv.Key(), "sub")
-				default:
-					_ = collectOpsMerge(opindex, subv.Key(), "sub")
-					_ = collectOpsUnmerge(next, subv.Key(), "sub")
-				}
-			}
-
-			return err
-		})
-	}
+	subMerge := newFuncSubMerge(getSVM, collectOpsMerge, collectOpsUnmerge)
 
 	addMerge := func(opindex uint64, addv SMV) error {
 		return getSVM(addv, func(merger SVM) error {
@@ -277,7 +230,7 @@ func newXMergeFuncs(
 
 				return nil
 			default:
-				if err := setReason(n, reason); err != nil {
+				if err := reportUnmerged(n, reason); err != nil {
 					return err
 				}
 
@@ -457,4 +410,34 @@ func newFuncMergeLock(
 		},
 		pool.Close,
 		nil
+}
+
+func newFuncSubMerge(
+	getSVM MergeSVMFunc,
+	collectOpsMerge func(uint64, string, string) bool,
+	collectOpsUnmerge func(uint64, string, string) bool,
+) func(uint64, SMV) (uint64, string, error) {
+	return func(opindex uint64, subv SMV) (uint64, string, error) {
+		var next uint64
+		var reason string
+
+		return next, reason, getSVM(subv, func(merger SVM) error {
+			var err error
+
+			next, reason, err = merger.SubMerge(opindex, subv.Value())
+			if err == nil {
+				switch {
+				case reason == "":
+					_ = collectOpsMerge(opindex, subv.Key(), "sub")
+				case next == opindex:
+					_ = collectOpsUnmerge(opindex, subv.Key(), "sub")
+				default:
+					_ = collectOpsMerge(opindex, subv.Key(), "sub")
+					_ = collectOpsUnmerge(next, subv.Key(), "sub")
+				}
+			}
+
+			return err
+		})
+	}
 }

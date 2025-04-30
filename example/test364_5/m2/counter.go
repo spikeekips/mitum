@@ -19,8 +19,7 @@ func newXMergeJobCounter(
 ) {
 	var l sync.Mutex
 	var initialMergeDone, initialUnmergeDone bool
-	var im, cm, ne, bn, cn uint64
-	var iu, cu uint64
+	var im, cm, ne, bn, cn, iu, cu uint64
 
 	checkMergeJobDone := func() bool {
 		switch {
@@ -30,19 +29,13 @@ func newXMergeJobCounter(
 			return true
 		}
 
-		switch {
-		case im != cm:
+		if im != cm {
 			return false
-		default:
-			bn = ne
 		}
 
-		switch {
-		case bn != cn:
-			return false
-		default:
-			return true
-		}
+		bn = ne
+
+		return bn == cn
 	}
 
 	checkUnmergeJobDone := func() bool {
@@ -67,14 +60,6 @@ func newXMergeJobCounter(
 		}
 
 		return true, checkUnmergeJobDone()
-	}
-
-	if mergeJobDone == nil {
-		mergeJobDone = func() {}
-	}
-
-	if jobDone == nil {
-		jobDone = func() {}
 	}
 
 	check := func() bool {

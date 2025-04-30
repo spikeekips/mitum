@@ -31,7 +31,7 @@ func (t *testXMergeJobCounter) funcsJobDone() (*int64, *int64, func(), func()) {
 
 func (t *testXMergeJobCounter) TestJobDone() {
 	t.Run("done after 0 count", func() {
-		im, dm, _, _, _, _, _ := newXMergeJobCounter(nil, nil)
+		im, dm, _, _, _, _, _ := newXMergeJobCounter(func() {}, func() {})
 		im()
 		im()
 		im()
@@ -42,7 +42,7 @@ func (t *testXMergeJobCounter) TestJobDone() {
 	})
 
 	t.Run("0 count after done", func() {
-		im, dm, _, _, _, _, _ := newXMergeJobCounter(nil, nil)
+		im, dm, _, _, _, _, _ := newXMergeJobCounter(func() {}, func() {})
 
 		im()
 		im()
@@ -59,7 +59,7 @@ func (t *testXMergeJobCounter) TestJobDone() {
 	})
 
 	t.Run("done before 0 count", func() {
-		im, dm, _, _, _, du, _ := newXMergeJobCounter(nil, nil)
+		im, dm, _, _, _, du, _ := newXMergeJobCounter(func() {}, func() {})
 
 		rm, isDone := dm()
 		t.EqualValues(0, rm)
@@ -183,7 +183,7 @@ func (t *testXMergeJobCounter) TestCheck() {
 
 	t.Run("no next, unmerge", func() {
 		t.Run("done true after count", func() {
-			im, dm, cm, _, iu, du, cu := newXMergeJobCounter(nil, nil)
+			im, dm, cm, _, iu, du, cu := newXMergeJobCounter(func() {}, func() {})
 
 			im()
 			im()
@@ -211,7 +211,7 @@ func (t *testXMergeJobCounter) TestCheck() {
 		})
 
 		t.Run("done false with count", func() {
-			im, dm, cm, _, iu, du, cu := newXMergeJobCounter(nil, nil)
+			im, dm, cm, _, iu, du, cu := newXMergeJobCounter(func() {}, func() {})
 
 			im()
 			im()
@@ -238,7 +238,7 @@ func (t *testXMergeJobCounter) TestCheck() {
 		})
 
 		t.Run("done false before count", func() {
-			im, dm, cm, _, iu, du, cu := newXMergeJobCounter(nil, nil)
+			im, dm, cm, _, iu, du, cu := newXMergeJobCounter(func() {}, func() {})
 
 			im()
 			im()
@@ -267,7 +267,7 @@ func (t *testXMergeJobCounter) TestCheck() {
 
 	t.Run("next, no unmerge", func() {
 		t.Run("with 1 next; not done", func() {
-			im, dm, cm, _, _, du, _ := newXMergeJobCounter(nil, nil)
+			im, dm, cm, _, _, du, _ := newXMergeJobCounter(func() {}, func() {})
 
 			im()
 			im()
@@ -287,7 +287,7 @@ func (t *testXMergeJobCounter) TestCheck() {
 		})
 
 		t.Run("with 1 next; done", func() {
-			im, dm, cm, em, _, du, _ := newXMergeJobCounter(nil, nil)
+			im, dm, cm, em, _, du, _ := newXMergeJobCounter(func() {}, func() {})
 
 			im()
 			im()
@@ -309,7 +309,7 @@ func (t *testXMergeJobCounter) TestCheck() {
 		})
 
 		t.Run("with 2 next; done", func() {
-			im, dm, cm, em, _, du, _ := newXMergeJobCounter(nil, nil)
+			im, dm, cm, em, _, du, _ := newXMergeJobCounter(func() {}, func() {})
 
 			im()
 			im()
@@ -332,7 +332,7 @@ func (t *testXMergeJobCounter) TestCheck() {
 		})
 
 		t.Run("done after count", func() {
-			im, dm, cm, em, _, du, _ := newXMergeJobCounter(nil, nil)
+			im, dm, cm, em, _, du, _ := newXMergeJobCounter(func() {}, func() {})
 
 			im()
 			im()
@@ -357,7 +357,7 @@ func (t *testXMergeJobCounter) TestCheck() {
 
 	t.Run("next, unmerge", func() {
 		t.Run("with 1 next; not done", func() {
-			im, dm, cm, _, iu, du, cu := newXMergeJobCounter(nil, nil)
+			im, dm, cm, _, iu, du, cu := newXMergeJobCounter(func() {}, func() {})
 
 			im()
 			im()
@@ -383,7 +383,7 @@ func (t *testXMergeJobCounter) TestCheck() {
 		})
 
 		t.Run("with 1 next; done", func() {
-			im, dm, cm, em, iu, du, cu := newXMergeJobCounter(nil, nil)
+			im, dm, cm, em, iu, du, cu := newXMergeJobCounter(func() {}, func() {})
 
 			im()
 			im()
@@ -411,7 +411,7 @@ func (t *testXMergeJobCounter) TestCheck() {
 		})
 
 		t.Run("with 2 next; done", func() {
-			im, dm, cm, em, iu, du, cu := newXMergeJobCounter(nil, nil)
+			im, dm, cm, em, iu, du, cu := newXMergeJobCounter(func() {}, func() {})
 
 			im()
 			im()
@@ -441,7 +441,7 @@ func (t *testXMergeJobCounter) TestCheck() {
 		})
 
 		t.Run("done after count", func() {
-			im, dm, cm, em, iu, du, cu := newXMergeJobCounter(nil, nil)
+			im, dm, cm, em, iu, du, cu := newXMergeJobCounter(func() {}, func() {})
 
 			im()
 			im()
@@ -500,7 +500,7 @@ func (t *testXMergeJobCounter) TestPermutation() {
 		var menough, uenough uint64
 		var isDone bool
 
-		im, dm, cm, em, iu, du, cu := newXMergeJobCounter(nil, nil)
+		im, dm, cm, em, iu, du, cu := newXMergeJobCounter(func() {}, func() {})
 
 		for i := range slices.Values(seq) {
 			s := sets[i]
