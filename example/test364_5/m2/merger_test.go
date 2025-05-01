@@ -3,7 +3,6 @@ package m2
 import (
 	"context"
 	"fmt"
-	"iter"
 	"os"
 	"slices"
 	"strconv"
@@ -73,15 +72,20 @@ func (t *baseMergerSuite) newGetSVM(states map[string]base.StateValue) NewSVMPoo
 	return newGetSVM
 }
 
-func (t baseMergerSuite) closeMergers(getStateOps getStateOpsFunc, seqSVM iter.Seq[SVM]) (
+func (t baseMergerSuite) closeMergers(c collectOpsSeqFunc, getSVM GetSVMFunc) (
 	merged map[string]int64,
 	mergedOps map[string][]uint64,
 ) {
 	merged = map[string]int64{}
 	mergedOps = map[string][]uint64{}
 
-	for m := range seqSVM {
-		sv, err := m.Close()
+	_, seq := c()
+
+	for stateKey, ops := range seq {
+		merger, found := getSVM(stateKey)
+		t.True(found)
+
+		sv, err := merger.Close()
 		t.NoError(err)
 
 		var balance int64
@@ -89,12 +93,8 @@ func (t baseMergerSuite) closeMergers(getStateOps getStateOpsFunc, seqSVM iter.S
 			balance = sv.(*AccountSV).Balance
 		}
 
-		merged[m.Key()] = balance
-
-		ops := getStateOps(m.Key())
-		slices.Sort(ops)
-
-		mergedOps[m.Key()] = ops
+		merged[stateKey] = balance
+		mergedOps[stateKey] = ops
 	}
 
 	return
@@ -154,6 +154,34 @@ type testMerger struct {
 	baseMergerSuite
 }
 
+func (t *testMerger) TestEmpty() {
+	newGetSVM := t.newGetSVM(nil)
+
+	makeSVM, _, closeSVMPool, err := newGetSVM(1 << 9)
+	t.NoError(err)
+	defer closeSVMPool()
+
+	ctx, cancel := t.Ctx()
+	defer cancel(nil)
+
+	_, mergeDone, _, unmergeDone, wait, err := newMerger(
+		ctx,
+		1<<9,
+		makeSVM,
+		func(uint64, string) error {
+			panic("set unmerged")
+
+			return nil
+		},
+	)
+	t.NoError(err)
+
+	mergeDone()
+	unmergeDone()
+
+	t.NoError(wait(nil))
+}
+
 func (t *testMerger) TestMerger() {
 	states, mergeValues, expectedMerged, expectedReasons, expectedOps := t.preset()
 	unmergeOps := []uint64{1, 5}
@@ -175,8 +203,9 @@ func (t *testMerger) TestMerger() {
 		ctx, cancel := t.Ctx()
 		defer cancel(nil)
 
-		getSVM, seqSVM, err := newGetSVM(1 << 9)
+		makeSVM, getSVM, closeSVMPool, err := newGetSVM(1 << 9)
 		t.NoError(err)
+		defer closeSVMPool()
 
 		reasons := dutil.NewSingleLockedMap[uint64, string]()
 		defer reasons.Close()
@@ -184,7 +213,7 @@ func (t *testMerger) TestMerger() {
 		merge, mergeDone, unmerge, unmergeDone, wait, err := newMerger(
 			ctx,
 			1<<9,
-			getSVM,
+			makeSVM,
 			func(opindex uint64, reason string) error {
 				_ = reasons.SetValue(opindex, reason)
 
@@ -231,8 +260,8 @@ func (t *testMerger) TestMerger() {
 		mergeDone()
 
 		if err := wait(
-			func(size int, getStateOps getStateOpsFunc) error {
-				merged, mergedOps := t.closeMergers(getStateOps, seqSVM())
+			func(c collectOpsSeqFunc) error {
+				merged, mergedOps := t.closeMergers(c, getSVM)
 
 				if !t.Equal(expectedMerged, merged) {
 					return errors.Errorf("t.Equal(expectedMerged, merged)")
@@ -317,11 +346,8 @@ func runBenchmarkMerger(n int) (func(int), func()) {
 	_ = addSVMFunc(AccountSMVHint, getAccountSVM)
 
 	return func(n int) {
-			getSVM, seqSVM, _ := newGetSVM(poolSize)
-			defer func() {
-				_, stop := iter.Pull(seqSVM())
-				stop()
-			}()
+			makeSVM, _, closeSVMPool, _ := newGetSVM(poolSize)
+			defer closeSVMPool()
 
 			ctx, cancel := dutil.ContextWithCancelCause(context.Background())
 			defer cancel(nil)
@@ -329,7 +355,7 @@ func runBenchmarkMerger(n int) (func(int), func()) {
 			merge, mergeDone, _, unmergeDone, wait, err := newMerger(
 				ctx,
 				poolSize,
-				getSVM,
+				makeSVM,
 				func(opindex uint64, reason string) error { return nil },
 			)
 			if err != nil {
@@ -349,9 +375,7 @@ func runBenchmarkMerger(n int) (func(int), func()) {
 			mergeDone()
 			unmergeDone()
 
-			if err := wait(
-				func(int, getStateOpsFunc) error { return nil },
-			); err != nil {
+			if err := wait(func(collectOpsSeqFunc) error { return nil }); err != nil {
 				panic(err)
 			}
 		},

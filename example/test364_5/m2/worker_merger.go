@@ -12,10 +12,10 @@ import (
 )
 
 type (
-	addStateOwnersFunc               = func(owners []string)
-	reportStateOwners                = func(subs, affected []string) error
-	workerMergerWorkerInsertSMVsFunc = func(worker string, subs, affected []string, workerErrs error) error
-	workerMergerUnmergedFunc         = func(worker string, workerErrs error) error
+	addStateOwnersFunc              = func(owners []string)
+	workerMergerReadyStateOwners    = func(subs, affected []string) error
+	workerMergerWorkerMergeSMVsFunc = func(worker string, subs, affected []string, workerErrs error) error
+	workerMergerUnmergedFunc        = func(worker string, workerErrs error) error
 )
 
 func newFuncWorkerMerger(
@@ -24,9 +24,9 @@ func newFuncWorkerMerger(
 	workers, opsWorkers []string,
 	opsShare, statesShare uint64,
 	mergeReady, unmergeReady func(),
-	reportStateOwners reportStateOwners,
+	whenReadyStateOwners workerMergerReadyStateOwners,
 ) (
-	workerMergerWorkerInsertSMVsFunc,
+	workerMergerWorkerMergeSMVsFunc,
 	workerMergerUnmergedFunc,
 	dutil.ErrorFunc,
 	error,
@@ -78,7 +78,7 @@ func newFuncWorkerMerger(
 		case err != nil:
 			return err
 		default:
-			return reportStateOwners(subs, affected)
+			return whenReadyStateOwners(subs, affected)
 		}
 	}
 

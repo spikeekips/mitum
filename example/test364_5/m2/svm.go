@@ -1,7 +1,7 @@
 package m2
 
 import (
-	"iter"
+	"context"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -12,21 +12,23 @@ import (
 
 type (
 	GetStateValueFunc = func(string) (base.StateValue, bool, error)
-	GetSVMFunc        = func(SMV) (SVM, error)
+	GetSVMFunc        = func(string) (SVM, bool)
+	MakeSVMFunc       = func(SMV) (SVM, error)
 	MergeSVMFunc      = func(SMV, dutil.InErrorFunc[SVM]) error
 	NewSVMPoolFunc    = func(uint64) (
 		MergeSVMFunc,
-		func() iter.Seq[SVM],
+		GetSVMFunc,
+		func(),
 		error,
 	)
 )
 
 func newSVMFuncSet() (
-	func(hint.Hint, GetSVMFunc) bool,
+	func(hint.Hint, MakeSVMFunc) bool,
 	NewSVMPoolFunc,
 	func(),
 ) {
-	addf, getf, closef := dutil.NewHintset[GetSVMFunc]()
+	addf, getf, closef := dutil.NewHintset[MakeSVMFunc]()
 
 	getMerger := func(value SMV) (SVM, error) {
 		hinter, ok := value.(hint.Hinter)
@@ -42,19 +44,20 @@ func newSVMFuncSet() (
 		}
 	}
 
-	return func(ht hint.Hint, f GetSVMFunc) bool {
+	return func(ht hint.Hint, f MakeSVMFunc) bool {
 			return addf(ht.Type(), ht.Version().Major(), f)
 		},
 		func(size uint64) (
 			MergeSVMFunc,
-			func() iter.Seq[SVM],
+			GetSVMFunc,
+			func(),
 			error,
 		) {
 			var pool dutil.LockedMap[string, SVM]
 
 			switch p, err := dutil.NewLockedMap[string, SVM](nil, size); {
 			case err != nil:
-				return nil, nil, err
+				return nil, nil, nil, err
 			default:
 				pool = p
 			}
@@ -81,16 +84,92 @@ func newSVMFuncSet() (
 
 					return gerr
 				},
-				func() iter.Seq[SVM] {
-					return func(yield func(SVM) bool) {
-						defer pool.Close()
-
-						pool.Seq2(func(_ string, m SVM) bool {
-							return yield(m)
-						})
-					}
-				},
+				pool.Value,
+				pool.Close,
 				nil
 		},
 		closef
+}
+
+func closeSVMs(
+	ctx context.Context,
+	getSVM GetSVMFunc,
+	collect collectOpsSeqFunc,
+	f func(_ context.Context, stateKey string, _ base.StateValue, ops []uint64) error,
+) error {
+	size, seq := collect()
+	if size < 1 {
+		return nil
+	}
+
+	var newJob dutil.JobWorkerNewJobFunc
+	var jobDone func()
+	var jobWait dutil.InErrorFunc[error]
+
+	switch n, d, w, err := dutil.NewFuncJobWorker(ctx, int64(size)); {
+	case err != nil:
+		return err
+	default:
+		newJob, jobDone, jobWait = n, d, w
+	}
+
+	for stateKey, ops := range seq {
+		if err := newJob(func(ctx context.Context) error {
+			merger, found := getSVM(stateKey)
+			if !found {
+				return nil
+			}
+
+			switch v, err := merger.Close(); {
+			case err != nil, v == nil:
+				return err
+			default:
+				return f(ctx, stateKey, v, ops)
+			}
+		}); err != nil {
+			return jobWait(err)
+		}
+	}
+
+	jobDone()
+
+	return jobWait(nil)
+}
+
+func newFactPool(size uint64) (
+	dutil.In2Func[uint64, util.Hash, bool],
+	func([]uint64) ([]util.Hash, error),
+	func(),
+	error,
+) {
+	var pool dutil.LockedMap[uint64, util.Hash]
+
+	switch m, err := dutil.NewLockedMap[uint64, util.Hash](nil, min(size, 1<<9)); {
+	case err != nil:
+		return nil, nil, nil, err
+	default:
+		pool = m
+	}
+
+	return func(opindex uint64, fact util.Hash) bool {
+			return pool.SetValue(opindex, fact)
+		},
+		func(ops []uint64) ([]util.Hash, error) {
+			// NOTE ops should be sorted
+
+			facts := make([]util.Hash, len(ops))
+
+			for i := range ops {
+				h, found := pool.Value(ops[i])
+				if !found {
+					return nil, util.ErrNotFound.Errorf("%d", ops[i])
+				}
+
+				facts[i] = h
+			}
+
+			return facts, nil
+		},
+		pool.Close,
+		nil
 }

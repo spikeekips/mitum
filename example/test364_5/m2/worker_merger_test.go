@@ -23,9 +23,9 @@ func (t *testWorkerMerger) newf(
 	workers, opsWorkers []string,
 	opsShare, statesShare uint64,
 	mergeReadyf, unmergeReadyf func(),
-	reportStateOwnersf reportStateOwners,
+	reportStateOwnersf workerMergerReadyStateOwners,
 ) (
-	workerMergerWorkerInsertSMVsFunc,
+	workerMergerWorkerMergeSMVsFunc,
 	workerMergerUnmergedFunc,
 	dutil.ErrorFunc,
 	dutil.OutFunc[bool],
@@ -164,6 +164,29 @@ func (t *testWorkerMerger) Test1Worker() {
 		t.True(unmergedDone())
 
 		t.Equal([2][]string{{local}, nil}, owners())
+	})
+
+	t.Run("empty", func() {
+		ctx, ctxCancel := t.Ctx()
+		defer ctxCancel(nil)
+
+		merge, unmerge, wait, mergedDone, unmergedDone, owners, err := t.newf(
+			ctx,
+			local,
+			workers, workers,
+			1, 1,
+			nil, nil, nil,
+		)
+		t.NoError(err)
+
+		t.NoError(merge(local, nil, nil, nil))
+		t.NoError(unmerge(local, nil))
+		t.NoError(wait())
+
+		t.True(mergedDone())
+		t.True(unmergedDone())
+
+		t.Equal([2][]string{nil, nil}, owners())
 	})
 
 	t.Run("merge error", func() {

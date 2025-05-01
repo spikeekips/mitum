@@ -9,10 +9,10 @@ import (
 )
 
 type (
-	reportUnmergedFunc   = func(uint64, string) error
-	mergerInsertSMVsFunc = func(uint64, SMV, []SMV) error
-	mergerWaitResultFunc = func(int, getStateOpsFunc) error
-	mergerWaitFunc       = func(mergerWaitResultFunc) error
+	mergerReportUnmergedFunc = func(uint64, string) error
+	mergerMergeSMVsFunc      = func(uint64, SMV, []SMV) error
+	mergerWaitResultFunc     = dutil.InErrorFunc[collectOpsSeqFunc]
+	mergerWaitFunc           = func(mergerWaitResultFunc) error
 )
 
 var (
@@ -24,9 +24,9 @@ func newMerger(
 	ctx context.Context,
 	approxSize uint64,
 	getSVM MergeSVMFunc,
-	reportUnmerged reportUnmergedFunc,
+	reportUnmerged mergerReportUnmergedFunc,
 ) (
-	mergerInsertSMVsFunc,
+	mergerMergeSMVsFunc,
 	func(),
 	dutil.InErrorFunc[uint64],
 	func(),
@@ -65,13 +65,13 @@ func newMerger(
 
 	var collectOpsMerge func(uint64, string, string) bool
 	var collectOpsUnmerge func(uint64, string, string) bool
-	var collectOpsTraverse dutil.InErrorFunc[collectOpsTraverseFunc]
+	var collectOpsSeq collectOpsSeqFunc
 
 	switch a, u, t, err := newFuncCollectStateOps(poolSize); {
 	case err != nil:
 		return nil, nil, nil, nil, nil, err
 	default:
-		collectOpsMerge, collectOpsUnmerge, collectOpsTraverse = a, u, t
+		collectOpsMerge, collectOpsUnmerge, collectOpsSeq = a, u, t
 	}
 
 	var merge func(uint64, SMV, []SMV) error
@@ -122,9 +122,13 @@ func newMerger(
 				return wctxCancel(err)
 			}
 
-			return iferrCancel(collectOpsTraverse(func(size int, getStateOps getStateOpsFunc) error {
-				return result(size, getStateOps)
-			}))
+			if result != nil {
+				if err := result(collectOpsSeq); err != nil {
+					return err
+				}
+			}
+
+			return nil
 		},
 		nil
 }

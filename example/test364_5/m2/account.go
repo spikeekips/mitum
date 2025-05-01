@@ -272,7 +272,7 @@ type SMV interface { // State Merge Value
 	Value() base.StateValue
 }
 
-func NewFuncAccountSVM(getStateValue GetStateValueFunc) GetSVMFunc {
+func NewFuncAccountSVM(getStateValue GetStateValueFunc) MakeSVMFunc {
 	return func(value SMV) (SVM, error) {
 		var ac *AccountSV
 

@@ -1,6 +1,7 @@
 package m2
 
 import (
+	"iter"
 	"maps"
 	"slices"
 
@@ -8,8 +9,8 @@ import (
 )
 
 type (
-	getStateOpsFunc        = func(string) []uint64
-	collectOpsTraverseFunc = func(int, getStateOpsFunc) error
+	getStateOpsFunc   = func(string) []uint64
+	collectOpsSeqFunc = func() (int, iter.Seq2[string, []uint64])
 )
 
 func newFuncSMVPool(size uint64) (
@@ -60,7 +61,7 @@ func newFuncCollectStateOps(
 ) (
 	func(uint64, string, string) bool,
 	func(uint64, string, string) bool,
-	dutil.InErrorFunc[collectOpsTraverseFunc],
+	collectOpsSeqFunc,
 	error,
 ) {
 	var sts dutil.LockedMap[string, map[uint64]struct{}]
@@ -125,29 +126,27 @@ func newFuncCollectStateOps(
 
 			return created
 		},
-		func(f collectOpsTraverseFunc) error {
-			defer func() {
-				sts.Close()
-				unmerged.Close()
-			}()
+		func() (int, iter.Seq2[string, []uint64]) {
+			return sts.Len(),
+				func(yield func(string, []uint64) bool) {
+					defer func() {
+						sts.Close()
+						unmerged.Close()
+					}()
 
-			return f(
-				sts.Len(),
-				func(stateKey string) []uint64 {
-					var v []uint64
-
-					_ = sts.Get(stateKey, func(m map[uint64]struct{}, found bool) error {
-						if found && len(m) > 0 {
-							v = slices.Collect(maps.Keys(m))
-							slices.Sort(v)
+					for stateKey, m := range sts.Seq2 {
+						if len(m) < 1 {
+							continue
 						}
 
-						return nil
-					})
+						ops := slices.Collect(maps.Keys(m))
+						slices.Sort(ops)
 
-					return v
-				},
-			)
+						if !yield(stateKey, ops) {
+							break
+						}
+					}
+				}
 		},
 		nil
 }
