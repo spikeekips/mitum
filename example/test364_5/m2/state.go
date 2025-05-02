@@ -8,10 +8,7 @@ import (
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 )
 
-type (
-	getStateOpsFunc   = func(string) []uint64
-	collectOpsSeqFunc = func() (int, iter.Seq2[string, []uint64])
-)
+type collectOpsSeqFunc = func() (int, iter.Seq2[string, []uint64])
 
 func newFuncSMVPool(size uint64) (
 	func(uint64, SMV, []SMV) bool,

@@ -168,10 +168,13 @@ func (t *testMerger) TestEmpty() {
 		ctx,
 		1<<9,
 		makeSVM,
-		func(uint64, string) error {
-			panic("set unmerged")
+		func(context.Context) (mergerUnmergedFunc, func()) {
+			return func(uint64, string) error {
+					panic("set unmerged")
 
-			return nil
+					return nil
+				},
+				func() {}
 		},
 	)
 	t.NoError(err)
@@ -214,10 +217,13 @@ func (t *testMerger) TestMerger() {
 			ctx,
 			1<<9,
 			makeSVM,
-			func(opindex uint64, reason string) error {
-				_ = reasons.SetValue(opindex, reason)
+			func(context.Context) (mergerUnmergedFunc, func()) {
+				return func(opindex uint64, reason string) error {
+						_ = reasons.SetValue(opindex, reason)
 
-				return nil
+						return nil
+					},
+					func() {}
 			},
 		)
 		t.NoError(err)
@@ -356,7 +362,10 @@ func runBenchmarkMerger(n int) (func(int), func()) {
 				ctx,
 				poolSize,
 				makeSVM,
-				func(opindex uint64, reason string) error { return nil },
+				func(context.Context) (mergerUnmergedFunc, func()) {
+					return func(opindex uint64, reason string) error { return nil },
+						func() {}
+				},
 			)
 			if err != nil {
 				panic(err)

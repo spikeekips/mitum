@@ -6,7 +6,7 @@ import (
 )
 
 func newXMergeJobCounter(
-	mergeJobDone func(),
+	mergeDone func(),
 	jobDone func(),
 ) (
 	func(), /* count initial merge */
@@ -54,25 +54,20 @@ func newXMergeJobCounter(
 		}
 	}
 
-	checkf := func() (bool, bool) {
-		if !checkMergeJobDone() {
-			return false, false
-		}
-
-		return true, checkUnmergeJobDone()
-	}
-
 	check := func() bool {
-		lok, ok := checkf()
-		if lok {
-			mergeJobDone()
+		if !checkMergeJobDone() {
+			return false
 		}
 
-		if ok {
-			jobDone()
+		mergeDone()
+
+		if !checkUnmergeJobDone() {
+			return false
 		}
 
-		return ok
+		jobDone()
+
+		return true
 	}
 
 	return func() {

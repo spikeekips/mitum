@@ -10,11 +10,8 @@ import (
 )
 
 type (
-	reportUnmergedFunc          = func(_ context.Context, opindex uint64, reason string) error
 	reportStateOwnersFunc       = func(_ context.Context, subs, affected []string) error
-	reportStateFunc             = func(context.Context, base.State) error
-	reportStatesFunc            = func() (reportStateFunc, dutil.InErrorFunc[error])
-	reportToManagerFunc         = func() (reportUnmergedFunc, reportStateOwnersFunc, reportStateFunc, dutil.InErrorFunc[error])
+	reportStatesFunc            = func(context.Context) (dutil.InErrorFunc[base.State], dutil.InErrorFunc[error])
 	makeStateFunc               = func(stateKey string, _ base.StateValue, ops []util.Hash) (base.State, error)
 	workerWorkerMergeOpFunc     = func(opindex uint64, facth util.Hash, subv SMV, addvs []SMV) error
 	workerWorkerStateOwnersFunc = func(subs, affected []string) error
@@ -22,15 +19,16 @@ type (
 	workerWaitFunc              = dutil.InErrorFunc[makeStateFunc]
 )
 
-func newWorker(
+func NewWorker(
 	ctx context.Context,
 	local string,
 	workers, opsWorkers []string,
 	opsShare, statesShare,
 	maxOpsSize uint64,
 	newGetSVM NewSVMPoolFunc,
-	reportUnmergedToWorker reportUnmergedFunc,
-	reportToManager reportToManagerFunc,
+	reportUnmergedToManager, reportUnmergedToWorker mergerReportUnmergedFunc,
+	reportStateOwnersToManager reportStateOwnersFunc,
+	reportStatesToManager reportStatesFunc,
 ) error {
 	wctx, wctxCancel, _, _ := dutil.NewContextWait(ctx)
 
@@ -38,36 +36,24 @@ func newWorker(
 	var getSVM GetSVMFunc
 	var closeSVMPool func()
 
-	switch g, s, c, err := newGetSVM(min(maxOpsSize, 1<<9)); {
+	switch g, s, c, err := newGetSVM(min(maxOpsSize, 1<<9)); { //nolint:mnd
 	case err != nil:
 		return err
 	default:
 		makeSVM, getSVM, closeSVMPool = g, s, c
 	}
 
-	var managerNewJob dutil.JobWorkerNewJobFunc
-	var managerJobDone func()
-	var managerJobWait dutil.InErrorFunc[error]
-
-	switch n, j, w, err := dutil.NewFuncJobWorker(wctx, min(dutil.SafeUint64ToInt64(maxOpsSize), 1<<9)); {
-	case err != nil:
-		return err
-	default:
-		managerNewJob, managerJobDone, managerJobWait = n, j, w
-	}
-
 	var delayedNewJob dutil.JobWorkerNewJobFunc
 	var delayedJobDone func()
 	var delayedJobWait dutil.InErrorFunc[error]
 
-	switch n, j, w, err := dutil.NewFuncJobWorker(wctx, min(dutil.SafeUint64ToInt64(maxOpsSize), 1<<9)); {
+	switch n, j, w, err := dutil.NewFuncJobWorker(wctx, min(dutil.SafeUint64ToInt64(maxOpsSize), 1<<9)); { //nolint:mnd
 	case err != nil:
 		return err
 	default:
 		delayedNewJob, delayedJobDone, delayedJobWait = n, j, w
+		_ = delayedNewJob
 	}
-
-	reportUnmergedToManager, reportStateOwnersToManager, reportStateToManager, closeReportToManager := reportToManager()
 
 	var mergerMerge mergerMergeSMVsFunc
 	var mergerMergeReady func()
@@ -79,16 +65,21 @@ func newWorker(
 		wctx,
 		maxOpsSize,
 		makeSVM,
-		func(opindex uint64, reason string) error {
-			if err := managerNewJob(func(ctx context.Context) error {
-				return reportUnmergedToManager(ctx, opindex, reason)
-			}); err != nil {
-				return err
-			}
+		func(context.Context) (mergerUnmergedFunc, func()) {
+			managerReportUnmerged, managerReportUnmergedDone := reportUnmergedToManager(wctx)
+			workerReportUnmerged, workerReportUnmergedDone := reportUnmergedToWorker(wctx)
 
-			return delayedNewJob(func(ctx context.Context) error {
-				return reportUnmergedToWorker(ctx, opindex, reason)
-			})
+			return func(opindex uint64, reason string) error {
+					if err := managerReportUnmerged(opindex, reason); err != nil {
+						return err
+					}
+
+					return workerReportUnmerged(opindex, reason)
+				},
+				func() {
+					managerReportUnmergedDone()
+					workerReportUnmergedDone()
+				}
 		},
 	); {
 	case err != nil:
@@ -138,7 +129,7 @@ func newWorker(
 		maxOpsSize,
 		getSVM,
 		getFacts,
-		reportStateToManager,
+		reportStatesToManager,
 		workerMergerWait,
 		mergerWait,
 	); {
@@ -171,13 +162,17 @@ func newWorker(
 				}
 			}
 
-			if err := managerNewJob(func(ctx context.Context) error {
-				return reportStateOwnersToManager(ctx, subs, affected)
-			}); err != nil {
+			if err := reportStateOwnersToManager(ctx, subs, affected); err != nil {
 				return err
 			}
 
-			// FIXME distribute not subs and not affected workers
+			if err := delayedNewJob(func(context.Context) error {
+				// FIXME distribute not subs and not affected workers
+
+				return nil
+			}); err != nil {
+				return err
+			}
 
 			return workerMergerMerge(local, subs, affected, gerr)
 		},
@@ -209,18 +204,13 @@ func newWorker(
 		},
 		func(makeState makeStateFunc) error {
 			defer func() {
-				wctxCancel(nil)
+				_ = wctxCancel(nil)
+
 				closeSVMPool()
 				closeFactPool()
 			}()
 
 			if err := wait(makeState); err != nil {
-				return closeReportToManager(wctxCancel(err))
-			}
-
-			managerJobDone()
-
-			if err := closeReportToManager(managerJobWait(nil)); err != nil {
 				return wctxCancel(err)
 			}
 
@@ -240,18 +230,20 @@ func newFuncWorkerWait(
 	maxOpsSize uint64,
 	getSVM GetSVMFunc,
 	getFacts func([]uint64) ([]util.Hash, error),
-	reportStateToManager reportStateFunc,
+	reportStatesToManager reportStatesFunc,
 	workerMergerWait dutil.ErrorFunc,
 	mergerWait mergerWaitFunc,
 ) (workerWaitFunc, error) {
 	var statePool dutil.LockedMap[string, base.State]
 
-	switch m, err := dutil.NewLockedMap[string, base.State](nil, maxOpsSize*2); {
+	switch m, err := dutil.NewLockedMap[string, base.State](nil, maxOpsSize*2); { //nolint:mnd
 	case err != nil:
 		return nil, err
 	default:
 		statePool = m
 	}
+
+	reportStateToManager, closeReportStateToManager := reportStatesToManager(ctx)
 
 	return func(makeState makeStateFunc) error {
 			defer func() {
@@ -263,8 +255,8 @@ func newFuncWorkerWait(
 			}
 
 			return mergerWait(func(collect collectOpsSeqFunc) error {
-				return closeSVMs(ctx, getSVM, collect,
-					func(ctx context.Context, stateKey string, v base.StateValue, ops []uint64) error {
+				return closeReportStateToManager(closeSVMs(ctx, getSVM, collect,
+					func(_ context.Context, stateKey string, v base.StateValue, ops []uint64) error {
 						var st base.State
 
 						switch facts, err := getFacts(ops); {
@@ -281,9 +273,9 @@ func newFuncWorkerWait(
 
 						_ = statePool.SetValue(stateKey, st)
 
-						return reportStateToManager(ctx, st)
+						return reportStateToManager(st)
 					},
-				)
+				))
 			})
 		},
 		nil

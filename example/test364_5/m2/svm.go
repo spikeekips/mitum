@@ -144,7 +144,7 @@ func newFactPool(size uint64) (
 ) {
 	var pool dutil.LockedMap[uint64, util.Hash]
 
-	switch m, err := dutil.NewLockedMap[uint64, util.Hash](nil, min(size, 1<<9)); {
+	switch m, err := dutil.NewLockedMap[uint64, util.Hash](nil, min(size, 1<<9)); { //nolint:mnd
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -156,7 +156,6 @@ func newFactPool(size uint64) (
 		},
 		func(ops []uint64) ([]util.Hash, error) {
 			// NOTE ops should be sorted
-
 			facts := make([]util.Hash, len(ops))
 
 			for i := range ops {

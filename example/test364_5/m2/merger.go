@@ -9,7 +9,8 @@ import (
 )
 
 type (
-	mergerReportUnmergedFunc = func(uint64, string) error
+	mergerUnmergedFunc       = func(uint64, string) error
+	mergerReportUnmergedFunc = func(context.Context) (mergerUnmergedFunc, func())
 	mergerMergeSMVsFunc      = func(uint64, SMV, []SMV) error
 	mergerWaitResultFunc     = dutil.InErrorFunc[collectOpsSeqFunc]
 	mergerWaitFunc           = func(mergerWaitResultFunc) error
@@ -24,7 +25,7 @@ func newMerger(
 	ctx context.Context,
 	approxSize uint64,
 	getSVM MergeSVMFunc,
-	reportUnmerged mergerReportUnmergedFunc,
+	reportUnmergeds mergerReportUnmergedFunc,
 ) (
 	mergerMergeSMVsFunc,
 	func(),
@@ -81,12 +82,13 @@ func newMerger(
 	var closeXMerge func()
 
 	switch m, md, u, ud, c, err := newXMergeFuncs(
+		wctx,
 		poolSize,
 		getSMVs,
 		getSVM,
 		collectOpsMerge,
 		collectOpsUnmerge,
-		reportUnmerged,
+		reportUnmergeds,
 		newJob,
 		jobDone,
 	); {
@@ -134,12 +136,13 @@ func newMerger(
 }
 
 func newXMergeFuncs(
+	ctx context.Context,
 	poolSize uint64,
 	getSMVs func(uint64) (SMV, []SMV, bool),
 	getSVM MergeSVMFunc,
 	collectOpsMerge func(uint64, string, string) bool,
 	collectOpsUnmerge func(uint64, string, string) bool,
-	reportUnmerged func(opindex uint64, reason string) error,
+	reportUnmergeds mergerReportUnmergedFunc,
 	newJob dutil.JobWorkerNewJobFunc,
 	jobDone func(),
 ) (
@@ -150,8 +153,10 @@ func newXMergeFuncs(
 	func(), /* close */
 	error,
 ) {
-	initialCountJob, doneInitialCount, countJob, endCountJob,
-		initialUnmergeCountJob, doneInitialUnmergeCountJob, unmergeCountJob := newXMergeJobCounter(func() {}, jobDone)
+	reportUnmerged, reportUnmergedDone := reportUnmergeds(ctx)
+
+	initialCountJob, doneInitialCount, countJob, endCountJob, initialUnmergeCountJob, doneInitialUnmergeCountJob,
+		unmergeCountJob := newXMergeJobCounter(reportUnmergedDone, jobDone)
 
 	var mergeLock func(uint64) (bool, bool)
 	var unmergeLock func(uint64) int
@@ -294,9 +299,7 @@ func newXMergeFuncs(
 			return nil
 		},
 		func() {
-			if _, ok := doneInitialCount(); ok {
-				jobDone()
-			}
+			_, _ = doneInitialCount()
 		},
 		func(opindex uint64) error {
 			if !ignoreLock(opindex) {
@@ -323,9 +326,7 @@ func newXMergeFuncs(
 			}
 		},
 		func() {
-			if _, ok := doneInitialUnmergeCountJob(); ok {
-				jobDone()
-			}
+			_, _ = doneInitialUnmergeCountJob()
 		},
 		closeMergeLock,
 		nil
