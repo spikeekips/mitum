@@ -25,6 +25,7 @@ func NewWorker(
 	workers, opsWorkers []string,
 	opsShare, statesShare,
 	maxOpsSize uint64,
+	getOperationFact getOperationFactFunc,
 	newGetSVM NewSVMPoolFunc,
 	reportUnmergedToManager, reportUnmergedToWorker mergerReportUnmergedFunc,
 	reportStateOwnersToManager reportStateOwnersFunc,
@@ -55,6 +56,18 @@ func NewWorker(
 		_ = delayedNewJob
 	}
 
+	managerReportUnmerged, managerReportUnmergedDone := reportUnmergedToManager(wctx)
+
+	var smvExtractorInsert smvExtractorInsertFunc
+	var smvExtractorWait dutil.ErrorFunc
+
+	switch i, w, err := newSMVExtractor(wctx, maxOpsSize, getOperationFact, managerReportUnmerged); {
+	case err != nil:
+		return err
+	default:
+		smvExtractorInsert, smvExtractorWait = i, w
+	}
+
 	var mergerMerge mergerMergeSMVsFunc
 	var mergerMergeReady func()
 	var mergerUnmerge dutil.InErrorFunc[uint64]
@@ -66,7 +79,6 @@ func NewWorker(
 		maxOpsSize,
 		makeSVM,
 		func(context.Context) (mergerUnmergedFunc, func()) {
-			managerReportUnmerged, managerReportUnmergedDone := reportUnmergedToManager(wctx)
 			workerReportUnmerged, workerReportUnmergedDone := reportUnmergedToWorker(wctx)
 
 			return func(opindex uint64, reason string) error {
@@ -146,20 +158,28 @@ func NewWorker(
 			var gerr error
 			var subs, affected []string
 
-			for opindex, hs := range seq {
-				_ = setFact(opindex, hs[1])
+			if err := smvExtractorInsert(
+				func(insert opindexOpHashesFunc) error {
+					for opindex, hs := range seq {
+						_ = setFact(opindex, hs[1])
 
-				var subv SMV
-				var addvs []SMV
+						if err := insert(opindex, hs[0], hs[1]); err != nil {
+							return err
+						}
+					}
 
-				// FIXME extract SMVs
-				// FIXME distribute ops, fact hashes and state owners
+					return nil
+				},
+				func(opindex uint64, subv SMV, addvs []SMV) error {
+					// FIXME distribute values to workers
+					return mergerMerge(opindex, subv, addvs)
+				},
+			); err != nil {
+				gerr = err
+			}
 
-				if err := mergerMerge(opindex, subv, addvs); err != nil {
-					gerr = err
-
-					break
-				}
+			if gerr != nil {
+				return wctxCancel(gerr)
 			}
 
 			if err := reportStateOwnersToManager(ctx, subs, affected); err != nil {
@@ -209,6 +229,10 @@ func NewWorker(
 				closeSVMPool()
 				closeFactPool()
 			}()
+
+			if err := smvExtractorWait(); err != nil {
+				return wctxCancel(err)
+			}
 
 			if err := wait(makeState); err != nil {
 				return wctxCancel(err)

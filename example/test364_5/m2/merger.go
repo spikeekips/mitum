@@ -155,8 +155,7 @@ func newXMergeFuncs(
 ) {
 	reportUnmerged, reportUnmergedDone := reportUnmergeds(ctx)
 
-	initialCountJob, doneInitialCount, countJob, endCountJob, initialUnmergeCountJob, doneInitialUnmergeCountJob,
-		unmergeCountJob := newXMergeJobCounter(reportUnmergedDone, jobDone)
+	initialCountJob, doneInitialCount, countJob, endCountJob, doneInitialUnmergeCountJob := newXMergeJobCounter(reportUnmergedDone, jobDone)
 
 	var mergeLock func(uint64) (bool, bool)
 	var unmergeLock func(uint64) int
@@ -311,10 +310,8 @@ func newXMergeFuncs(
 				return errors.Errorf("wrong unmerge(ignore), %d", opindex)
 			default:
 				for addv := range slices.Values(addvs) {
-					initialUnmergeCountJob()
-
 					if err := newJob(func(context.Context) error {
-						defer unmergeCountJob()
+						// defer unmergeCountJob()
 
 						return unmergeValue(opindex, addv)
 					}); err != nil {
@@ -326,7 +323,7 @@ func newXMergeFuncs(
 			}
 		},
 		func() {
-			_, _ = doneInitialUnmergeCountJob()
+			_ = doneInitialUnmergeCountJob()
 		},
 		closeMergeLock,
 		nil

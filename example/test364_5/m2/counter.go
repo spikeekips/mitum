@@ -13,13 +13,11 @@ func newXMergeJobCounter(
 	func() (uint64, bool), /* initial merge count done */
 	func(uint64) bool, /* count merge */
 	func() bool, /* count merge end */
-	func(), /* count initial unmerge */
-	func() (uint64, bool), /* initial unmerge count done */
-	func() bool, /* count unmerge */
+	func() bool, /* count initial unmerge */
 ) {
 	var l sync.Mutex
 	var initialMergeDone, initialUnmergeDone bool
-	var im, cm, ne, bn, cn, iu, cu uint64
+	var im, cm, ne, bn, cn uint64
 
 	checkMergeJobDone := func() bool {
 		switch {
@@ -38,22 +36,6 @@ func newXMergeJobCounter(
 		return bn == cn
 	}
 
-	checkUnmergeJobDone := func() bool {
-		switch {
-		case !initialUnmergeDone:
-			return false
-		case iu < 1:
-			return true
-		}
-
-		switch {
-		case iu != cu:
-			return false
-		default:
-			return true
-		}
-	}
-
 	check := func() bool {
 		if !checkMergeJobDone() {
 			return false
@@ -61,7 +43,7 @@ func newXMergeJobCounter(
 
 		mergeDone()
 
-		if !checkUnmergeJobDone() {
+		if !initialUnmergeDone {
 			return false
 		}
 
@@ -109,33 +91,15 @@ func newXMergeJobCounter(
 
 			return check()
 		},
-		func() {
-			l.Lock()
-			defer l.Unlock()
-
-			if initialUnmergeDone {
-				return
-			}
-
-			iu++
-		},
-		func() (uint64, bool) {
-			l.Lock()
-			defer l.Unlock()
-
-			if initialUnmergeDone {
-				return iu, false
-			}
-
-			initialUnmergeDone = true
-
-			return iu, check()
-		},
 		func() bool {
 			l.Lock()
 			defer l.Unlock()
 
-			cu++
+			if initialUnmergeDone {
+				return false
+			}
+
+			initialUnmergeDone = true
 
 			return check()
 		}

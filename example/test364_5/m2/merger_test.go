@@ -14,6 +14,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
+	"github.com/spikeekips/mitum/util"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 	"gonum.org/v1/gonum/stat/combin"
@@ -148,6 +149,23 @@ func (t *baseMergerSuite) preset() (
 	}
 
 	return
+}
+
+func (t *baseMergerSuite) newFact(issuer, receiver base.Publickey, balance int64) *AccountFact {
+	return NewAccountFact(
+		util.UUID().Bytes(),
+		balance,
+		issuer,
+		receiver,
+	)
+}
+
+func (t *baseMergerSuite) randomFact(balance int64) *AccountFact {
+	return t.newFact(
+		base.NewDummyPublickey(util.UUID().String()),
+		base.NewDummyPublickey(util.UUID().String()),
+		balance,
+	)
 }
 
 type testMerger struct {
