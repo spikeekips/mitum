@@ -178,20 +178,22 @@ func NewWorker(
 				gerr = err
 			}
 
+			if gerr == nil {
+				gerr = reportStateOwnersToManager(ctx, subs, affected)
+			}
+
+			if gerr == nil {
+				gerr = delayedNewJob(func(context.Context) error {
+					// FIXME distribute not subs and not affected workers
+
+					return nil
+				})
+			}
+
 			if gerr != nil {
-				return wctxCancel(gerr)
-			}
-
-			if err := reportStateOwnersToManager(ctx, subs, affected); err != nil {
-				return err
-			}
-
-			if err := delayedNewJob(func(context.Context) error {
-				// FIXME distribute not subs and not affected workers
-
-				return nil
-			}); err != nil {
-				return err
+				defer func() {
+					_ = wctxCancel(gerr)
+				}()
 			}
 
 			return workerMergerMerge(local, subs, affected, gerr)
