@@ -24,7 +24,7 @@ var (
 func newMerger(
 	ctx context.Context,
 	approxSize uint64,
-	getSVM MergeSVMFunc,
+	makeSVM MergeSVMFunc,
 	reportUnmergeds mergerReportUnmergedFunc,
 ) (
 	mergerMergeSMVsFunc,
@@ -85,7 +85,7 @@ func newMerger(
 		wctx,
 		poolSize,
 		getSMVs,
-		getSVM,
+		makeSVM,
 		collectOpsMerge,
 		collectOpsUnmerge,
 		reportUnmergeds,
@@ -139,7 +139,7 @@ func newXMergeFuncs(
 	ctx context.Context,
 	poolSize uint64,
 	getSMVs func(uint64) (SMV, []SMV, bool),
-	getSVM MergeSVMFunc,
+	makeSVM MergeSVMFunc,
 	collectOpsMerge func(uint64, string, string) bool,
 	collectOpsUnmerge func(uint64, string, string) bool,
 	reportUnmergeds mergerReportUnmergedFunc,
@@ -169,10 +169,10 @@ func newXMergeFuncs(
 		mergeLock, unmergeLock, ignoreLock, closeMergeLock = m, u, i, c
 	}
 
-	subMerge := newFuncSubMerge(getSVM, collectOpsMerge, collectOpsUnmerge)
+	subMerge := newFuncSubMerge(makeSVM, collectOpsMerge, collectOpsUnmerge)
 
 	addMerge := func(opindex uint64, addv SMV) error {
-		return getSVM(addv, func(merger SVM) error {
+		return makeSVM(addv, func(merger SVM) error {
 			_ = collectOpsMerge(opindex, addv.Key(), "add")
 
 			return merger.AddMerge(opindex, addv.Value())
@@ -180,7 +180,7 @@ func newXMergeFuncs(
 	}
 
 	unmergeValue := func(opindex uint64, addv SMV) error {
-		return getSVM(addv, func(merger SVM) error {
+		return makeSVM(addv, func(merger SVM) error {
 			_ = collectOpsUnmerge(opindex, addv.Key(), "unm")
 
 			return merger.Unmerge(opindex, addv.Value())
@@ -415,7 +415,7 @@ func newFuncMergeLock(
 }
 
 func newFuncSubMerge(
-	getSVM MergeSVMFunc,
+	makeSVM MergeSVMFunc,
 	collectOpsMerge func(uint64, string, string) bool,
 	collectOpsUnmerge func(uint64, string, string) bool,
 ) func(uint64, SMV) (uint64, string, error) {
@@ -423,7 +423,7 @@ func newFuncSubMerge(
 		var next uint64
 		var reason string
 
-		return next, reason, getSVM(subv, func(merger SVM) error {
+		return next, reason, makeSVM(subv, func(merger SVM) error {
 			var err error
 
 			next, reason, err = merger.SubMerge(opindex, subv.Value())
