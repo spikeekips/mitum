@@ -1,6 +1,6 @@
-//go:generate go run -v -race tool/set_base_hinter.go - $GOFILE
+//go:generate go run -v -race ../test364_5/tool/set_base_hinter.go - $GOFILE
 
-package m2
+package dop6
 
 import (
 	"context"

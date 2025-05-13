@@ -1,3 +1,3 @@
-package m2
+package dop6
 
 var managerName = "manager"
