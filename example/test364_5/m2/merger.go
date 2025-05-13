@@ -155,7 +155,8 @@ func newXMergeFuncs(
 ) {
 	reportUnmerged, reportUnmergedDone := reportUnmergeds(ctx)
 
-	initialCountJob, doneInitialCount, countJob, endCountJob, doneInitialUnmergeCountJob := newXMergeJobCounter(reportUnmergedDone, jobDone)
+	initialCountJob, doneInitialCount, countJob, endCountJob, doneInitialUnmergeCountJob := newXMergeJobCounter(
+		reportUnmergedDone, jobDone)
 
 	var mergeLock func(uint64) (bool, bool)
 	var unmergeLock func(uint64) int

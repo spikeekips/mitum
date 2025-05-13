@@ -31,6 +31,7 @@ func NewWorker(
 	reportStateOwnersToManager reportStateOwnersFunc,
 	reportStatesToManager reportStatesFunc,
 ) error {
+	// FIXME report canceled to manager
 	wctx, wctxCancel, _, _ := dutil.NewContextWait(ctx)
 
 	var makeSVM MergeSVMFunc
@@ -153,11 +154,27 @@ func NewWorker(
 
 	_, _, _, _, _ = 0,
 		func(
+			getStateOwners GetStateOwnersFunc,
+			newWorkerDistribute NewWorkerDistributeSMVsFunc,
 			seq iter.Seq2[uint64, [2]util.Hash],
 		) error {
-			var gerr error
-			var subs, affected []string
+			var distribute mergerMergeSMVsFunc
+			var distributeDone func()
+			var distributeWait func(error) (func() ([]string, []string), dutil.ErrorFunc, error)
 
+			switch d, do, w, err := newWorkerDistributeSMVs(
+				wctx,
+				workers,
+				getStateOwners,
+				newWorkerDistribute,
+			); {
+			case err != nil:
+				return err
+			default:
+				distribute, distributeDone, distributeWait = d, do, w
+			}
+
+			var gerr error
 			if err := smvExtractorInsert(
 				func(insert opindexOpHashesFunc) error {
 					for opindex, hs := range seq {
@@ -171,32 +188,38 @@ func NewWorker(
 					return nil
 				},
 				func(opindex uint64, subv SMV, addvs []SMV) error {
-					// FIXME distribute values to workers
+					if err := distribute(opindex, subv, addvs); err != nil {
+						return err
+					}
+
 					return mergerMerge(opindex, subv, addvs)
 				},
 			); err != nil {
 				gerr = err
 			}
 
-			if gerr == nil {
-				gerr = reportStateOwnersToManager(ctx, subs, affected)
-			}
+			distributeDone()
 
-			if gerr == nil {
-				gerr = delayedNewJob(func(context.Context) error {
-					// FIXME distribute not subs and not affected workers
+			defer func() {
+				_ = wctxCancel(gerr)
+			}()
 
-					return nil
+			switch allOwners, distributeDelayedWait, err := distributeWait(gerr); {
+			case err != nil:
+				return err
+			default:
+				subs, affected := allOwners()
+
+				gerr = delayedNewJob(func(ctx context.Context) error {
+					if err := reportStateOwnersToManager(ctx, subs, affected); err != nil {
+						return err
+					}
+
+					return distributeDelayedWait()
 				})
-			}
 
-			if gerr != nil {
-				defer func() {
-					_ = wctxCancel(gerr)
-				}()
+				return workerMergerMerge(local, subs, affected, gerr)
 			}
-
-			return workerMergerMerge(local, subs, affected, gerr)
 		},
 		func(
 			worker string,

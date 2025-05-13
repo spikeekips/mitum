@@ -55,6 +55,19 @@ func (t *baseMergerSuite) randomMergeValues(n int) []SMV {
 	return v
 }
 
+func (t *baseMergerSuite) randomMergeValuesWithSub(n int) (SMV, []SMV) {
+	v := make([]SMV, n)
+
+	for i := range n {
+		v[i] = t.newMergeValue(
+			base.NewDummyPublickey(fmt.Sprintf("p%d", i+1)),
+			1,
+		)
+	}
+
+	return t.newMergeValue(base.NewDummyPublickey("p0"), -1), v
+}
+
 func (t *baseMergerSuite) newGetSVM(states map[string]base.StateValue) NewSVMPoolFunc {
 	addSVMFunc, newGetSVM, closeSVMFuncSet := newSVMFuncSet()
 

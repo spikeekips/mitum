@@ -21,6 +21,8 @@ type (
 		func(),
 		error,
 	)
+	GetStateOwnersFunc   = func(stateKey string) []string
+	addStateOwnerSetFunc = func(subw string, affected []string)
 )
 
 func newSVMFuncSet() (
@@ -171,17 +173,4 @@ func newFactPool(size uint64) (
 		},
 		pool.Close,
 		nil
-}
-
-func isEqualSMV(a, b SMV) bool {
-	switch {
-	case a == nil && b == nil,
-		a == nil, b == nil:
-		return false
-	case a.Key() != b.Key(),
-		!base.IsEqualStateValue(a.Value(), b.Value()):
-		return false
-	default:
-		return true
-	}
 }
