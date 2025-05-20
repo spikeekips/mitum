@@ -13,6 +13,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	dhash "github.com/spikeekips/mitum/example/test364_5/hash"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 	"github.com/stretchr/testify/suite"
@@ -179,6 +180,15 @@ func (t *baseMergerSuite) randomFact(balance int64) *AccountFact {
 		base.NewDummyPublickey(util.UUID().String()),
 		balance,
 	)
+}
+
+func (t *baseMergerSuite) randomOphs(n int) [][2]util.Hash {
+	o := make([][2]util.Hash, n)
+	for i := range n {
+		o[i] = [2]util.Hash{dhash.RandomHex64(), dhash.RandomHex64()}
+	}
+
+	return o
 }
 
 type testMerger struct {
