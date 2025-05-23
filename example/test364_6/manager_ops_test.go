@@ -23,7 +23,6 @@ func (t *testManagerDistributeOps) TestNew() {
 			nil,
 			3,
 			t.randomOphs(3),
-			nilFuncManagerDistributeOpsWorker(),
 		)
 		t.ErrorContains(err, "empty workers")
 	})
@@ -36,7 +35,6 @@ func (t *testManagerDistributeOps) TestNew() {
 			workers,
 			0,
 			t.randomOphs(3),
-			nilFuncManagerDistributeOpsWorker(),
 		)
 		t.ErrorContains(err, "zero share")
 	})
@@ -49,7 +47,6 @@ func (t *testManagerDistributeOps) TestNew() {
 			workers,
 			3,
 			nil,
-			nilFuncManagerDistributeOpsWorker(),
 		)
 		t.ErrorContains(err, "empty ophs")
 	})
@@ -93,12 +90,11 @@ func (t *testManagerDistributeOps) TestDistribute() {
 			workers,
 			1,
 			ophs,
-			distribute,
 		)
 		t.NoError(err)
 
 		t.Equal(workers[:1], ow)
-		t.NoError(wait())
+		t.NoError(wait(distribute))
 
 		t.Equal(1, collected.Len())
 
@@ -123,12 +119,11 @@ func (t *testManagerDistributeOps) TestDistribute() {
 			workers,
 			share,
 			ophs,
-			distribute,
 		)
 		t.NoError(err)
 
 		t.Equal(workers, ow)
-		t.NoError(wait())
+		t.NoError(wait(distribute))
 
 		t.Equal(len(workers), collected.Len())
 
@@ -164,12 +159,11 @@ func (t *testManagerDistributeOps) TestDistribute() {
 			workers,
 			share,
 			ophs,
-			distribute,
 		)
 		t.NoError(err)
 
 		t.Equal(workers, ow)
-		t.NoError(wait())
+		t.NoError(wait(distribute))
 
 		t.Equal(len(workers), collected.Len())
 

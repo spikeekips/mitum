@@ -14,8 +14,7 @@ func newManagerDistributeOps(
 	workers []string,
 	share uint64,
 	ophs [][2]util.Hash,
-	distribute newManagerDistributeOpsWorkerFunc,
-) ([]string, dutil.ErrorFunc, error) {
+) ([]string, dutil.InErrorFunc[newManagerDistributeOpsWorkerFunc], error) {
 	switch {
 	case len(workers) < 1:
 		return nil, nil, errors.New("empty workers")
@@ -38,7 +37,9 @@ func newManagerDistributeOps(
 
 	opsWorkers, seq := newOpsWorkersItems(workers, share, uint64(len(ophs)))
 
-	return opsWorkers, func() error {
+	return opsWorkers, func(
+			distribute newManagerDistributeOpsWorkerFunc,
+		) error {
 			for worker, q := range seq {
 				if err := newJob(func(ctx context.Context) error {
 					return managerDistributeOpsToWorkers(ctx, ophs, distribute, worker, q)

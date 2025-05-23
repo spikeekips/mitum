@@ -30,19 +30,58 @@ func NewManager(
 	opsShare, statesShare uint64,
 	ophs [][2]util.Hash,
 ) error {
+	wctx, wctxCancel := dutil.ContextWithCancelCause(ctx)
+
+	var opsWorkers []string
+	var opsDistribute dutil.InErrorFunc[newManagerDistributeOpsWorkerFunc]
+	switch o, d, err := newManagerDistributeOps(
+		wctx,
+		workers,
+		opsShare,
+		ophs,
+	); {
+	case err != nil:
+		return err
+	default:
+		opsWorkers, opsDistribute = o, d
+	}
+
 	_, _ = func() error {
-		// FIXME start workers
-		// FIXME distribute to ops workers
+		// FIXME receive state owners
+		// FIXME receive unmerged ops
+		// FIXME receive states
+
 		return nil
 	},
-		func() error {
-			// FIXME receive unmerged ops
-			// FIXME receive states
+		func(
+			requestStartWorker managerRequestStartWorkerFunc,
+			workerDistribute newManagerDistributeOpsWorkerFunc,
+		) error {
+			defer func() {
+				_ = wctxCancel(nil)
+			}()
+
+			if err := newManagerStartWorkers(
+				wctx,
+				requestStartWorker,
+				workers,
+				opsWorkers,
+				opsShare, statesShare,
+				uint64(len(ophs)),
+			); err != nil {
+				return err
+			}
+
+			if err := opsDistribute(workerDistribute); err != nil {
+				return err
+			}
+
 			// FIXME generate states tree and ops tree
 			// FIXME generate manifest
 
 			return nil
 		}
+
 	return nil
 }
 
