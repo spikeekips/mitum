@@ -2,7 +2,12 @@ package dop6
 
 import (
 	"iter"
+	"maps"
 	"math"
+	"slices"
+
+	dop5 "github.com/spikeekips/mitum/example/test364_5"
+	"github.com/spikeekips/mitum/util"
 )
 
 type opsWorkersItemsSeq = iter.Seq2[string /* worker */, func() (uint64, iter.Seq[uint64 /* opindex */])]
@@ -83,4 +88,83 @@ func newOpsWorkersItems(workers []string, share, items uint64) (
 			}
 		}
 	}
+}
+
+func newFuncLazyCheckFailedWorkers(
+	share uint64,
+	blockUntil func(worker string) bool,
+) (
+	func(workers []string) (bool, error),
+	dop5.CheckFailedWorkersFunc,
+) {
+	f := util.EmptyLocked[dop5.CheckFailedWorkersFunc]()
+	pool := map[string]error{}
+	mworkers := map[string]struct{}{}
+
+	return func(workers []string) (bool, error) {
+			var enough bool
+
+			_, failed := f.Set(func(check dop5.CheckFailedWorkersFunc, isEmpty bool) (dop5.CheckFailedWorkersFunc, error) {
+				if !isEmpty {
+					return nil, util.ErrLockedSetIgnore
+				}
+
+				for worker := range slices.Values(workers) {
+					mworkers[worker] = struct{}{}
+				}
+
+				switch i, err := dop5.NewFuncCheckFailedWorkers(uint64(len(workers)), share, blockUntil); {
+				case err != nil:
+					return nil, err
+				default:
+					check = i
+				}
+
+				defer clear(pool)
+
+				for worker, err := range maps.All(pool) {
+					if _, found := mworkers[worker]; !found {
+						continue
+					}
+
+					switch ok, e, failed := check(worker, err); {
+					case !ok:
+					case failed != nil:
+						enough = e
+
+						return nil, failed
+					case e:
+						enough = e
+
+						return nil, util.ErrLockedSetIgnore
+					}
+				}
+
+				return check, nil
+			})
+
+			return enough, failed
+		},
+		func(worker string, err error) (bool, bool, error) {
+			var ok, enough bool
+			var failed error
+
+			_, _ = f.Set(func(check dop5.CheckFailedWorkersFunc, isEmpty bool) (dop5.CheckFailedWorkersFunc, error) {
+				if isEmpty {
+					pool[worker] = err
+
+					return nil, util.ErrLockedSetIgnore
+				}
+
+				if _, found := mworkers[worker]; !found {
+					return nil, util.ErrLockedSetIgnore
+				}
+
+				ok, enough, failed = check(worker, err)
+
+				return nil, util.ErrLockedSetIgnore
+			})
+
+			return ok, enough, failed
+		}
 }

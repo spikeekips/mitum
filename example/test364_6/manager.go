@@ -46,12 +46,17 @@ func NewManager(
 		opsWorkers, opsDistribute = o, d
 	}
 
-	_, _ = func() error {
+	_, _ = func() (
+		func(string, []string, []string) error,
+		func(string, map[uint64]string) error,
+		error,
+	) {
+		// FIXME receive worker errors
 		// FIXME receive state owners
 		// FIXME receive unmerged ops
 		// FIXME receive states
 
-		return nil
+		return nil, nil, nil
 	},
 		func(
 			requestStartWorker managerRequestStartWorkerFunc,

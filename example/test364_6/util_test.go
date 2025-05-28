@@ -4,9 +4,13 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"sync"
+	"sync/atomic"
 	"testing"
 
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/goleak"
 )
 
 func TestOpsWorkersNItems(tt *testing.T) {
@@ -771,4 +775,278 @@ func TestOpsWorkersItems(tt *testing.T) {
 			run(workers, share, items, uint64(ev[0].(int)), expected)
 		})
 	}
+}
+
+type testLazyCheckFailedWorkers struct {
+	baseMergerSuite
+}
+
+func (t *testLazyCheckFailedWorkers) TestNew() {
+	t.Run("empty workers", func() {
+		w, _ := newFuncLazyCheckFailedWorkers(1, func(string) bool { return true })
+		enough, failed := w(nil)
+		t.False(enough)
+		t.ErrorContains(failed, "zero workers")
+	})
+
+	t.Run("zero share", func() {
+		w, _ := newFuncLazyCheckFailedWorkers(0, func(string) bool { return true })
+		enough, failed := w([]string{"w0"})
+		t.False(enough)
+		t.ErrorContains(failed, "zero share")
+	})
+}
+
+func (t *testLazyCheckFailedWorkers) TestSetWorkers() {
+	t.Run("before check, enough", func() {
+		w, c := newFuncLazyCheckFailedWorkers(1, func(string) bool { return true })
+		enough, failed := w([]string{"w0"})
+		t.False(enough)
+		t.NoError(failed)
+
+		ok, enough, failed := c("w0", nil)
+		t.True(ok)
+		t.True(enough)
+		t.NoError(failed)
+	})
+
+	t.Run("before check, failed", func() {
+		w, c := newFuncLazyCheckFailedWorkers(1, func(string) bool { return true })
+		enough, failed := w([]string{"w0"})
+		t.False(enough)
+		t.NoError(failed)
+
+		ok, enough, failed := c("w0", errors.New("findme"))
+		t.True(ok)
+		t.False(enough)
+		t.ErrorContains(failed, "findme")
+	})
+
+	t.Run("during check, ok", func() {
+		_, workers := t.workers(3)
+
+		w, c := newFuncLazyCheckFailedWorkers(1, func(string) bool { return true })
+
+		ok, enough, failed := c(workers[0], nil)
+		t.False(ok)
+		t.False(enough)
+		t.NoError(failed)
+
+		enough, failed = w(workers)
+		t.False(enough)
+		t.NoError(failed)
+
+		ok, enough, failed = c(workers[1], nil)
+		t.True(ok)
+		t.False(enough)
+		t.NoError(failed)
+
+		ok, enough, failed = c(workers[2], nil)
+		t.True(ok)
+		t.True(enough)
+		t.NoError(failed)
+	})
+
+	t.Run("after check, ok", func() {
+		_, workers := t.workers(3)
+
+		w, c := newFuncLazyCheckFailedWorkers(1, func(string) bool { return true })
+
+		for worker := range slices.Values(workers) {
+			ok, enough, failed := c(worker, nil)
+			t.False(ok)
+			t.False(enough)
+			t.NoError(failed)
+		}
+
+		enough, failed := w(workers)
+		t.True(enough)
+		t.NoError(failed)
+	})
+
+	t.Run("after check, failed", func() {
+		_, workers := t.workers(3)
+
+		w, c := newFuncLazyCheckFailedWorkers(1, func(string) bool { return true })
+
+		for worker := range slices.Values(workers) {
+			var err error
+
+			if worker == workers[2] {
+				err = errors.New("findme")
+			}
+			ok, enough, failed := c(worker, err)
+			t.False(ok)
+			t.False(enough)
+			t.NoError(failed)
+		}
+
+		enough, failed := w(workers)
+		t.False(enough)
+		t.ErrorContains(failed, "findme")
+	})
+}
+
+func (t *testLazyCheckFailedWorkers) TestCheck() {
+	t.Run("before check: unknown worker", func() {
+		w, c := newFuncLazyCheckFailedWorkers(1, func(string) bool { return true })
+
+		enough, failed := w([]string{"w0"})
+		t.False(enough)
+		t.NoError(failed)
+
+		ok, enough, failed := c("u0", errors.New("findme"))
+		t.False(ok)
+		t.False(enough)
+		t.NoError(failed)
+
+		ok, enough, failed = c("w0", nil)
+		t.True(ok)
+		t.True(enough)
+		t.NoError(failed)
+	})
+
+	t.Run("after check: unknown worker", func() {
+		w, c := newFuncLazyCheckFailedWorkers(1, func(string) bool { return true })
+
+		ok, enough, failed := c("u0", errors.New("findme"))
+		t.False(ok)
+		t.False(enough)
+		t.NoError(failed)
+
+		ok, enough, failed = c("w0", nil)
+		t.False(ok)
+		t.False(enough)
+		t.NoError(failed)
+
+		enough, failed = w([]string{"w0"})
+		t.True(enough)
+		t.NoError(failed)
+	})
+
+	_, workers := t.workers(3333)
+
+	t.Run("before check: ok", func() {
+		w, c := newFuncLazyCheckFailedWorkers(1, func(string) bool { return true })
+
+		enough, failed := w(workers)
+		t.False(enough)
+		t.NoError(failed)
+
+		var foundEnough atomic.Value
+		foundEnough.Store(false)
+
+		var wg sync.WaitGroup
+
+		for worker := range slices.Values(workers) {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+
+				ok, enough, failed := c(worker, nil)
+				if ok && enough {
+					t.IfTruePanic(!foundEnough.CompareAndSwap(false, enough), "enough: worker=%q", worker)
+				}
+
+				t.IfTruePanic(!ok, "ok: worker=%q", worker)
+				t.IfErrPanicf(failed, "failed: worker=%q", worker)
+			}()
+		}
+
+		wg.Wait()
+	})
+
+	t.Run("before check: failed", func() {
+		w, c := newFuncLazyCheckFailedWorkers(1, func(string) bool { return true })
+
+		enough, failed := w(workers)
+		t.False(enough)
+		t.NoError(failed)
+
+		var foundFailed atomic.Value
+		foundFailed.Store(false)
+
+		var wg sync.WaitGroup
+
+		for worker := range slices.Values(workers) {
+			var err error
+
+			if worker == workers[2] {
+				err = errors.New("findme")
+			}
+
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+
+				ok, enough, failed := c(worker, err)
+				t.IfTruePanic(enough, "enough: worker=%q", worker)
+				if ok && failed != nil {
+					t.IfTruePanic(!foundFailed.CompareAndSwap(false, failed != nil), "failed: worker=%q", worker)
+				}
+			}()
+		}
+
+		wg.Wait()
+	})
+
+	t.Run("after check: ok", func() {
+		w, c := newFuncLazyCheckFailedWorkers(1, func(string) bool { return true })
+
+		var wg sync.WaitGroup
+
+		for worker := range slices.Values(workers) {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+
+				ok, enough, failed := c(worker, nil)
+				t.IfTruePanic(ok, "ok: worker=%q", worker)
+				t.IfTruePanic(enough, "enough: worker=%q", worker)
+				t.IfErrPanicf(failed, "failed: worker=%q", worker)
+			}()
+		}
+
+		wg.Wait()
+
+		enough, failed := w(workers)
+		t.True(enough)
+		t.NoError(failed)
+	})
+
+	t.Run("after check: failed", func() {
+		w, c := newFuncLazyCheckFailedWorkers(1, func(string) bool { return true })
+
+		var wg sync.WaitGroup
+
+		for worker := range slices.Values(workers) {
+			var err error
+
+			if worker == workers[2] {
+				err = errors.New("findme")
+			}
+
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+
+				ok, enough, failed := c(worker, err)
+				t.IfTruePanic(ok, "ok: worker=%q err=%v", worker, err)
+				t.IfTruePanic(enough, "enough: worker=%q err=%v", worker, err)
+				t.IfErrPanicf(failed, "failed: worker=%q err=%v", worker, err)
+			}()
+		}
+
+		wg.Wait()
+
+		enough, failed := w(workers)
+		t.False(enough)
+		t.ErrorContains(failed, "findme")
+	})
+}
+
+func TestLazyCheckFailedWorkers(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	suite.Run(t, new(testLazyCheckFailedWorkers))
 }
