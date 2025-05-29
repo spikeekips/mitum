@@ -266,3 +266,21 @@ func isValidNodeHash(b []byte, index uint64, nodes []Node) error {
 		return nil
 	}
 }
+
+func IsEqualTree(a, b *Tree) bool {
+	switch {
+	case a == nil && b == nil:
+		return true
+	case a == nil, b == nil,
+		a.Len() != b.Len():
+		return false
+	}
+
+	for index, n := range a.Traverse() {
+		if !n.Equal(b.Node(index)) {
+			return false
+		}
+	}
+
+	return true
+}
