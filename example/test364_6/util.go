@@ -151,6 +151,7 @@ func newFuncLazyCheckFailedWorkers(
 
 			_, _ = f.Set(func(check dop5.CheckFailedWorkersFunc, isEmpty bool) (dop5.CheckFailedWorkersFunc, error) {
 				if isEmpty {
+					ok = true
 					pool[worker] = err
 
 					return nil, util.ErrLockedSetIgnore

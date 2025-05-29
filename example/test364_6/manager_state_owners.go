@@ -3,14 +3,11 @@ package dop6
 import (
 	"context"
 	"slices"
-	"sync/atomic"
 
 	"github.com/pkg/errors"
 	dop5 "github.com/spikeekips/mitum/example/test364_5"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 )
-
-type CheckFailedOwnersFunc = func(worker string, err error) (ok, subsEnough, ownersEnough bool, failed error)
 
 func newManagerStateOwners(
 	ctx context.Context,
@@ -18,7 +15,8 @@ func newManagerStateOwners(
 	opsShare, statesShare, workersSize uint64,
 ) (
 	func(string, []string, []string) error,
-	CheckFailedOwnersFunc,
+	dop5.CheckFailedWorkersFunc,
+	dop5.CheckFailedWorkersFunc,
 	func() ([]string, []string, error),
 	error,
 ) {
@@ -26,7 +24,7 @@ func newManagerStateOwners(
 
 	switch w, err := dop5.NewFuncCheckFailedWorkers(uint64(len(opsWorkers)), opsShare, func(string) bool { return true }); {
 	case err != nil:
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	default:
 		checkOpsWorker = w
 	}
@@ -36,14 +34,14 @@ func newManagerStateOwners(
 
 	switch a, d, err := dutil.NewLockUniqueAppendSlice(workersSize, 0, func(w string) string { return w }); {
 	case err != nil:
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	default:
 		addSubs, doneSubs = a, d
 	}
 
 	switch a, d, err := dutil.NewLockUniqueAppendSlice(workersSize, 0, func(w string) string { return w }); {
 	case err != nil:
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	default:
 		addOwners, doneOwners = a, d
 	}
@@ -52,8 +50,6 @@ func newManagerStateOwners(
 	setStateOwners, checkFailedOwners := newFuncLazyCheckFailedWorkers(statesShare, func(string) bool { return true })
 
 	cancelOwners, waitOwners := dutil.NewContextDone(ctx)
-
-	var subsEnough, ownersEnough atomic.Value
 
 	return func(worker string, subs, affected []string) error {
 			if slices.Index(opsWorkers, worker) < 0 {
@@ -79,48 +75,35 @@ func newManagerStateOwners(
 
 			return nil
 		},
-		func(worker string, err error) (bool, bool, bool, error) {
-			var ok bool
+		func(worker string, err error) (bool, bool, error) {
+			ok, enough, failed := checkFailedSubs(worker, err)
 
-			switch o, enough, failed := checkFailedSubs(worker, err); {
-			case failed != nil:
-				return o, false, false, failed
-			default:
-				ok = o
+			if ok && failed != nil {
+				return ok, false, failed
+			}
 
-				if enough {
-					subsEnough.CompareAndSwap(nil, true)
+			if err != nil {
+				if ok, _, failed := checkFailedOwners(worker, err); ok && failed != nil {
+					return ok, false, failed
 				}
 			}
 
-			switch o, enough, failed := checkFailedOwners(worker, err); {
-			case failed != nil:
-				return o, false, false, failed
-			default:
-				if !ok {
-					ok = o
+			return ok, enough, failed
+		},
+		func(worker string, err error) (bool, bool, error) {
+			ok, enough, failed := checkFailedOwners(worker, err)
+
+			if ok && failed != nil {
+				return ok, false, failed
+			}
+
+			if err != nil {
+				if ok, _, failed := checkFailedSubs(worker, err); ok && failed != nil {
+					return ok, false, failed
 				}
-
-				if enough {
-					ownersEnough.CompareAndSwap(nil, true)
-				}
 			}
 
-			if !ok {
-				return false, false, false, nil
-			}
-
-			var s, o bool
-
-			if i := subsEnough.Load(); i != nil {
-				s = i.(bool)
-			}
-
-			if i := ownersEnough.Load(); i != nil {
-				o = i.(bool)
-			}
-
-			return ok, s, s && o, nil
+			return ok, enough, failed
 		},
 		func() ([]string, []string, error) {
 			if err := waitOwners(); err != nil {

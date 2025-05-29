@@ -18,7 +18,7 @@ type testManagerStateOwners struct {
 
 func (t *testManagerStateOwners) TestNew() {
 	t.Run("empty ops workers", func() {
-		_, _, _, err := newManagerStateOwners(
+		_, _, _, _, err := newManagerStateOwners(
 			context.Background(),
 			nil,
 			1, 1, 1,
@@ -29,7 +29,7 @@ func (t *testManagerStateOwners) TestNew() {
 	t.Run("zero workers", func() {
 		_, workers := t.workers(1)
 
-		_, _, _, err := newManagerStateOwners(
+		_, _, _, _, err := newManagerStateOwners(
 			context.Background(),
 			workers,
 			1, 1, 0,
@@ -45,7 +45,7 @@ func (t *testManagerStateOwners) TestCtxCanceled() {
 		ctx, cancel := t.Ctx()
 		cancel(nil)
 
-		workerOwners, _, wait, err := newManagerStateOwners(
+		workerOwners, _, _, wait, err := newManagerStateOwners(
 			ctx,
 			workers,
 			1, 1, 1,
@@ -67,7 +67,7 @@ func (t *testManagerStateOwners) TestWorkerOwners() {
 		msubs := workers[:2]
 		mowners := workers
 
-		workerOwners, _, wait, err := newManagerStateOwners(
+		workerOwners, _, _, wait, err := newManagerStateOwners(
 			context.Background(),
 			opsWorkers,
 			1, 1, uint64(len(workers)),
@@ -101,7 +101,7 @@ func (t *testManagerStateOwners) TestWorkerOwners() {
 	})
 
 	t.Run("not ops worker", func() {
-		workerOwners, _, _, err := newManagerStateOwners(
+		workerOwners, _, _, _, err := newManagerStateOwners(
 			context.Background(),
 			opsWorkers,
 			1, 1, uint64(len(workers)),
@@ -121,7 +121,7 @@ func (t *testManagerStateOwners) TestWait() {
 		msubs := workers[:2]
 		mowners := workers
 
-		workerOwners, _, wait, err := newManagerStateOwners(
+		workerOwners, _, _, wait, err := newManagerStateOwners(
 			context.Background(),
 			opsWorkers,
 			1, 1, uint64(len(workers)),
@@ -155,8 +155,11 @@ func (t *testManagerStateOwners) TestWait() {
 	})
 }
 
-func (t *testManagerStateOwners) prepareCheckFailed(workers, opsWorkers, subs []string, statesShare uint64) CheckFailedOwnersFunc {
-	workerOwners, checkFailed, wait, err := newManagerStateOwners(
+func (t *testManagerStateOwners) prepareCheckFailed(workers, opsWorkers, subs []string, statesShare uint64) (
+	dop5.CheckFailedWorkersFunc,
+	dop5.CheckFailedWorkersFunc,
+) {
+	workerOwners, cs, co, wait, err := newManagerStateOwners(
 		context.Background(),
 		opsWorkers,
 		1, statesShare, uint64(len(workers)),
@@ -183,7 +186,7 @@ func (t *testManagerStateOwners) prepareCheckFailed(workers, opsWorkers, subs []
 	_, _, err = wait()
 	t.NoError(err)
 
-	return checkFailed
+	return cs, co
 }
 
 func (t *testManagerStateOwners) TestCheckFailedSubs() {
@@ -191,122 +194,73 @@ func (t *testManagerStateOwners) TestCheckFailedSubs() {
 		_, workers := t.workers(3)
 		subs := workers[:2]
 
-		check := t.prepareCheckFailed(workers, workers[:2], subs, 1)
+		checkSub, _ := t.prepareCheckFailed(workers, workers[:2], subs, 1)
 
-		ok, subsEnough, ownersEnough, failed := check(subs[0], nil)
+		ok, enough, failed := checkSub(subs[0], nil)
 		t.NoError(failed)
 		t.True(ok)
-		t.False(subsEnough)
-		t.False(ownersEnough)
+		t.False(enough)
 
-		ok, subsEnough, ownersEnough, failed = check(subs[1], nil)
+		ok, enough, failed = checkSub(subs[1], nil)
 		t.NoError(failed)
 		t.True(ok)
-		t.True(subsEnough)
-		t.False(ownersEnough)
+		t.True(enough)
 	})
 
 	t.Run("failed", func() {
 		_, workers := t.workers(3)
 		subs := workers[:2]
 
-		check := t.prepareCheckFailed(workers, workers[:2], subs, 1)
+		checkSub, _ := t.prepareCheckFailed(workers, workers[:2], subs, 1)
 
-		ok, subsEnough, ownersEnough, failed := check(subs[0], nil)
+		ok, enough, failed := checkSub(subs[0], nil)
 		t.NoError(failed)
 		t.True(ok)
-		t.False(subsEnough)
-		t.False(ownersEnough)
+		t.False(enough)
 
-		ok, subsEnough, ownersEnough, failed = check(subs[1], errors.New("showme"))
+		ok, enough, failed = checkSub(subs[1], errors.New("showme"))
 		t.ErrorContains(failed, "showme")
 		t.ErrorIs(failed, dop5.ErrWorkersFailed)
 		t.True(ok)
-		t.False(subsEnough)
-		t.False(ownersEnough)
+		t.False(enough)
 	})
 
 	t.Run("failed, but not sub", func() {
 		_, workers := t.workers(4)
 		subs := workers[:3]
 
-		check := t.prepareCheckFailed(workers, workers[:2], subs, 2)
+		checkSub, checkOwners := t.prepareCheckFailed(workers, workers[:2], subs, 2)
 
-		ok, subsEnough, ownersEnough, failed := check(subs[0], nil)
+		ok, enough, failed := checkSub(subs[0], nil)
 		t.NoError(failed)
 		t.True(ok)
-		t.False(subsEnough)
-		t.False(ownersEnough)
+		t.False(enough)
 
-		ok, subsEnough, ownersEnough, failed = check(workers[3], errors.New("showme"))
+		ok, enough, failed = checkSub(subs[1], nil)
 		t.NoError(failed)
 		t.True(ok)
-		t.False(subsEnough)
-		t.False(ownersEnough)
+		t.True(enough)
 
-		ok, subsEnough, ownersEnough, failed = check(subs[1], nil)
+		ok, enough, failed = checkSub(subs[2], nil)
+		t.NoError(failed)
+		t.False(ok)
+		t.False(enough)
+
+		ok, enough, failed = checkOwners(workers[0], nil)
 		t.NoError(failed)
 		t.True(ok)
-		t.True(subsEnough)
-		t.False(ownersEnough)
+		t.False(enough)
 
-		ok, subsEnough, ownersEnough, failed = check(subs[2], nil)
+		ok, enough, failed = checkOwners(workers[1], errors.New("findme"))
 		t.NoError(failed)
 		t.True(ok)
-		t.True(subsEnough)
-		t.True(ownersEnough)
-	})
-}
+		t.False(enough)
 
-func (t *testManagerStateOwners) TestCheckFailedOwners() {
-	t.Run("before subs enough", func() {
-		_, workers := t.workers(4)
-		subs := []string{workers[3]}
-
-		check := t.prepareCheckFailed(workers, workers[:2], subs, 2)
-
-		ok, subsEnough, ownersEnough, failed := check(workers[0], nil)
-		t.NoError(failed)
+		ok, enough, failed = checkOwners(workers[3], errors.New("showme"))
+		t.ErrorContains(failed, "showme")
+		t.ErrorIs(failed, dop5.ErrWorkersFailed)
 		t.True(ok)
-		t.False(subsEnough)
-		t.False(ownersEnough)
-
-		ok, subsEnough, ownersEnough, failed = check(workers[1], nil)
-		t.NoError(failed)
-		t.True(ok)
-		t.False(subsEnough)
-		t.False(ownersEnough)
-
-		ok, subsEnough, ownersEnough, failed = check(workers[2], nil)
-		t.NoError(failed)
-		t.True(ok)
-		t.False(subsEnough)
-		t.False(ownersEnough)
-
-		ok, subsEnough, ownersEnough, failed = check(subs[0], nil)
-		t.NoError(failed)
-		t.True(ok)
-		t.True(subsEnough)
-		t.True(ownersEnough)
-	})
-
-	t.Run("no failed", func() {
-		_, workers := t.workers(3)
-		subs := workers[:2]
-
-		check := t.prepareCheckFailed(workers, workers[:2], subs, 1)
-
-		ok, subsEnough, ownersEnough, failed := check(workers[0], nil)
-		t.NoError(failed)
-		t.True(ok)
-		t.False(subsEnough)
-		t.False(ownersEnough)
-
-		ok, subsEnough, ownersEnough, failed = check(workers[1], nil)
-		t.NoError(failed)
-		t.True(ok)
-		t.True(subsEnough)
-		t.False(ownersEnough)
+		t.False(enough)
 	})
 }
 

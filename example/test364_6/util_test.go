@@ -828,7 +828,7 @@ func (t *testLazyCheckFailedWorkers) TestSetWorkers() {
 		w, c := newFuncLazyCheckFailedWorkers(1, func(string) bool { return true })
 
 		ok, enough, failed := c(workers[0], nil)
-		t.False(ok)
+		t.True(ok)
 		t.False(enough)
 		t.NoError(failed)
 
@@ -854,7 +854,7 @@ func (t *testLazyCheckFailedWorkers) TestSetWorkers() {
 
 		for worker := range slices.Values(workers) {
 			ok, enough, failed := c(worker, nil)
-			t.False(ok)
+			t.True(ok)
 			t.False(enough)
 			t.NoError(failed)
 		}
@@ -876,7 +876,7 @@ func (t *testLazyCheckFailedWorkers) TestSetWorkers() {
 				err = errors.New("findme")
 			}
 			ok, enough, failed := c(worker, err)
-			t.False(ok)
+			t.True(ok)
 			t.False(enough)
 			t.NoError(failed)
 		}
@@ -910,12 +910,12 @@ func (t *testLazyCheckFailedWorkers) TestCheck() {
 		w, c := newFuncLazyCheckFailedWorkers(1, func(string) bool { return true })
 
 		ok, enough, failed := c("u0", errors.New("findme"))
-		t.False(ok)
+		t.True(ok)
 		t.False(enough)
 		t.NoError(failed)
 
 		ok, enough, failed = c("w0", nil)
-		t.False(ok)
+		t.True(ok)
 		t.False(enough)
 		t.NoError(failed)
 
@@ -1001,7 +1001,7 @@ func (t *testLazyCheckFailedWorkers) TestCheck() {
 				defer wg.Done()
 
 				ok, enough, failed := c(worker, nil)
-				t.IfTruePanic(ok, "ok: worker=%q", worker)
+				t.IfTruePanic(!ok, "ok: worker=%q", worker)
 				t.IfTruePanic(enough, "enough: worker=%q", worker)
 				t.IfErrPanicf(failed, "failed: worker=%q", worker)
 			}()
@@ -1031,7 +1031,7 @@ func (t *testLazyCheckFailedWorkers) TestCheck() {
 				defer wg.Done()
 
 				ok, enough, failed := c(worker, err)
-				t.IfTruePanic(ok, "ok: worker=%q err=%v", worker, err)
+				t.IfTruePanic(!ok, "ok: worker=%q err=%v", worker, err)
 				t.IfTruePanic(enough, "enough: worker=%q err=%v", worker, err)
 				t.IfErrPanicf(failed, "failed: worker=%q err=%v", worker, err)
 			}()
