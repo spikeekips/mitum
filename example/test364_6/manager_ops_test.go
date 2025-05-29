@@ -2,7 +2,6 @@ package dop6
 
 import (
 	"context"
-	"iter"
 	"maps"
 	"slices"
 	"sync/atomic"
@@ -10,6 +9,7 @@ import (
 
 	"github.com/pkg/errors"
 	dop5 "github.com/spikeekips/mitum/example/test364_5"
+	"github.com/spikeekips/mitum/example/test364_5/fixedtree"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 	"github.com/stretchr/testify/suite"
@@ -349,35 +349,64 @@ func nilFuncManagerDistributeOpsWorker() newManagerDistributeOpsWorkerFunc {
 	}
 }
 
-type testManagerCollectUnmergedOps struct {
+type testManagerUnmergedOps struct {
 	baseMergerSuite
 }
 
-func (t *testManagerCollectUnmergedOps) TestCanceled() {
+func (t *testManagerUnmergedOps) TestCanceled() {
 	t.Run("context canceled", func() {
 		ctx, cancel := t.Ctx()
+		ophs := t.randomOphs(3)
 
-		_, wait, err := newManagerCollectUnmergedOps(
+		_, wait, err := newManagerUnmergedOps(
 			ctx,
-			3,
+			ophs,
 			func(string, error) (bool, bool, error) { return false, false, nil },
 		)
 		t.NoError(err)
 
 		cancel(nil)
 
-		err = wait(nil)
+		_, err = wait(nil)
 		t.ErrorIs(err, context.Canceled)
 	})
 }
 
-func (t *testManagerCollectUnmergedOps) TestEnough() {
+func (t *testManagerUnmergedOps) ophs(n int, unmerged map[uint64]string) (
+	[][2]util.Hash,
+	*fixedtree.Tree,
+	fixedtree.GenerateNodesHashFunc,
+) {
+	ophs := t.randomOphs(3)
+
+	nodes := make([]fixedtree.Node, n)
+
+	for i, hs := range slices.All(ophs) {
+		reason := unmerged[uint64(i)]
+		n, err := dop5.NewOperationTreeNode(hs[0], hs[1], reason)
+		t.NoError(err)
+
+		nodes[i] = n
+	}
+
+	g := t.generateNodesHashFunc()
+	t.NoError(g(context.Background(), nodes, nil))
+
+	return ophs, dop5.NewStatesTree(nodes), g
+}
+
+func (t *testManagerUnmergedOps) generateNodesHashFunc() fixedtree.GenerateNodesHashFunc {
+	return fixedtree.NewFuncAsyncGenerateNodesHashByFollowingParent(1 << 9)
+}
+
+func (t *testManagerUnmergedOps) TestEnough() {
 	_, workers := t.workers(2)
+	ophs, expectedTree, g := t.ophs(3, nil)
 
 	t.Run("failed", func() {
-		workerUnmerged, wait, err := newManagerCollectUnmergedOps(
+		workerUnmerged, wait, err := newManagerUnmergedOps(
 			context.Background(),
-			3,
+			ophs,
 			func(worker string, _ error) (bool, bool, error) {
 				if worker == workers[1] {
 					return true, false, errors.New("findme")
@@ -394,18 +423,16 @@ func (t *testManagerCollectUnmergedOps) TestEnough() {
 			}
 		}()
 
-		err = wait(func(seq iter.Seq2[uint64, string]) error {
-			return nil
-		})
+		_, err = wait(g)
 		t.ErrorContains(err, "findme")
 	})
 
 	t.Run("ok", func() {
 		var count int64
 
-		workerUnmerged, wait, err := newManagerCollectUnmergedOps(
+		workerUnmerged, wait, err := newManagerUnmergedOps(
 			context.Background(),
-			3,
+			ophs,
 			func(string, error) (bool, bool, error) {
 				return true, atomic.AddInt64(&count, 1) == int64(len(workers)), nil
 			},
@@ -418,19 +445,24 @@ func (t *testManagerCollectUnmergedOps) TestEnough() {
 			}
 		}()
 
-		t.NoError(wait(func(seq iter.Seq2[uint64, string]) error {
-			return nil
-		}))
+		tr, err := wait(g)
+		t.NoError(err)
+
+		t.True(fixedtree.IsEqualTree(expectedTree, tr))
 	})
 
 	t.Run("unmerged", func() {
+		unmerged := map[uint64]string{
+			1: "showme",
+		}
+		ophs, expectedTree, g := t.ophs(3, unmerged)
+
 		_, workers := t.workers(3)
 
 		var count int64
-		var opsSize uint64 = 3
-		workerUnmerged, wait, err := newManagerCollectUnmergedOps(
+		workerUnmerged, wait, err := newManagerUnmergedOps(
 			context.Background(),
-			opsSize,
+			ophs,
 			func(string, error) (bool, bool, error) {
 				return true, atomic.AddInt64(&count, 1) == int64(len(workers)), nil
 			},
@@ -439,39 +471,21 @@ func (t *testManagerCollectUnmergedOps) TestEnough() {
 
 		t.NoError(workerUnmerged(workers[0], nil))
 		t.NoError(workerUnmerged(workers[1], nil))
-		t.NoError(workerUnmerged(workers[2], map[uint64]string{
-			1: "showme",
-		}))
+		t.NoError(workerUnmerged(workers[2], unmerged))
 
-		expected := map[uint64]string{}
-		{
-			for i := range opsSize {
-				expected[uint64(i)] = ""
-			}
-		}
-		expected[1] = "showme"
+		tr, err := wait(g)
+		t.NoError(err)
 
-		m := map[uint64]string{}
-		t.NoError(wait(func(seq iter.Seq2[uint64, string]) error {
-			for opindex, reason := range seq {
-				m[opindex] = reason
-			}
-
-			t.T().Logf("ops: %v", m)
-
-			return nil
-		}))
-		t.Equal(expected, m)
+		t.True(fixedtree.IsEqualTree(expectedTree, tr))
 	})
 
 	t.Run("unmerged after enough", func() {
 		_, workers := t.workers(3)
 
 		var count int64
-		var opsSize uint64 = 3
-		workerUnmerged, wait, err := newManagerCollectUnmergedOps(
+		workerUnmerged, wait, err := newManagerUnmergedOps(
 			context.Background(),
-			opsSize,
+			ophs,
 			func(string, error) (bool, bool, error) {
 				i := atomic.AddInt64(&count, 1)
 				j := i == int64(len(workers))-1
@@ -487,29 +501,15 @@ func (t *testManagerCollectUnmergedOps) TestEnough() {
 			1: "showme",
 		}))
 
-		expected := map[uint64]string{}
-		{
-			for i := range opsSize {
-				expected[uint64(i)] = ""
-			}
-		}
+		tr, err := wait(g)
+		t.NoError(err)
 
-		m := map[uint64]string{}
-		t.NoError(wait(func(seq iter.Seq2[uint64, string]) error {
-			for opindex, reason := range seq {
-				m[opindex] = reason
-			}
-
-			t.T().Logf("ops: %v", m)
-
-			return nil
-		}))
-		t.Equal(expected, m)
+		t.True(fixedtree.IsEqualTree(expectedTree, tr))
 	})
 }
 
-func TestManagerCollectUnmergedOps(t *testing.T) {
+func TestManagerUnmergedOps(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	suite.Run(t, new(testManagerCollectUnmergedOps))
+	suite.Run(t, new(testManagerUnmergedOps))
 }

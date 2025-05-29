@@ -3,10 +3,10 @@ package dop6
 import (
 	"context"
 	"fmt"
-	"iter"
 	"slices"
 
 	dop5 "github.com/spikeekips/mitum/example/test364_5"
+	"github.com/spikeekips/mitum/example/test364_5/fixedtree"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 )
@@ -69,14 +69,14 @@ func NewManager(
 	}
 
 	var workerUnmerged dutil.In2ErrorFunc[string, map[uint64]string]
-	var workerUnmergedWait dutil.InErrorFunc[dutil.InErrorFunc[iter.Seq2[uint64, string]]]
+	var workerOpsTreeWait managerFixedTreeWaitFunc
 
-	switch u, w, err := newManagerCollectUnmergedOps(wctx, opsSize, checkFailedSubs); {
+	switch u, w, err := newManagerUnmergedOps(wctx, ophs, checkFailedSubs); {
 	case err != nil:
 		return err
 	default:
-		workerUnmerged, workerUnmergedWait = u, w
-		_, _ = workerUnmerged, workerUnmergedWait
+		workerUnmerged, workerOpsTreeWait = u, w
+		_, _ = workerUnmerged, workerOpsTreeWait
 	}
 
 	_, _, _ = func(worker string, err error) error { // FIXME receive worker errors
@@ -143,13 +143,16 @@ func NewManager(
 			return wctxCancel(err)
 		}
 
-		if err := workerUnmergedWait(func(seq iter.Seq2[uint64, string]) error {
-			// FIXME generate states tree and ops tree
+		var opsTree, statesTree *fixedtree.Tree
 
-			return nil
-		}); err != nil {
+		switch t, err := workerOpsTreeWait(nil); { // FIXME set fixedtree.GenerateNodesHashFunc
+		case err != nil:
 			return wctxCancel(err)
+		default:
+			opsTree = t
 		}
+
+		_, _ = opsTree, statesTree
 
 		// FIXME generate manifest
 

@@ -4,9 +4,11 @@ import (
 	"context"
 	"iter"
 	"maps"
+	"slices"
 
 	"github.com/pkg/errors"
 	dop5 "github.com/spikeekips/mitum/example/test364_5"
+	"github.com/spikeekips/mitum/example/test364_5/fixedtree"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 )
@@ -102,60 +104,110 @@ func managerDistributeOpsToWorkers(
 	})
 }
 
-func newManagerCollectUnmergedOps(
+func newManagerUnmergedOps(
 	ctx context.Context,
-	opsSize uint64,
+	ophs [][2]util.Hash,
 	checkWorker dop5.CheckFailedWorkersFunc,
 ) (
 	dutil.In2ErrorFunc[string, map[uint64]string],
-	dutil.InErrorFunc[dutil.InErrorFunc[iter.Seq2[uint64, string]]],
+	managerFixedTreeWaitFunc,
 	error,
 ) {
-	var pool dutil.LockedMap[uint64, string]
+	wctx, wctxCancel := dutil.ContextWithCancelCause(ctx)
 
-	switch m, err := dutil.NewLockedMap[uint64, string](nil, opsSize); {
+	opsSize := uint64(len(ophs))
+	var pool dutil.LockedMap[uint64, fixedtree.Node]
+
+	switch m, err := dutil.NewLockedMap[uint64, fixedtree.Node](nil, opsSize); {
 	case err != nil:
 		return nil, nil, err
 	default:
 		pool = m
 	}
 
-	done, wait := dutil.NewContextDone(ctx)
+	var newJob dutil.JobWorkerNewJobFunc
+	var jobDone func()
+	var jobWait dutil.InErrorFunc[error]
+
+	switch n, d, w, err := dutil.NewFuncJobWorker(wctx, dutil.SafeUint64ToInt64(opsSize)); {
+	case err != nil:
+		return nil, nil, err
+	default:
+		newJob, jobDone, jobWait = n, d, w
+	}
 
 	return func(worker string, unmerged map[uint64]string) error {
 			switch ok, enough, failed := checkWorker(worker, nil); {
 			case !ok:
 			case failed != nil:
-				return done(failed)
+				return wctxCancel(failed)
 			default:
 				for opindex, reason := range maps.All(unmerged) {
-					_ = pool.SetValue(opindex, reason)
+					switch {
+					case opindex >= opsSize:
+						return errors.Errorf("unknown opindex, %d", opindex)
+					case reason == "":
+						return errors.Errorf("empty reason, %d", opindex)
+					}
+
+					switch err := newJob(func(context.Context) error {
+						hs := ophs[opindex]
+
+						switch n, err := dop5.NewOperationTreeNode(hs[0], hs[1], reason); {
+						case err != nil:
+							return err
+						default:
+							_ = pool.SetValue(opindex, n)
+
+							return nil
+						}
+					}); {
+					case err == nil:
+					case !errors.Is(err, dutil.ErrJobWorkerDone):
+						return err
+					}
 				}
 
 				if enough {
-					_ = done(nil)
+					jobDone()
 				}
 			}
 
 			return nil
 		},
-		func(f dutil.InErrorFunc[iter.Seq2[uint64, string]]) error {
-			defer pool.Close()
+		func(g fixedtree.GenerateNodesHashFunc) (*fixedtree.Tree, error) {
+			defer func() {
+				pool.Close()
+				wctxCancel(nil)
+			}()
 
-			if err := wait(); err != nil {
-				return err
+			if err := jobWait(nil); err != nil {
+				return nil, err
 			}
 
-			return f(func(yield func(uint64, string) bool) {
-				for i := range opsSize {
-					opindex := uint64(i)
+			nodes := make([]fixedtree.Node, len(ophs))
 
-					reason, _ := pool.Value(opindex)
-					if !yield(opindex, reason) {
-						return
+			for i, hs := range slices.All(ophs) {
+				opindex := uint64(i)
+
+				n, found := pool.Value(opindex)
+				if !found {
+					switch j, err := dop5.NewOperationTreeNode(hs[0], hs[1], ""); {
+					case err != nil:
+						return nil, err
+					default:
+						n = j
 					}
 				}
-			})
+
+				nodes[i] = n
+			}
+
+			if err := g(ctx, nodes, nil); err != nil {
+				return nil, err
+			}
+
+			return dop5.NewStatesTree(nodes), nil
 		},
 		nil
 }
