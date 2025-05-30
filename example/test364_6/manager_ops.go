@@ -113,8 +113,6 @@ func newManagerUnmergedOps(
 	managerFixedTreeWaitFunc,
 	error,
 ) {
-	wctx, wctxCancel := dutil.ContextWithCancelCause(ctx)
-
 	opsSize := uint64(len(ophs))
 	var pool dutil.LockedMap[uint64, fixedtree.Node]
 
@@ -129,7 +127,7 @@ func newManagerUnmergedOps(
 	var jobDone func()
 	var jobWait dutil.InErrorFunc[error]
 
-	switch n, d, w, err := dutil.NewFuncJobWorker(wctx, dutil.SafeUint64ToInt64(opsSize)); {
+	switch n, d, w, err := dutil.NewFuncJobWorker(ctx, dutil.SafeUint64ToInt64(opsSize)); {
 	case err != nil:
 		return nil, nil, err
 	default:
@@ -140,7 +138,7 @@ func newManagerUnmergedOps(
 			switch ok, enough, failed := checkWorker(worker, nil); {
 			case !ok:
 			case failed != nil:
-				return wctxCancel(failed)
+				return jobWait(failed)
 			default:
 				for opindex, reason := range maps.All(unmerged) {
 					switch {
@@ -176,10 +174,7 @@ func newManagerUnmergedOps(
 			return nil
 		},
 		func(g fixedtree.GenerateNodesHashFunc) (*fixedtree.Tree, error) {
-			defer func() {
-				pool.Close()
-				wctxCancel(nil)
-			}()
+			defer pool.Close()
 
 			if err := jobWait(nil); err != nil {
 				return nil, err
