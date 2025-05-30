@@ -19,6 +19,10 @@ type Tree struct {
 }
 
 func NewTree(ht hint.Hint, nodes []Node) *Tree {
+	if len(nodes) < 1 {
+		return nil
+	}
+
 	return &Tree{
 		BaseHinter: hint.NewBaseHinter(ht),
 		nodes:      nodes,
@@ -27,6 +31,10 @@ func NewTree(ht hint.Hint, nodes []Node) *Tree {
 
 func (t *Tree) IsValid(b []byte) error {
 	e := util.ErrInvalid.Errorf("Tree")
+
+	if t == nil {
+		return e.Errorf("empty")
+	}
 
 	if err := t.BaseHinter.IsValid(nil); err != nil {
 		return e.Wrap(err)

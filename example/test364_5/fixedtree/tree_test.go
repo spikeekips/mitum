@@ -91,6 +91,14 @@ func (t *testTree) TestInvalid() {
 		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "hash does not match")
 	})
+
+	t.Run("empty nodes", func() {
+		tr := NewTree(treeHint, nil)
+		t.Nil(tr)
+		err := tr.IsValid(nil)
+		t.ErrorIs(err, util.ErrInvalid)
+		t.ErrorContains(err, "empty")
+	})
 }
 
 func TestTree(t *testing.T) {
