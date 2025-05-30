@@ -792,7 +792,7 @@ func requestHandlerWorkerDistributeSMVs(
 						v[2].([]dop5.SMV), //nolint:forcetypeassert
 					)
 				}); err != nil {
-					return jobWait(err)
+					return err
 				}
 			}
 
@@ -1177,7 +1177,7 @@ func requestHandlerPreloadOps(
 				if err := newJob(func(context.Context) error {
 					return writePreLoadOp(sub, enc, fact)
 				}); err != nil {
-					return jobWait(err)
+					return err
 				}
 
 				i++

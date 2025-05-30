@@ -55,10 +55,6 @@ func NewFuncBaseJobWorker(
 			return err
 		}
 
-		if err != nil {
-			return wctxCancel(err)
-		}
-
 		waitch := make(chan error, 1)
 
 		go func() {
@@ -99,6 +95,10 @@ func NewFuncBaseJobWorker(
 			}
 		},
 		func(err error) error {
+			if err != nil {
+				_ = wctxCancel(err)
+			}
+
 			switch called, werr := wait(err); {
 			case werr != nil:
 				return werr

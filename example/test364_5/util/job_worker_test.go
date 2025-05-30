@@ -518,6 +518,40 @@ func (t *testJobWorker) TestWait() {
 
 		t.Equal(0, called)
 	})
+
+	t.Run("nil wait and the error wait", func() {
+		_, _, wait, _ := NewFuncJobWorker(context.Background(), 3)
+
+		errch := make(chan error)
+		go func() {
+			errch <- wait(nil)
+		}()
+
+		select {
+		case <-time.After(time.Second):
+		case <-errch:
+			t.Fail("unexpected wait")
+		}
+
+		err := wait(errors.New("showme"))
+		t.ErrorContains(err, "showme")
+
+		select {
+		case <-time.After(time.Second):
+		case err := <-errch:
+			t.ErrorContains(err, "showme")
+		}
+	})
+
+	t.Run("nil wait and the error wait", func() {
+		_, jobDone, wait, _ := NewFuncJobWorker(context.Background(), 3)
+
+		jobDone()
+		t.NoError(wait(nil))
+
+		err := wait(errors.New("showme"))
+		t.ErrorIs(err, context.Canceled)
+	})
 }
 
 func TestJobWorker(t *testing.T) {
