@@ -426,13 +426,12 @@ func (t *testManagerProcess) TestOpsTree() {
 		t.NoError(err)
 
 		t.Equal(len(ophs), opsTree.Len())
-		t.Equal(0, statesTree.Len())
+		t.Nil(statesTree)
 
 		t.NoError(t.checkOpsTree(ophs, nil, opsTree))
 		t.NoError(t.checkStatesTree(nil, statesTree))
 
 		t.T().Log("ops tree:", opsTree.Root())
-		t.T().Log("states tree:", statesTree.Root())
 	})
 }
 

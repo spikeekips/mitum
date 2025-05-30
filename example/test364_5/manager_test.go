@@ -67,6 +67,14 @@ func (t *baseTestManager) checkOpsTree(ophs [][2]util.Hash, expectedReasons map[
 }
 
 func (t *baseTestManager) checkStatesTree(expectedStates [][2]interface{}, tr *fixedtree.Tree) error {
+	if len(expectedStates) < 1 {
+		if tr != nil {
+			return errors.Errorf("expected nil Tree")
+		}
+
+		return nil
+	}
+
 	if err := tr.IsValid(nil); err != nil {
 		return err
 	}
@@ -382,7 +390,15 @@ func (t *testManager) TestStartWorkers() {
 				return nil
 			},
 			func(opsTree, statesTree *fixedtree.Tree) (base.Manifest, error) {
-				t.T().Logf("manifest: ops tree=%v states tree=%v", opsTree.Root(), statesTree.Root())
+				var opsRoot, statesRoot util.Hash
+				if opsTree != nil {
+					opsRoot = opsTree.Root()
+				}
+				if statesTree != nil {
+					statesRoot = statesTree.Root()
+				}
+
+				t.T().Logf("manifest: ops tree=%v states tree=%v", opsRoot, statesRoot)
 
 				return nil, nil
 			},
@@ -560,7 +576,15 @@ func (t *testManager) TestBroadcastManagerDone() {
 				return nil
 			},
 			func(opsTree, statesTree *fixedtree.Tree) (base.Manifest, error) {
-				t.T().Logf("manifest: ops tree=%v states tree=%v", opsTree.Root(), statesTree.Root())
+				var opsRoot, statesRoot util.Hash
+				if opsTree != nil {
+					opsRoot = opsTree.Root()
+				}
+				if statesTree != nil {
+					statesRoot = statesTree.Root()
+				}
+
+				t.T().Logf("manifest: ops tree=%v states tree=%v", opsRoot, statesRoot)
 
 				return nil, nil
 			},
@@ -636,7 +660,15 @@ func (t *testManager) TestBroadcastManagerDone() {
 				return nil
 			},
 			func(opsTree, statesTree *fixedtree.Tree) (base.Manifest, error) {
-				t.T().Logf("manifest: ops tree=%v states tree=%v", opsTree.Root(), statesTree.Root())
+				var opsRoot, statesRoot util.Hash
+				if opsTree != nil {
+					opsRoot = opsTree.Root()
+				}
+				if statesTree != nil {
+					statesRoot = statesTree.Root()
+				}
+
+				t.T().Logf("manifest: ops tree=%v states tree=%v", opsRoot, statesRoot)
 
 				return nil, nil
 			},
@@ -704,7 +736,15 @@ func (t *testManager) TestCloseWork() {
 				return nil
 			},
 			func(opsTree, statesTree *fixedtree.Tree) (base.Manifest, error) {
-				t.Print("manifest: ops tree=%v states tree=%v", opsTree.Root(), statesTree.Root())
+				var opsRoot, statesRoot util.Hash
+				if opsTree != nil {
+					opsRoot = opsTree.Root()
+				}
+				if statesTree != nil {
+					statesRoot = statesTree.Root()
+				}
+
+				t.T().Logf("manifest: ops tree=%v states tree=%v", opsRoot, statesRoot)
 
 				return nil, nil
 			},
