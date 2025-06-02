@@ -98,17 +98,14 @@ func (t *testManagerStates) TestTree() {
 				wg.Done()
 
 				s, d := workerStates(worker)
-				err := s(func(yield func(string, util.Hash) bool) {
-					for i := range slices.Values(ws[worker]) {
-						if !yield(
-							i[0].(string),
-							i[1].(util.Hash),
-						) {
-							return
-						}
-					}
-				})
-				t.IfErrPanicf(err, "add: worker=%q", worker)
+
+				for i := range slices.Values(ws[worker]) {
+					err := s(
+						i[0].(string),
+						i[1].(util.Hash),
+					)
+					t.IfErrPanicf(err, "add: worker=%q", worker)
+				}
 				t.IfErrPanicf(d(nil), "done: worker=%q", worker)
 			}()
 		}
@@ -179,17 +176,13 @@ func (t *testManagerStates) TestCheckFailed() {
 				wg.Done()
 
 				s, d := workerStates(worker)
-				err := s(func(yield func(string, util.Hash) bool) {
-					for i := range slices.Values(ws[worker]) {
-						if !yield(
-							i[0].(string),
-							i[1].(util.Hash),
-						) {
-							return
-						}
-					}
-				})
-				t.IfErrPanicf(err, "add: worker=%q", worker)
+				for i := range slices.Values(ws[worker]) {
+					err := s(
+						i[0].(string),
+						i[1].(util.Hash),
+					)
+					t.IfErrPanicf(err, "add: worker=%q", worker)
+				}
 
 				if worker == failedWorker {
 					_ = d(errors.New("showme"))
@@ -231,18 +224,14 @@ func (t *testManagerStates) TestCheckFailed() {
 				wg.Done()
 
 				s, d := workerStates(worker)
-				err := s(func(yield func(string, util.Hash) bool) {
-					for i := range slices.Values(ws[worker]) {
-						if !yield(
-							i[0].(string),
-							i[1].(util.Hash),
-						) {
-							return
-						}
+				for i := range slices.Values(ws[worker]) {
+					err := s(
+						i[0].(string),
+						i[1].(util.Hash),
+					)
+					if err != nil && !errors.Is(err, context.Canceled) {
+						t.IfErrPanicf(err, "add: worker=%q", worker)
 					}
-				})
-				if err != nil && !errors.Is(err, context.Canceled) {
-					t.IfErrPanicf(err, "add: worker=%q", worker)
 				}
 
 				if worker == failedWorker {

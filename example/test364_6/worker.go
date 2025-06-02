@@ -15,9 +15,21 @@ type (
 	makeStateFunc               = func(stateKey string, _ base.StateValue, ops []util.Hash) (base.State, error)
 	workerWorkerMergeOpFunc     = func(opindex uint64, facth util.Hash, subv SMV, addvs []SMV) error
 	workerWorkerStateOwnersFunc = func(subs, affected []string) error
-	workerWorkerUnmergeOpFunc   = func(opindex uint64) error
 	workerWaitFunc              = dutil.InErrorFunc[makeStateFunc]
+	workerInsertOpsFunc         = func(
+		GetStateOwnersFunc,
+		NewWorkerDistributeSMVsFunc,
+		iter.Seq2[uint64, [2]util.Hash],
+	) error
+	workerWorkerInsertOpsFunc = func(
+		worker string,
+		_ dutil.InErrorFunc[workerWorkerMergeOpFunc],
+		_ dutil.InErrorFunc[workerWorkerStateOwnersFunc],
+	) error
+	workerWorkerUnmergeOpsFunc = func(worker string, f dutil.InErrorFunc[dutil.InErrorFunc[uint64]]) error
 )
+
+// FIXME report worker canceled to manager
 
 func NewWorker(
 	ctx context.Context,
@@ -30,8 +42,13 @@ func NewWorker(
 	reportUnmergedToManager, reportUnmergedToWorker mergerReportUnmergedFunc,
 	reportStateOwnersToManager reportStateOwnersFunc,
 	reportStatesToManager reportStatesFunc,
-) error {
-	// FIXME report canceled to manager
+) (
+	workerInsertOpsFunc,
+	workerWorkerInsertOpsFunc,
+	workerWorkerUnmergeOpsFunc,
+	dutil.InErrorFunc[makeStateFunc],
+	error,
+) {
 	wctx, wctxCancel, _, _ := dutil.NewContextWait(ctx)
 
 	var makeSVM MergeSVMFunc
@@ -40,7 +57,7 @@ func NewWorker(
 
 	switch g, s, c, err := newGetSVM(min(maxOpsSize, 1<<9)); { //nolint:mnd
 	case err != nil:
-		return err
+		return nil, nil, nil, nil, err
 	default:
 		makeSVM, getSVM, closeSVMPool = g, s, c
 	}
@@ -51,10 +68,9 @@ func NewWorker(
 
 	switch n, j, w, err := dutil.NewFuncJobWorker(wctx, min(dutil.SafeUint64ToInt64(maxOpsSize), 1<<9)); { //nolint:mnd
 	case err != nil:
-		return err
+		return nil, nil, nil, nil, err
 	default:
 		delayedNewJob, delayedJobDone, delayedJobWait = n, j, w
-		_ = delayedNewJob
 	}
 
 	managerReportUnmerged, managerReportUnmergedDone := reportUnmergedToManager(wctx)
@@ -64,7 +80,7 @@ func NewWorker(
 
 	switch i, w, err := newSMVExtractor(wctx, maxOpsSize, getOperationFact, managerReportUnmerged); {
 	case err != nil:
-		return err
+		return nil, nil, nil, nil, err
 	default:
 		smvExtractorInsert, smvExtractorWait = i, w
 	}
@@ -96,15 +112,10 @@ func NewWorker(
 		},
 	); {
 	case err != nil:
-		return err
+		return nil, nil, nil, nil, err
 	default:
 		mergerMerge, mergerMergeReady, mergerUnmerge, mergerUnmergeReady, mergerWait = m, md, u, ud, w
-		_, _, _, _, _ = mergerMerge, mergerMergeReady, mergerUnmerge, mergerUnmergeReady, mergerWait
 	}
-
-	var workerMergerMerge workerMergerWorkerMergeSMVsFunc
-	var workerMergerUnmerge workerMergerUnmergedFunc
-	var workerMergerWait dutil.ErrorFunc
 
 	var setFact dutil.In2Func[uint64, util.Hash, bool]
 	var getFacts func([]uint64) ([]util.Hash, error)
@@ -112,10 +123,14 @@ func NewWorker(
 
 	switch s, g, c, err := newFactPool(maxOpsSize); {
 	case err != nil:
-		return err
+		return nil, nil, nil, nil, err
 	default:
 		setFact, getFacts, closeFactPool = s, g, c
 	}
+
+	var workerMergerMerge workerMergerWorkerMergeSMVsFunc
+	var workerMergerUnmerge workerMergerUnmergedFunc
+	var workerMergerWait dutil.ErrorFunc
 
 	switch m, u, w, err := newFuncWorkerMerger(
 		wctx,
@@ -129,10 +144,9 @@ func NewWorker(
 		},
 	); {
 	case err != nil:
-		return err
+		return nil, nil, nil, nil, err
 	default:
 		workerMergerMerge, workerMergerUnmerge, workerMergerWait = m, u, w
-		_, _, _ = workerMergerMerge, workerMergerUnmerge, workerMergerWait
 	}
 
 	var wait workerWaitFunc
@@ -147,13 +161,12 @@ func NewWorker(
 		mergerWait,
 	); {
 	case err != nil:
-		return err
+		return nil, nil, nil, nil, err
 	default:
 		wait = w
 	}
 
-	_, _, _, _, _ = 0,
-		func(
+	return func(
 			getStateOwners GetStateOwnersFunc,
 			newWorkerDistribute NewWorkerDistributeSMVsFunc,
 			seq iter.Seq2[uint64, [2]util.Hash],
@@ -242,10 +255,8 @@ func NewWorker(
 
 			return workerMergerMerge(worker, subs, affected, gerr)
 		},
-		func(worker string, f dutil.InErrorFunc[workerWorkerUnmergeOpFunc]) error {
-			return workerMergerUnmerge(worker, f(func(opindex uint64) error {
-				return mergerUnmerge(opindex)
-			}))
+		func(worker string, f dutil.InErrorFunc[dutil.InErrorFunc[uint64]]) error {
+			return workerMergerUnmerge(worker, f(mergerUnmerge))
 		},
 		func(makeState makeStateFunc) error {
 			defer func() {
@@ -269,9 +280,8 @@ func NewWorker(
 			// FIXME save operations
 
 			return delayedJobWait(nil)
-		}
-
-	return nil
+		},
+		nil
 }
 
 func newFuncWorkerWait(

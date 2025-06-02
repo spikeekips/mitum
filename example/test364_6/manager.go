@@ -14,6 +14,13 @@ import (
 type (
 	managerDistributeOpsWorkerFunc    = dutil.In2ErrorFunc[uint64 /* items */, dutil.InErrorFunc[opindexOpHashesFunc]]
 	newManagerDistributeOpsWorkerFunc = func(worker string) (managerDistributeOpsWorkerFunc, error)
+	managerStartWorkerFunc            = func(managerRequestStartWorkerFunc) (
+		dutil.InErrorFunc[newManagerDistributeOpsWorkerFunc], // NOTE distribute ops
+		dutil.In3ErrorFunc[string /* worker */, []string /* subs */, []string /* affected */], // NOTE receive state owners
+		managerWorkerUnmergedFunc, // NOTE receive unmerged ops
+		managerWorkerStatesFunc, // NOTE receive states
+		error,
+	)
 )
 
 type managerRequestStartWorkerFunc func(
@@ -31,13 +38,19 @@ func NewManager(
 	workers []string,
 	opsShare, statesShare uint64,
 	ophs [][2]util.Hash,
-) error {
+) (
+	dutil.In2ErrorFunc[string, error],
+	managerStartWorkerFunc,
+	dutil.InErrorFunc[fixedtree.GenerateNodesHashFunc],
+	error,
+) {
 	opsSize := uint64(len(ophs))
 
 	wctx, wctxCancel := dutil.ContextWithCancelCause(ctx)
 
 	var opsWorkers []string
 	var opsDistribute dutil.In2ErrorFunc[newManagerDistributeOpsWorkerFunc, dutil.In2ErrorFunc[string, error]]
+
 	switch o, d, err := newManagerDistributeOps(
 		wctx,
 		workers,
@@ -45,12 +58,12 @@ func NewManager(
 		ophs,
 	); {
 	case err != nil:
-		return err
+		return nil, nil, nil, err
 	default:
 		opsWorkers, opsDistribute = o, d
 	}
 
-	var workerOwners func(string, []string, []string) error
+	var workerOwners dutil.In3ErrorFunc[string, []string, []string]
 	var checkFailedSubs dop5.CheckFailedWorkersFunc
 	var checkFailedOwners dop5.CheckFailedWorkersFunc
 	var waitOwners func() ([]string, []string, error)
@@ -62,104 +75,129 @@ func NewManager(
 		uint64(len(workers)),
 	); {
 	case err != nil:
-		return err
+		return nil, nil, nil, err
 	default:
 		workerOwners, checkFailedSubs, checkFailedOwners, waitOwners = w, cs, co, o
-		_, _, _, _ = workerOwners, checkFailedSubs, checkFailedOwners, waitOwners // FIXME remove
 	}
 
-	var workerUnmerged dutil.In2ErrorFunc[string, map[uint64]string]
+	var workerUnmerged managerWorkerUnmergedFunc
 	var workerOpsTreeWait managerFixedTreeWaitFunc
 
 	switch u, w, err := newManagerUnmergedOps(wctx, ophs, checkFailedSubs); {
 	case err != nil:
-		return err
+		return nil, nil, nil, err
 	default:
 		workerUnmerged, workerOpsTreeWait = u, w
-		_, _ = workerUnmerged, workerOpsTreeWait
 	}
 
-	_, _, _ = func(worker string, err error) error { // FIXME receive worker errors
-		if err == nil {
-			panic(fmt.Sprintf("worker=%q nil error", worker))
-		}
+	var workerStates managerWorkerStatesFunc
+	var workerStatesTreeWait managerFixedTreeWaitFunc
 
-		if ok, _, failed := checkFailedOwners(worker, err); ok && failed != nil {
-			_ = wctxCancel(failed)
-		}
+	switch s, w, err := newManagerStates(wctx, opsSize*2, checkFailedOwners); {
+	case err != nil:
+		return nil, nil, nil, err
+	default:
+		workerStates, workerStatesTreeWait = s, w
 
-		return nil
-	}, func(
-		requestStartWorker managerRequestStartWorkerFunc,
-		workerDistribute newManagerDistributeOpsWorkerFunc,
-	) (
-		func(newManagerDistributeOpsWorkerFunc) error, // FIXME distribute ops
-		func(string, []string, []string) error, // FIXME receive state owners
-		func(string, map[uint64]string) error, // FIXME receive unmerged ops
-		func() error, // FIXME receive states
-		error,
-	) {
-		if err := newManagerStartWorkers(
-			wctx,
-			requestStartWorker,
-			workers,
-			opsWorkers,
-			opsShare, statesShare,
-			opsSize,
-		); err != nil {
-			return nil, nil, nil, nil, wctxCancel(err)
-		}
+	}
 
-		return func(workerDistribute newManagerDistributeOpsWorkerFunc) error {
-				if err := opsDistribute(
-					workerDistribute,
-					func(worker string, err error) error {
-						if err != nil {
-							if ok, _, failed := checkFailedSubs(worker, err); ok && failed != nil {
-								return failed
+	return func(worker string, err error) error { // NOTE receive worker errors
+			if err == nil {
+				panic(fmt.Sprintf("worker=%q nil error", worker))
+			}
+
+			if ok, _, failed := checkFailedOwners(worker, err); ok && failed != nil {
+				_ = wctxCancel(failed)
+			}
+
+			return nil
+		},
+		func(request managerRequestStartWorkerFunc) (
+			func(newManagerDistributeOpsWorkerFunc) error,
+			func(string, []string, []string) error,
+			managerWorkerUnmergedFunc,
+			managerWorkerStatesFunc,
+			error,
+		) {
+			if err := newManagerStartWorkers(
+				wctx,
+				request,
+				workers,
+				opsWorkers,
+				opsShare, statesShare,
+				opsSize,
+			); err != nil {
+				return nil, nil, nil, nil, wctxCancel(err)
+			}
+
+			return func(workerDistribute newManagerDistributeOpsWorkerFunc) error {
+					if err := opsDistribute(
+						workerDistribute,
+						func(worker string, err error) error {
+							if err != nil {
+								if ok, _, failed := checkFailedSubs(worker, err); ok && failed != nil {
+									return failed
+								}
+
+								return nil
 							}
 
 							return nil
-						}
+						},
+					); err != nil {
+						return wctxCancel(err)
+					}
+
+					return nil
+				},
+				workerOwners,
+				workerUnmerged,
+				workerStates,
+				nil
+		},
+		func(g fixedtree.GenerateNodesHashFunc) error {
+			defer func() {
+				_ = wctxCancel(nil)
+			}()
+
+			if _, _, err := waitOwners(); err != nil {
+				return wctxCancel(err)
+			}
+
+			var opsTree, statesTree *fixedtree.Tree
+
+			if err := dutil.FuncsJobWorker(
+				wctx,
+				func(context.Context) error {
+					switch t, err := workerOpsTreeWait(g); {
+					case err != nil:
+						return err
+					default:
+						opsTree = t
 
 						return nil
-					},
-				); err != nil {
-					return wctxCancel(err)
-				}
+					}
+				},
+				func(context.Context) error {
+					switch t, err := workerStatesTreeWait(g); {
+					case err != nil:
+						return err
+					default:
+						statesTree = t
 
-				return nil
-			},
-			workerOwners,
-			workerUnmerged,
-			nil,
-			nil
-	}, func() error { // FIXME wait
-		defer func() {
-			_ = wctxCancel(nil)
-		}()
+						return nil
+					}
+				},
+			); err != nil {
+				return wctxCancel(err)
+			}
 
-		if _, _, err := waitOwners(); err != nil {
-			return wctxCancel(err)
-		}
+			// FIXME generate manifest
+			_, _ = opsTree, statesTree
 
-		var opsTree, statesTree *fixedtree.Tree
-
-		switch t, err := workerOpsTreeWait(nil); { // FIXME set fixedtree.GenerateNodesHashFunc
-		case err != nil:
-			return wctxCancel(err)
-		default:
-			opsTree = t
-		}
-
-		_, _ = opsTree, statesTree
-
-		// FIXME generate manifest
-
-		return nil
-	}
-
-	return nil
+			return nil
+		},
+		nil
 }
 
 func newManagerStartWorkers(
@@ -182,7 +220,8 @@ func newManagerStartWorkers(
 
 	var checkWorker dop5.CheckFailedWorkersFunc
 
-	switch w, err := dop5.NewFuncCheckFailedWorkers(uint64(len(opsWorkers)), opsShare, func(string) bool { return true }); {
+	switch w, err := dop5.NewFuncCheckFailedWorkers(
+		uint64(len(opsWorkers)), opsShare, func(string) bool { return true }); {
 	case err != nil:
 		return err
 	default:

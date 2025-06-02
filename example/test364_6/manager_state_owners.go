@@ -14,7 +14,7 @@ func newManagerStateOwners(
 	opsWorkers []string,
 	opsShare, statesShare, workersSize uint64,
 ) (
-	func(string, []string, []string) error,
+	dutil.In3ErrorFunc[string, []string, []string],
 	dop5.CheckFailedWorkersFunc,
 	dop5.CheckFailedWorkersFunc,
 	func() ([]string, []string, error),
@@ -22,7 +22,8 @@ func newManagerStateOwners(
 ) {
 	var checkOpsWorker dop5.CheckFailedWorkersFunc
 
-	switch w, err := dop5.NewFuncCheckFailedWorkers(uint64(len(opsWorkers)), opsShare, func(string) bool { return true }); {
+	switch w, err := dop5.NewFuncCheckFailedWorkers(
+		uint64(len(opsWorkers)), opsShare, func(string) bool { return true }); {
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:

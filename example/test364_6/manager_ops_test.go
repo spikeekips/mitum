@@ -419,7 +419,8 @@ func (t *testManagerUnmergedOps) TestEnough() {
 
 		go func() {
 			for worker := range slices.Values(workers) {
-				_ = workerUnmerged(worker, nil)
+				_, d := workerUnmerged(worker)
+				_ = d(nil)
 			}
 		}()
 
@@ -441,7 +442,8 @@ func (t *testManagerUnmergedOps) TestEnough() {
 
 		go func() {
 			for worker := range slices.Values(workers) {
-				t.IfErrPanicf(workerUnmerged(worker, nil), "unmerged: worker=%q", worker)
+				_, d := workerUnmerged(worker)
+				t.IfErrPanicf(d(nil), "unmerged: worker=%q", worker)
 			}
 		}()
 
@@ -469,9 +471,16 @@ func (t *testManagerUnmergedOps) TestEnough() {
 		)
 		t.NoError(err)
 
-		t.NoError(workerUnmerged(workers[0], nil))
-		t.NoError(workerUnmerged(workers[1], nil))
-		t.NoError(workerUnmerged(workers[2], unmerged))
+		_, d := workerUnmerged(workers[0])
+		t.NoError(d(nil))
+		_, d = workerUnmerged(workers[1])
+		t.NoError(d(nil))
+
+		u, d := workerUnmerged(workers[2])
+		for opindex, reason := range maps.All(unmerged) {
+			t.NoError(u(opindex, reason))
+		}
+		t.NoError(d(nil))
 
 		tr, err := wait(g)
 		t.NoError(err)
@@ -495,11 +504,14 @@ func (t *testManagerUnmergedOps) TestEnough() {
 		)
 		t.NoError(err)
 
-		t.NoError(workerUnmerged(workers[0], nil))
-		t.NoError(workerUnmerged(workers[1], nil))
-		t.NoError(workerUnmerged(workers[2], map[uint64]string{
-			1: "showme",
-		}))
+		_, d := workerUnmerged(workers[0])
+		t.NoError(d(nil))
+		_, d = workerUnmerged(workers[1])
+		t.NoError(d(nil))
+
+		u, d := workerUnmerged(workers[2])
+		t.NoError(u(1, "showme"))
+		t.NoError(d(nil))
 
 		tr, err := wait(g)
 		t.NoError(err)

@@ -3,7 +3,6 @@ package dop6
 import (
 	"context"
 	"iter"
-	"maps"
 	"slices"
 
 	"github.com/pkg/errors"
@@ -12,6 +11,8 @@ import (
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 )
+
+type managerWorkerUnmergedFunc = func(worker string) (mergerUnmergedFunc, dutil.InErrorFunc[error])
 
 func newManagerDistributeOps(
 	ctx context.Context,
@@ -56,7 +57,7 @@ func newManagerDistributeOps(
 		) error {
 			for worker, q := range seq {
 				if err := newJob(func(ctx context.Context) error {
-					err := managerDistributeOpsToWorkers(ctx, ophs, distribute, worker, q)
+					err := managerDistributeOpsToWorkers(ophs, distribute, worker, q)
 
 					if _, _, failed := checkWorker(worker, err); failed != nil {
 						return failed
@@ -76,7 +77,6 @@ func newManagerDistributeOps(
 }
 
 func managerDistributeOpsToWorkers(
-	ctx context.Context,
 	ophs [][2]util.Hash,
 	distribute newManagerDistributeOpsWorkerFunc,
 	worker string,
@@ -109,7 +109,7 @@ func newManagerUnmergedOps(
 	ophs [][2]util.Hash,
 	checkWorker dop5.CheckFailedWorkersFunc,
 ) (
-	dutil.In2ErrorFunc[string, map[uint64]string],
+	managerWorkerUnmergedFunc,
 	managerFixedTreeWaitFunc,
 	error,
 ) {
@@ -134,20 +134,8 @@ func newManagerUnmergedOps(
 		newJob, jobDone, jobWait = n, d, w
 	}
 
-	return func(worker string, unmerged map[uint64]string) error {
-			switch ok, enough, failed := checkWorker(worker, nil); {
-			case !ok:
-			case failed != nil:
-				return jobWait(failed)
-			default:
-				for opindex, reason := range maps.All(unmerged) {
-					switch {
-					case opindex >= opsSize:
-						return errors.Errorf("unknown opindex, %d", opindex)
-					case reason == "":
-						return errors.Errorf("empty reason, %d", opindex)
-					}
-
+	return func(worker string) (mergerUnmergedFunc, dutil.InErrorFunc[error]) {
+			return func(opindex uint64, reason string) error {
 					switch err := newJob(func(context.Context) error {
 						hs := ophs[opindex]
 
@@ -164,14 +152,20 @@ func newManagerUnmergedOps(
 					case !errors.Is(err, dutil.ErrJobWorkerDone):
 						return err
 					}
-				}
 
-				if enough {
-					jobDone()
-				}
-			}
+					return nil
+				},
+				func(err error) error {
+					switch ok, enough, failed := checkWorker(worker, err); {
+					case !ok:
+					case failed != nil:
+						return jobWait(failed)
+					case enough:
+						jobDone()
+					}
 
-			return nil
+					return nil
+				}
 		},
 		func(g fixedtree.GenerateNodesHashFunc) (*fixedtree.Tree, error) {
 			defer pool.Close()
@@ -183,7 +177,7 @@ func newManagerUnmergedOps(
 			nodes := make([]fixedtree.Node, len(ophs))
 
 			for i, hs := range slices.All(ophs) {
-				opindex := uint64(i)
+				opindex := dutil.SafeIntToUint64(i)
 
 				n, found := pool.Value(opindex)
 				if !found {
