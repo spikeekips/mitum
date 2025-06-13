@@ -74,34 +74,57 @@ func newCollectStateOwners(workersSize uint64) (
 	}
 
 	return func(subw string, affected []string) {
-			if subw != "" {
-				if len(affected) > 0 {
-					add(msubws, subw, affected)
-				}
+			add(msubws, subw, affected)
 
-				for worker := range slices.Values(affected) {
-					add(maffected, worker, []string{subw})
-				}
+			for worker := range slices.Values(affected) {
+				add(maffected, worker, []string{subw})
 			}
 		},
 		func(worker string) ([]string, []string) {
+			seq := func(m iter.Seq[string]) iter.Seq[string] {
+				return func(yield func(string) bool) {
+					for o := range m {
+						if o == "" {
+							continue
+						}
+
+						if !yield(o) {
+							return
+						}
+					}
+				}
+			}
+
 			var subs, affected []string
 
 			if i, found := maffected.Value(worker); found {
-				subs = slices.Collect(maps.Keys(i))
+				subs = slices.Collect(seq(maps.Keys(i)))
 				slices.Sort(subs)
 			}
 
 			if i, found := msubws.Value(worker); found {
-				affected = slices.Collect(maps.Keys(i))
+				affected = slices.Collect(seq(maps.Keys(i)))
 				slices.Sort(affected)
 			}
 
 			return subs, affected
 		},
 		func() ([]string, []string) {
-			return slices.Collect(maps.Keys(msubws.Map())),
-				slices.Collect(maps.Keys(maffected.Map()))
+			seq := func(m dutil.LockedMap[string, map[string]struct{}]) iter.Seq[string] {
+				return func(yield func(string) bool) {
+					for o := range m.Seq2 {
+						if o == "" {
+							continue
+						}
+
+						if !yield(o) {
+							return
+						}
+					}
+				}
+			}
+
+			return slices.Collect(seq(msubws)), slices.Collect(seq(maffected))
 		},
 		func() {
 			msubws.Close()
@@ -348,7 +371,7 @@ func newWorkerAssignSMVs(
 			}
 
 			var msub map[string]SMV
-			maffected := map[string][]SMV{}
+			var maffected map[string][]SMV
 
 			if subv != nil {
 				msub = map[string]SMV{}
@@ -361,6 +384,10 @@ func newWorkerAssignSMVs(
 
 			for v := range slices.Values(addvs) {
 				for worker := range slices.Values(getStateOwners(v.Key())) {
+					if maffected == nil {
+						maffected = map[string][]SMV{}
+					}
+
 					i := maffected[worker]
 					if i == nil {
 						i = make([]SMV, 0, len(addvs))
@@ -373,9 +400,13 @@ func newWorkerAssignSMVs(
 				}
 			}
 
-			affected := slices.Collect(maps.Keys(maffected))
-			for subw := range msub {
-				addOwner(subw, affected)
+			switch affected := slices.Collect(maps.Keys(maffected)); {
+			case len(msub) > 0:
+				for subw := range msub {
+					addOwner(subw, affected)
+				}
+			default:
+				addOwner("", affected)
 			}
 
 			return func(yield func(string, [2][]SMV) bool) {
@@ -385,8 +416,17 @@ func newWorkerAssignSMVs(
 					}()
 
 					for worker := range slices.Values(doneWorkers()) {
-						sub, affected := msub[worker], maffected[worker]
-						if !yield(worker, [2][]SMV{{sub}, affected}) {
+						var subvs, affected []SMV
+
+						if i, found := msub[worker]; found {
+							subvs = []SMV{i}
+						}
+
+						if i, found := maffected[worker]; found {
+							affected = i
+						}
+
+						if !yield(worker, [2][]SMV{subvs, affected}) {
 							return
 						}
 					}

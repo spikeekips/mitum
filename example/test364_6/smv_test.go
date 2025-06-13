@@ -48,7 +48,12 @@ func (t *testWorkerDistributeSMVs) newf(workers []string) (
 							m = map[uint64][2][]SMV{}
 						}
 
-						m[opindex] = [2][]SMV{{subv}, addvs}
+						var subvs []SMV
+						if subv != nil {
+							subvs = []SMV{subv}
+						}
+
+						m[opindex] = [2][]SMV{subvs, addvs}
 
 						return m, nil
 					})
@@ -281,6 +286,106 @@ func (t *testWorkerDistributeSMVs) TestDistribute() {
 				expectedOwners[worker],
 				[2][]string{subs, affected},
 			)
+		}
+	})
+
+	t.Run("no subs", func() {
+		local, workers := t.workers(1)
+
+		smvs := make([][2][]SMV, 3)
+		for i := range smvs {
+			smvs[i] = [2][]SMV{nil, t.randomMergeValues(1)}
+		}
+
+		distribute, getSmvs, getOwners := t.newf(workers)
+
+		add, done, wait, err := newWorkerDistributeSMVs(
+			context.Background(),
+			workers,
+			func(stateKey string) []string {
+				return []string{local}
+			},
+			distribute,
+		)
+		t.NoError(err)
+
+		for i, v := range slices.All(smvs) {
+			t.NoError(add(
+				uint64(i),
+				nil,
+				v[1],
+			))
+		}
+
+		done()
+		allOwners, delayed, err := wait(nil)
+		t.NoError(err)
+
+		asubs, aaffected := allOwners()
+		t.Empty(asubs)
+		t.Equal([]string{local}, aaffected)
+
+		t.NoError(delayed())
+
+		for worker := range slices.Values(workers) {
+			csmvs := getSmvs(worker)
+			t.Equal(len(smvs), len(csmvs))
+
+			for opindex, vs := range maps.All(csmvs) {
+				t.Equal(smvs[opindex], vs)
+			}
+
+			subs, affected := getOwners(worker)
+			t.Empty(subs)
+			t.Empty(affected)
+		}
+	})
+
+	t.Run("no adds", func() {
+		local, workers := t.workers(1)
+
+		smvs := make([][2][]SMV, 3)
+		for i := range smvs {
+			smvs[i] = [2][]SMV{{t.newMergeValue(base.NewDummyPublickey("p0"), -1)}, nil}
+		}
+
+		distribute, getSmvs, getOwners := t.newf(workers)
+
+		add, done, wait, err := newWorkerDistributeSMVs(
+			context.Background(),
+			workers,
+			func(stateKey string) []string {
+				return []string{local}
+			},
+			distribute,
+		)
+		t.NoError(err)
+
+		for i, v := range slices.All(smvs) {
+			t.NoError(add(uint64(i), v[0][0], nil))
+		}
+
+		done()
+		allOwners, delayed, err := wait(nil)
+		t.NoError(err)
+
+		asubs, aaffected := allOwners()
+		t.Equal([]string{local}, asubs)
+		t.Empty(aaffected)
+
+		t.NoError(delayed())
+
+		for worker := range slices.Values(workers) {
+			csmvs := getSmvs(worker)
+			t.Equal(len(smvs), len(csmvs))
+
+			for opindex, vs := range maps.All(csmvs) {
+				t.Equal(smvs[opindex], vs)
+			}
+
+			subs, affected := getOwners(worker)
+			t.Empty(subs)
+			t.Empty(affected)
 		}
 	})
 }
