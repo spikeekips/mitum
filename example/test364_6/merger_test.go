@@ -182,6 +182,28 @@ func (t *baseMergerSuite) randomFact(balance int64) *AccountFact {
 	)
 }
 
+func (t *baseMergerSuite) randomFacts(balance, n int64) []OperationFact {
+	o := make([]OperationFact, n)
+	for i := range n {
+		o[i] = t.randomFact(balance)
+	}
+
+	return o
+}
+
+func (t *baseMergerSuite) randomAddFacts(balance uint64, n int64) []OperationFact {
+	o := make([]OperationFact, n)
+	for i := range n {
+		o[i] = t.newFact(
+			nil,
+			base.NewDummyPublickey(util.UUID().String()),
+			int64(balance),
+		)
+	}
+
+	return o
+}
+
 func (t *baseMergerSuite) randomOphs(n int) [][2]util.Hash {
 	o := make([][2]util.Hash, n)
 	for i := range n {
@@ -224,6 +246,46 @@ func (t *testMerger) TestEmpty() {
 	unmergeDone()
 
 	t.NoError(wait(nil))
+}
+
+func (t *testMerger) TestMerge() {
+	t.Run("multiple smvs", func() {
+		pub := base.NewDummyPublickey("p1")
+		subv := t.newMergeValue(pub, -1)
+		addvs := t.randomMergeValues(3)
+
+		newGetSVM := t.newGetSVM(nil)
+		makeSVM, getSVM, closeSVMPool, err := newGetSVM(1 << 9)
+		t.NoError(err)
+		defer closeSVMPool()
+
+		merge, mergeDone, _, unmergeDone, wait, err := newMerger(
+			context.Background(),
+			1,
+			makeSVM,
+			func(context.Context) (mergerUnmergedFunc, func()) {
+				return func(opindex uint64, reason string) error { return nil }, func() {}
+			},
+		)
+		t.NoError(err)
+
+		err = merge(0, subv, addvs)
+		t.NoError(err)
+
+		mergeDone()
+		unmergeDone()
+
+		t.NoError(wait(
+			func(c collectOpsSeqFunc) error {
+				merged, mergedOps := t.closeMergers(c, getSVM)
+
+				t.Empty(merged)
+				t.Empty(mergedOps)
+
+				return nil
+			},
+		))
+	})
 }
 
 func (t *testMerger) TestMerger() {

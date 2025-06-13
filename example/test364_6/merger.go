@@ -189,40 +189,36 @@ func newXMergeFuncs(
 	}
 
 	unmergeJobAfterSubMerge := func(opindex, next uint64, addvs []SMV) error {
-		return newJob(func(context.Context) error {
-			var uaddvs []SMV
+		var uaddvs []SMV
 
-			switch next {
-			case opindex:
-				uaddvs = addvs
+		switch next {
+		case opindex:
+			uaddvs = addvs
+		default:
+			switch _, a, found := getSMVs(next); {
+			case !found:
+				return errors.Errorf("unknown next, %d", next)
 			default:
-				switch _, a, found := getSMVs(next); {
-				case !found:
-					return errors.Errorf("unknown next, %d", next)
-				default:
-					uaddvs = a
-				}
+				uaddvs = a
 			}
+		}
 
-			switch unmergeLock(next) {
-			case -1:
-				countJob(0)
-			case 1:
-				countJob(uint64(len(uaddvs)))
+		switch unmergeLock(next) {
+		case -1:
+			countJob(0)
+		case 1:
+			countJob(uint64(len(uaddvs)))
 
-				for addv := range slices.Values(uaddvs) {
-					if err := newJob(func(context.Context) error {
-						defer endCountJob()
-
-						return unmergeValue(next, addv)
-					}); err != nil {
-						return err
-					}
+			for addv := range slices.Values(uaddvs) {
+				if err := unmergeValue(next, addv); err != nil {
+					return err
 				}
-			}
 
-			return nil
-		})
+				endCountJob()
+			}
+		}
+
+		return nil
 	}
 
 	subMergeJob := func(opindex uint64, subv SMV, addvs []SMV, ignored bool) error {
@@ -274,6 +270,27 @@ func newXMergeFuncs(
 		return nil
 	}
 
+	unmergeJob := func(opindex uint64) error {
+		if !ignoreLock(opindex) {
+			return nil
+		}
+
+		switch _, addvs, found := getSMVs(opindex); {
+		case !found:
+			return errors.Errorf("wrong unmerge(ignore), %d", opindex)
+		default:
+			return newJob(func(context.Context) error {
+				for addv := range slices.Values(addvs) {
+					if err := unmergeValue(opindex, addv); err != nil {
+						return err
+					}
+				}
+
+				return nil
+			})
+		}
+	}
+
 	return func(opindex uint64, subv SMV, addvs []SMV) error {
 			var ignored bool
 
@@ -301,28 +318,7 @@ func newXMergeFuncs(
 		func() {
 			_, _ = doneInitialCount()
 		},
-		func(opindex uint64) error {
-			if !ignoreLock(opindex) {
-				return nil
-			}
-
-			switch _, addvs, found := getSMVs(opindex); {
-			case !found:
-				return errors.Errorf("wrong unmerge(ignore), %d", opindex)
-			default:
-				for addv := range slices.Values(addvs) {
-					if err := newJob(func(context.Context) error {
-						// defer unmergeCountJob()
-
-						return unmergeValue(opindex, addv)
-					}); err != nil {
-						return err
-					}
-				}
-
-				return nil
-			}
-		},
+		unmergeJob,
 		func() {
 			_ = doneInitialUnmergeCountJob()
 		},
