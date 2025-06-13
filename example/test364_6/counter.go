@@ -6,8 +6,8 @@ import (
 )
 
 func newXMergeJobCounter(
-	mergeDone func(),
-	jobDone func(),
+	mergeDonef func(),
+	jobDonef func(),
 ) (
 	func(), /* count initial merge */
 	func() (uint64, bool), /* initial merge count done */
@@ -18,6 +18,9 @@ func newXMergeJobCounter(
 	var l sync.Mutex
 	var initialMergeDone, initialUnmergeDone bool
 	var im, cm, ne, bn, cn uint64
+
+	mergeDone := sync.OnceFunc(mergeDonef)
+	jobDone := sync.OnceFunc(jobDonef)
 
 	checkMergeJobDone := func() bool {
 		switch {
