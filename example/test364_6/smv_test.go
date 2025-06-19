@@ -85,12 +85,14 @@ func (t *testWorkerDistributeSMVs) TestDistribute() {
 	t.Run("empty add", func() {
 		_, workers := t.workers(3)
 
+		getFactStateOwners, _ := newDefaultGetFactStateOwners(workers, 1, 1)
+
 		distribute, getSmvs, getOwners := t.newf(workers)
 
 		_, done, wait, err := newWorkerDistributeSMVs(
 			context.Background(),
 			workers,
-			NewFuncGetStateOwnersMurmur3(workers, 1),
+			getFactStateOwners,
 			distribute,
 		)
 		t.NoError(err)
@@ -128,19 +130,20 @@ func (t *testWorkerDistributeSMVs) TestDistribute() {
 		add, done, wait, err := newWorkerDistributeSMVs(
 			context.Background(),
 			workers,
-			func(stateKey string) []string {
-				return []string{local}
+			func(uint64, SMV, []SMV) ([]string, [][]string) {
+				return []string{local}, [][]string{{local}}
 			},
 			distribute,
 		)
 		t.NoError(err)
 
 		for i, v := range slices.All(smvs) {
-			t.NoError(add(
+			_, _, err := add(
 				uint64(i),
 				v[0][0],
 				v[1],
-			))
+			)
+			t.NoError(err)
 		}
 
 		done()
@@ -188,21 +191,39 @@ func (t *testWorkerDistributeSMVs) TestDistribute() {
 			smvs[i] = [2][]SMV{{subv}, {addv}}
 		}
 
-		getStateOwners := func(stateKey string) []string {
-			i, found := owners[stateKey]
+		getFactStateOwners := func(opindex uint64, subv SMV, addvs []SMV) ([]string, [][]string) {
+			var s []string
+			var a [][]string
 
-			if !found {
-				panic(fmt.Sprintf("unknown state key, %q", stateKey))
+			if subv != nil {
+				o, found := owners[subv.Key()]
+				if !found {
+					panic(fmt.Sprintf("unknown state key, %q", subv.Key()))
+				}
+
+				s = []string{o}
 			}
 
-			return []string{i}
+			if len(addvs) > 0 {
+				a = make([][]string, len(addvs))
+				for i, v := range slices.All(addvs) {
+					o, found := owners[v.Key()]
+					if !found {
+						panic(fmt.Sprintf("unknown state key, %q", subv.Key()))
+					}
+
+					a[i] = []string{o}
+				}
+			}
+
+			return s, a
 		}
 
 		expectedSMVs := map[string]map[uint64][2][]SMV{}
 		expectedOwners := map[string][2][]string{}
 		var expectedAllOwners [2][]string
 		{
-			add, getOwners, allOwners, c, err := newWorkerAssignSMVs(uint64(len(workers)), getStateOwners)
+			add, getOwners, allOwners, c, err := newWorkerAssignSMVs(uint64(len(workers)), getFactStateOwners)
 			t.NoError(err)
 			defer c()
 
@@ -214,7 +235,7 @@ func (t *testWorkerDistributeSMVs) TestDistribute() {
 					subv = vs[0][0]
 				}
 
-				seq, err := add(opindex, subv, vs[1])
+				_, _, seq, err := add(opindex, subv, vs[1])
 				t.NoError(err)
 
 				for worker, wvs := range seq {
@@ -246,17 +267,18 @@ func (t *testWorkerDistributeSMVs) TestDistribute() {
 		add, done, wait, err := newWorkerDistributeSMVs(
 			context.Background(),
 			workers,
-			getStateOwners,
+			getFactStateOwners,
 			distribute,
 		)
 		t.NoError(err)
 
 		for i, v := range slices.All(smvs) {
-			t.NoError(add(
+			_, _, err := add(
 				uint64(i),
 				v[0][0],
 				v[1],
-			))
+			)
+			t.NoError(err)
 		}
 
 		done()
@@ -302,19 +324,20 @@ func (t *testWorkerDistributeSMVs) TestDistribute() {
 		add, done, wait, err := newWorkerDistributeSMVs(
 			context.Background(),
 			workers,
-			func(stateKey string) []string {
-				return []string{local}
+			func(uint64, SMV, []SMV) ([]string, [][]string) {
+				return nil, [][]string{{local}}
 			},
 			distribute,
 		)
 		t.NoError(err)
 
 		for i, v := range slices.All(smvs) {
-			t.NoError(add(
+			_, _, err := add(
 				uint64(i),
 				nil,
 				v[1],
-			))
+			)
+			t.NoError(err)
 		}
 
 		done()
@@ -354,15 +377,16 @@ func (t *testWorkerDistributeSMVs) TestDistribute() {
 		add, done, wait, err := newWorkerDistributeSMVs(
 			context.Background(),
 			workers,
-			func(stateKey string) []string {
-				return []string{local}
+			func(uint64, SMV, []SMV) ([]string, [][]string) {
+				return []string{local}, nil
 			},
 			distribute,
 		)
 		t.NoError(err)
 
 		for i, v := range slices.All(smvs) {
-			t.NoError(add(uint64(i), v[0][0], nil))
+			_, _, err := add(uint64(i), v[0][0], nil)
+			t.NoError(err)
 		}
 
 		done()

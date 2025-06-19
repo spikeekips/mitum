@@ -21,8 +21,9 @@ type (
 		func(),
 		error,
 	)
-	GetStateOwnersFunc   = func(stateKey string) []string
-	addStateOwnerSetFunc = func(subw string, affected []string)
+	GetStateOwnersFunc     = func(stateKey string) []string
+	getFactStateOwnersFunc = func(opindex uint64, subv SMV, addvs []SMV) (subs []string, affected [][]string)
+	addStateOwnerSetFunc   = func(subw string, affected []string)
 )
 
 func newSVMFuncSet() (

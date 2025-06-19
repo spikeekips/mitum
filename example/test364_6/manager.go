@@ -98,7 +98,6 @@ func NewManager(
 		return nil, nil, nil, err
 	default:
 		workerStates, workerStatesTreeWait = s, w
-
 	}
 
 	return func(worker string, err error) error { // NOTE receive worker errors

@@ -15,7 +15,7 @@ type (
 	addStateOwnersFunc              = func(owners []string)
 	workerMergerReadyStateOwners    = func(subs, affected []string) error
 	workerMergerWorkerMergeSMVsFunc = func(worker string, subs, affected []string, workerErrs error) error
-	workerMergerUnmergedFunc        = func(worker string, workerErrs error) error
+	workerMergerUnmergedFunc        = func(worker string, workerErr error) error
 )
 
 func newFuncWorkerMerger(
@@ -109,7 +109,17 @@ func newFuncWorkerMerger(
 				}
 			}
 
-			return iferrCancel(checkMerged(worker, workerErr))
+			if err := checkMerged(worker, workerErr); err != nil {
+				return wctxCancel(err)
+			}
+
+			if worker == local {
+				if err := checkUnmerged(worker, workerErr); err != nil {
+					return wctxCancel(err)
+				}
+			}
+
+			return nil
 		},
 		func(worker string, workerErr error) error {
 			return iferrCancel(checkUnmerged(worker, workerErr))
@@ -185,10 +195,8 @@ func newFuncCollectStateOwners( //nolint:funlen
 	}
 
 	ready := func(subs []string) (dutil.ErrorFunc, error) {
-		defer clear(errs)
-
 		if len(subs) < 1 {
-			return func() error { //nolint:unparam
+			return func() error {
 					unmregeReady()
 
 					return nil
@@ -212,6 +220,8 @@ func newFuncCollectStateOwners( //nolint:funlen
 		}
 
 		return func() error {
+				defer clear(errs)
+
 				for w, err := range errs {
 					if err := cw(w, err); err != nil {
 						return err

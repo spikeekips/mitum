@@ -217,6 +217,8 @@ func (t *testWorkerMerger) Test1Worker() {
 	})
 
 	t.Run("unmerge error", func() {
+		local, workers := t.workers(2)
+
 		ctx, ctxCancel := t.Ctx()
 		defer ctxCancel(nil)
 
@@ -229,8 +231,9 @@ func (t *testWorkerMerger) Test1Worker() {
 		)
 		t.NoError(err)
 
-		t.NoError(merge(local, []string{local}, nil, nil))
-		err = unmerge(local, errors.New("showme"))
+		t.NoError(merge(local, workers, workers, nil))
+		t.NoError(merge(workers[1], workers, workers, nil))
+		err = unmerge(workers[1], errors.New("showme"))
 		t.ErrorIs(err, dop5.ErrWorkersFailed)
 
 		err = wait()
@@ -239,7 +242,7 @@ func (t *testWorkerMerger) Test1Worker() {
 		t.True(mergedDone())
 		t.False(unmergedDone())
 
-		t.Equal([2][]string{{local}, nil}, owners())
+		t.Equal([2][]string{workers, workers}, owners())
 	})
 
 	t.Run("manager done", func() {
@@ -334,7 +337,7 @@ func (t *testWorkerMerger) Test3Worker() {
 				local,
 				workers, workers,
 				2, // 2 enough
-				1,
+				2,
 				nil, nil, nil,
 			)
 			t.NoError(err)
@@ -443,11 +446,9 @@ func (t *testWorkerMerger) Test3Worker() {
 				t.NoError(merge(worker, workers, nil, nil))
 			}
 
-			for worker := range slices.Values(workers[1:]) {
-				t.NoError(unmerge(worker, nil))
-			}
+			t.NoError(unmerge(workers[1], nil))
 
-			err = unmerge(workers[0], errors.New("showme"))
+			err = unmerge(workers[2], errors.New("showme"))
 			t.ErrorIs(err, dop5.ErrWorkersFailed)
 
 			err = wait()

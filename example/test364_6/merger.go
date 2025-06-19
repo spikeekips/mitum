@@ -3,6 +3,7 @@ package dop6
 import (
 	"context"
 	"slices"
+	"sync/atomic"
 
 	"github.com/pkg/errors"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
@@ -12,7 +13,7 @@ type (
 	mergerUnmergedFunc       = func(uint64, string) error
 	mergerReportUnmergedFunc = func(context.Context) (mergerUnmergedFunc, func())
 	mergerMergeSMVsFunc      = func(uint64, SMV, []SMV) error
-	mergerWaitResultFunc     = dutil.InErrorFunc[collectOpsSeqFunc]
+	mergerWaitResultFunc     = dutil.In2ErrorFunc[uint64, collectOpsSeqFunc]
 	mergerWaitFunc           = func(mergerWaitResultFunc) error
 )
 
@@ -25,7 +26,7 @@ func newMerger(
 	ctx context.Context,
 	approxSize uint64,
 	makeSVM MergeSVMFunc,
-	reportUnmergeds mergerReportUnmergedFunc,
+	reportUnmerged mergerReportUnmergedFunc,
 ) (
 	mergerMergeSMVsFunc,
 	func(),
@@ -88,7 +89,7 @@ func newMerger(
 		makeSVM,
 		collectOpsMerge,
 		collectOpsUnmerge,
-		reportUnmergeds,
+		reportUnmerged,
 		newJob,
 		jobDone,
 	); {
@@ -100,10 +101,14 @@ func newMerger(
 
 	iferrCancel := dutil.NewIfErrErrorInFunc(wctxCancel)
 
+	var inserted uint64
+
 	return func(opindex uint64, subv SMV, addvs []SMV) error {
 			if !setSMVs(opindex, subv, addvs) {
 				return errors.Errorf("known, %d", opindex)
 			}
+
+			_ = atomic.AddUint64(&inserted, 1)
 
 			return iferrCancel(merge(opindex, subv, addvs))
 		},
@@ -125,7 +130,7 @@ func newMerger(
 			}
 
 			if result != nil {
-				if err := result(collectOpsSeq); err != nil {
+				if err := result(atomic.LoadUint64(&inserted), collectOpsSeq); err != nil {
 					return err
 				}
 			}
@@ -142,7 +147,7 @@ func newXMergeFuncs(
 	makeSVM MergeSVMFunc,
 	collectOpsMerge func(uint64, string, string) bool,
 	collectOpsUnmerge func(uint64, string, string) bool,
-	reportUnmergeds mergerReportUnmergedFunc,
+	reportUnmergedf mergerReportUnmergedFunc,
 	newJob dutil.JobWorkerNewJobFunc,
 	jobDone func(),
 ) (
@@ -153,10 +158,18 @@ func newXMergeFuncs(
 	func(), /* close */
 	error,
 ) {
-	reportUnmerged, reportUnmergedDone := reportUnmergeds(ctx)
+	var foundSubvs atomic.Value
+
+	reportUnmerged, reportUnmergedDone := reportUnmergedf(ctx)
 
 	initialCountJob, doneInitialCount, countJob, endCountJob, doneInitialUnmergeCountJob := newXMergeJobCounter(
-		reportUnmergedDone, jobDone)
+		func() {
+			if i := foundSubvs.Load(); i != nil {
+				reportUnmergedDone()
+			}
+		},
+		jobDone,
+	)
 
 	var mergeLock func(uint64) (bool, bool)
 	var unmergeLock func(uint64) int
@@ -302,6 +315,8 @@ func newXMergeFuncs(
 			}
 
 			if subv != nil {
+				_ = foundSubvs.CompareAndSwap(nil, true)
+
 				if err := subMergeJob(opindex, subv, addvs, ignored); err != nil {
 					return err
 				}

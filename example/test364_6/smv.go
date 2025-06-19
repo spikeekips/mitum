@@ -8,12 +8,16 @@ import (
 
 	"github.com/spikeekips/mitum/base"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
+	"github.com/spikeekips/mitum/util"
 )
 
-type NewWorkerDistributeSMVsFunc = func(_ context.Context, worker string) (
-	mergerMergeSMVsFunc,
-	workerWorkerStateOwnersFunc,
-	error,
+type (
+	workerDistributeSMVsFunc    = func(uint64, SMV, []SMV) (subs []string, affected []string, _ error)
+	NewWorkerDistributeSMVsFunc = func(_ context.Context, worker string) (
+		mergerMergeSMVsFunc,
+		workerWorkerStateOwnersFunc,
+		error,
+	)
 )
 
 func isEqualSMV(a, b SMV) bool {
@@ -136,22 +140,22 @@ func newCollectStateOwners(workersSize uint64) (
 func newWorkerDistributeSMVs(
 	ctx context.Context,
 	workers []string,
-	getStateOwners GetStateOwnersFunc,
+	getFactStateOwners getFactStateOwnersFunc,
 	newf NewWorkerDistributeSMVsFunc,
 ) (
-	mergerMergeSMVsFunc,
+	workerDistributeSMVsFunc,
 	func(),
 	func(error) (func() ([]string, []string), dutil.ErrorFunc, error),
 	error,
 ) {
 	workersSize := uint64(len(workers))
 
-	var add func(uint64, SMV, []SMV) (iter.Seq2[string, [2][]SMV], error)
+	var add func(uint64, SMV, []SMV) ([]string, []string, iter.Seq2[string, [2][]SMV], error)
 	var getOwners func(string) ([]string, []string)
 	var allOwners func() ([]string, []string)
 	var closeCollectOwners func()
 
-	switch a, g, o, c, err := newWorkerAssignSMVs(workersSize, getStateOwners); {
+	switch a, g, o, c, err := newWorkerAssignSMVs(workersSize, getFactStateOwners); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -240,14 +244,15 @@ func newWorkerDistributeSMVs(
 		return send(subs, affected)
 	}
 
-	return func(opindex uint64, subv SMV, addvs []SMV) error {
+	return func(opindex uint64, subv SMV, addvs []SMV) ([]string, []string, error) {
+			var subs, affected []string
 			var seq iter.Seq2[string, [2][]SMV]
 
-			switch s, err := add(opindex, subv, addvs); {
+			switch b, a, s, err := add(opindex, subv, addvs); {
 			case err != nil:
-				return err
+				return nil, nil, err
 			default:
-				seq = s
+				subs, affected, seq = b, a, s
 			}
 
 			for worker, vs := range seq {
@@ -261,11 +266,11 @@ func newWorkerDistributeSMVs(
 
 					return nil
 				}); err != nil {
-					return err
+					return nil, nil, err
 				}
 			}
 
-			return nil
+			return subs, affected, nil
 		},
 		jobDone,
 		func(err error) (func() ([]string, []string), dutil.ErrorFunc, error) {
@@ -333,9 +338,10 @@ func NewFuncGetStateOwnersMurmur3(workers []string, share uint64) GetStateOwners
 
 func newWorkerAssignSMVs(
 	workersSize uint64,
-	getStateOwners GetStateOwnersFunc,
+	getFactStateOwners getFactStateOwnersFunc,
 ) (
 	func(uint64, SMV, []SMV) (
+		[]string, []string,
 		iter.Seq2[string /* worker */, [2][]SMV],
 		error,
 	),
@@ -357,6 +363,7 @@ func newWorkerAssignSMVs(
 	}
 
 	return func(opindex uint64, subv SMV, addvs []SMV) (
+			[]string, []string,
 			iter.Seq2[string, [2][]SMV],
 			error,
 		) {
@@ -365,37 +372,39 @@ func newWorkerAssignSMVs(
 
 			switch a, d, err := dutil.NewComparableUniqueAppendSlice[string](workersSize, 0); {
 			case err != nil:
-				return nil, err
+				return nil, nil, nil, err
 			default:
 				addWorker, doneWorkers = a, d
 			}
 
+			subs, affected := getFactStateOwners(opindex, subv, addvs)
+
 			var msub map[string]SMV
 			var maffected map[string][]SMV
 
-			if subv != nil {
+			if len(subs) > 0 {
 				msub = map[string]SMV{}
 
-				for worker := range slices.Values(getStateOwners(subv.Key())) {
+				for worker := range slices.Values(subs) {
 					msub[worker] = subv
 					_, _ = addWorker(worker)
 				}
 			}
 
-			for v := range slices.Values(addvs) {
-				for worker := range slices.Values(getStateOwners(v.Key())) {
+			for i, a := range slices.All(affected) {
+				for worker := range slices.Values(a) {
 					if maffected == nil {
 						maffected = map[string][]SMV{}
 					}
 
-					i := maffected[worker]
-					if i == nil {
-						i = make([]SMV, 0, len(addvs))
+					o := maffected[worker]
+					if o == nil {
+						o = make([]SMV, 0, len(addvs))
 					}
 
-					i = append(i, v)
+					o = append(o, addvs[i])
 
-					maffected[worker] = i
+					maffected[worker] = o
 					_, _ = addWorker(worker)
 				}
 			}
@@ -409,7 +418,10 @@ func newWorkerAssignSMVs(
 				addOwner("", affected)
 			}
 
-			return func(yield func(string, [2][]SMV) bool) {
+			caffected := slices.Concat(affected...)
+			slices.Sort(caffected)
+
+			return subs, slices.Compact(caffected), func(yield func(string, [2][]SMV) bool) {
 					defer func() {
 						clear(msub)
 						clear(maffected)
@@ -437,4 +449,53 @@ func newWorkerAssignSMVs(
 		allOwners,
 		closeCollectOwners,
 		nil
+}
+
+func newFuncGetFactStateOwners(
+	f GetStateOwnersFunc,
+	cacheSize int,
+) (getFactStateOwnersFunc, func()) {
+	cache := util.NewLRUGCache[uint64, [2]any](cacheSize)
+
+	return func(opindex uint64, subv SMV, addvs []SMV) ([]string, [][]string) {
+			var s []string
+			var a [][]string
+
+			if i, found := cache.Get(opindex); found {
+				if i[0] != nil {
+					s = i[0].([]string)
+				}
+
+				if i[1] != nil {
+					a = i[1].([][]string)
+				}
+
+				return s, a
+			}
+
+			if subv != nil {
+				s = f(subv.Key())
+			}
+
+			if len(addvs) > 0 {
+				a = make([][]string, len(addvs))
+
+				for i, v := range slices.All(addvs) {
+					a[i] = f(v.Key())
+				}
+			}
+
+			cache.Set(opindex, [2]any{s, a}, 0)
+
+			return s, a
+		},
+		cache.Close
+}
+
+func newDefaultGetFactStateOwners(
+	workers []string,
+	statesShare uint64,
+	cacheSize int,
+) (getFactStateOwnersFunc, func()) {
+	return newFuncGetFactStateOwners(NewFuncGetStateOwnersMurmur3(workers, statesShare), cacheSize)
 }

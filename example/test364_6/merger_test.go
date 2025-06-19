@@ -276,9 +276,10 @@ func (t *testMerger) TestMerge() {
 		unmergeDone()
 
 		t.NoError(wait(
-			func(c collectOpsSeqFunc) error {
+			func(inserted uint64, c collectOpsSeqFunc) error {
 				merged, mergedOps := t.closeMergers(c, getSVM)
 
+				t.EqualValues(1, inserted)
 				t.Empty(merged)
 				t.Empty(mergedOps)
 
@@ -369,7 +370,7 @@ func (t *testMerger) TestMerger() {
 		mergeDone()
 
 		if err := wait(
-			func(c collectOpsSeqFunc) error {
+			func(_ uint64, c collectOpsSeqFunc) error {
 				merged, mergedOps := t.closeMergers(c, getSVM)
 
 				if !t.Equal(expectedMerged, merged) {
@@ -487,7 +488,7 @@ func runBenchmarkMerger(n int) (func(int), func()) {
 			mergeDone()
 			unmergeDone()
 
-			if err := wait(func(collectOpsSeqFunc) error { return nil }); err != nil {
+			if err := wait(func(uint64, collectOpsSeqFunc) error { return nil }); err != nil {
 				panic(err)
 			}
 		},
