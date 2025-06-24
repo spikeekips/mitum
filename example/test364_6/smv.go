@@ -162,16 +162,7 @@ func newWorkerDistributeSMVs(
 		add, getOwners, allOwners, closeCollectOwners = a, g, o, c
 	}
 
-	var newJob dutil.JobWorkerNewJobFunc
-	var jobDone func()
-	var jobWait dutil.InErrorFunc[error]
-
-	switch n, d, w, err := dutil.NewFuncJobWorker(ctx, dutil.SafeUint64ToInt64(workersSize)); {
-	case err != nil:
-		return nil, nil, nil, err
-	default:
-		newJob, jobDone, jobWait = n, d, w
-	}
+	newJob, jobDone, jobWait := NewFuncJobWorker(ctx, dutil.SafeUint64ToInt64(workersSize))
 
 	var sendPool dutil.LockedMap[string, [3]any]
 
@@ -288,16 +279,7 @@ func newWorkerDistributeSMVs(
 						closeCollectOwners()
 					}()
 
-					var cnewJob dutil.JobWorkerNewJobFunc
-					var cjobDone func()
-					var cjobWait dutil.InErrorFunc[error]
-
-					switch n, d, w, err := dutil.NewFuncJobWorker(ctx, dutil.SafeUint64ToInt64(workersSize)); {
-					case err != nil:
-						return err
-					default:
-						cnewJob, cjobDone, cjobWait = n, d, w
-					}
+					cnewJob, cjobDone, cjobWait := NewFuncJobWorker(ctx, dutil.SafeUint64ToInt64(workersSize))
 
 					for worker := range slices.Values(workers) {
 						if err := cnewJob(func(context.Context) error {

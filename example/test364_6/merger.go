@@ -43,16 +43,7 @@ func newMerger(
 		semSize, poolSize = MergerMinSemSize, MergerMinPoolSize
 	}
 
-	var newJob dutil.JobWorkerNewJobFunc
-	var jobDone func()
-	var jobWait dutil.InErrorFunc[error]
-
-	switch n, j, w, err := dutil.NewFuncJobWorker(wctx, semSize); {
-	case err != nil:
-		return nil, nil, nil, nil, nil, err
-	default:
-		newJob, jobDone, jobWait = n, j, w
-	}
+	newJob, jobDone, jobWait := NewFuncJobWorker(wctx, semSize)
 
 	var setSMVs func(uint64, SMV, []SMV) bool
 	var getSMVs func(uint64) (SMV, []SMV, bool)

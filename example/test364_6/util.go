@@ -1,16 +1,50 @@
 package dop6
 
 import (
+	"context"
 	"iter"
 	"maps"
 	"math"
 	"slices"
 
 	dop5 "github.com/spikeekips/mitum/example/test364_5"
+	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 )
 
-type opsWorkersItemsSeq = iter.Seq2[string /* worker */, func() (uint64, iter.Seq[uint64 /* opindex */])]
+func FuncsJobWorker(ctx context.Context, fs ...dutil.InErrorFunc[context.Context]) error {
+	if len(fs) < 1 {
+		return nil
+	}
+
+	return dutil.FuncsJobWorker(ctx, fs...)
+}
+
+func NewFuncJobWorker(ctx context.Context, semSize int64) (
+	dutil.JobWorkerNewJobFunc,
+	func(),
+	dutil.InErrorFunc[error],
+) {
+	n, d, w, err := dutil.NewFuncJobWorker(ctx, max(semSize, 1))
+	if err != nil {
+		panic(err)
+	}
+
+	return n, d, w
+}
+
+func NewFuncErrJobWorker(ctx context.Context, semSize int64, errf dutil.InErrorFunc[error]) (
+	dutil.JobWorkerNewJobFunc,
+	func(),
+	dutil.InErrorFunc[error],
+) {
+	n, d, w, err := dutil.NewFuncErrJobWorker(ctx, max(semSize, 1), errf)
+	if err != nil {
+		panic(err)
+	}
+
+	return n, d, w
+}
 
 func newOpsWorkersNItems(workers, share, items uint64) (
 	uint64,
@@ -49,6 +83,8 @@ func newOpsWorkersNItems(workers, share, items uint64) (
 		}
 	}
 }
+
+type opsWorkersItemsSeq = iter.Seq2[string /* worker */, func() (uint64, iter.Seq[uint64 /* opindex */])]
 
 func newOpsWorkersItems(workers []string, share, items uint64) (
 	[]string,

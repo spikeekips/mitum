@@ -374,6 +374,31 @@ func (t *testJobWorker) TestCancelBeforeRun() {
 }
 
 func (t *testJobWorker) TestDone() {
+	t.Run("NewJob() after context canceled", func() {
+		ctx, cancel := t.Ctx()
+
+		newJob, jobDone, wait, _ := NewFuncJobWorker(ctx, 3)
+
+		jobdonech := make(chan struct{}, 1)
+		t.NoError(newJob(func(context.Context) error {
+			jobdonech <- struct{}{}
+
+			return nil
+		}))
+		<-jobdonech
+
+		jobDone()
+
+		cancel(nil)
+
+		err := newJob(func(context.Context) error { return nil })
+		t.ErrorIs(err, context.Canceled)
+		t.NotErrorIs(err, ErrJobWorkerDone)
+
+		err = wait(nil)
+		t.ErrorIs(err, context.Canceled)
+	})
+
 	t.Run("NewJob() after Done()", func() {
 		newJob, jobDone, wait, _ := NewFuncJobWorker(context.Background(), 3)
 

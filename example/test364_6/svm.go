@@ -105,16 +105,7 @@ func closeSVMs(
 		return nil
 	}
 
-	var newJob dutil.JobWorkerNewJobFunc
-	var jobDone func()
-	var jobWait dutil.InErrorFunc[error]
-
-	switch n, d, w, err := dutil.NewFuncJobWorker(ctx, int64(size)); {
-	case err != nil:
-		return err
-	default:
-		newJob, jobDone, jobWait = n, d, w
-	}
+	newJob, jobDone, jobWait := NewFuncJobWorker(ctx, int64(size))
 
 	for stateKey, ops := range seq {
 		if err := newJob(func(ctx context.Context) error {

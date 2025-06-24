@@ -80,14 +80,24 @@ func NewFuncBaseJobWorker(
 	})
 
 	return func(c InErrorFunc[context.Context]) error {
-			switch err := newJobf(c); {
-			case err != nil && atomic.LoadInt64(&done) == 1:
-				return ErrJobWorkerDone
-			case err != nil:
-				return wctxCancel(err)
-			default:
-				return nil
+			err := newJobf(c)
+
+			if errors.Is(err, context.Canceled) {
+				switch {
+				case wctx.Err() != nil:
+					return errf(err)
+				case atomic.LoadInt64(&done) == 1:
+					return errf(ErrJobWorkerDone)
+				default:
+					return wctxCancel(err)
+				}
 			}
+
+			if err != nil {
+				return wctxCancel(err)
+			}
+
+			return nil
 		},
 		func() {
 			if atomic.CompareAndSwapInt64(&done, 0, 1) {

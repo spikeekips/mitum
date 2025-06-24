@@ -35,16 +35,7 @@ func newSMVExtractor(
 	dutil.ErrorFunc,
 	error,
 ) {
-	var newJob dutil.JobWorkerNewJobFunc
-	var jobDone func()
-	var jobWait dutil.InErrorFunc[error]
-
-	switch n, d, w, err := dutil.NewFuncJobWorker(ctx, dutil.SafeUint64ToInt64(maxOpsSize)); {
-	case err != nil:
-		return nil, nil, err
-	default:
-		newJob, jobDone, jobWait = n, d, w
-	}
+	newJob, jobDone, jobWait := NewFuncJobWorker(ctx, dutil.SafeUint64ToInt64(maxOpsSize))
 
 	return func(
 			insert dutil.InErrorFunc[opindexOpHashesFunc],

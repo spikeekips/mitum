@@ -74,16 +74,7 @@ func NewWorker(
 		makeSVM, getSVM, closeSVMPool = g, s, c
 	}
 
-	var delayedNewJob dutil.JobWorkerNewJobFunc
-	var delayedJobDone func()
-	var delayedJobWait dutil.InErrorFunc[error]
-
-	switch n, j, w, err := dutil.NewFuncJobWorker(wctx, min(dutil.SafeUint64ToInt64(maxOpsSize), 1<<9)); { //nolint:mnd
-	case err != nil:
-		return nil, nil, nil, nil, err
-	default:
-		delayedNewJob, delayedJobDone, delayedJobWait = n, j, w
-	}
+	delayedNewJob, delayedJobDone, delayedJobWait := NewFuncJobWorker(wctx, min(dutil.SafeUint64ToInt64(maxOpsSize), 1<<9)) //nolint:mnd
 
 	managerReportUnmerged, managerReportUnmergedDone := reportUnmergedToManager(wctx)
 
@@ -403,16 +394,7 @@ func newWorkerWaitReportStatesToManager(
 	semSize int64,
 	f reportStatesFunc,
 ) (dutil.InErrorFunc[base.State], dutil.InErrorFunc[error], error) {
-	var newJob dutil.JobWorkerNewJobFunc
-	var jobDone func()
-	var jobWait dutil.InErrorFunc[error]
-
-	switch n, j, w, err := dutil.NewFuncJobWorker(ctx, semSize); {
-	case err != nil:
-		return nil, nil, err
-	default:
-		newJob, jobDone, jobWait = n, j, w
-	}
+	newJob, jobDone, jobWait := NewFuncJobWorker(ctx, semSize)
 
 	var report dutil.InErrorFunc[base.State]
 	var closeReport dutil.InErrorFunc[error]
@@ -486,16 +468,7 @@ func newWorkerReportUnmergedToWorkers(
 		addWorker, doneWorker = a, d
 	}
 
-	var sendNewJob dutil.JobWorkerNewJobFunc
-	var sendJobDone func()
-	var sendJobWait dutil.InErrorFunc[error]
-
-	switch n, j, w, err := dutil.NewFuncJobWorker(ctx, dutil.SafeUint64ToInt64(workersSize)); {
-	case err != nil:
-		return nil, nil, err
-	default:
-		sendNewJob, sendJobDone, sendJobWait = n, j, w
-	}
+	sendNewJob, sendJobDone, sendJobWait := NewFuncJobWorker(ctx, dutil.SafeUint64ToInt64(workersSize))
 
 	m := dutil.NewSingleLockedMap[string, [3]any]()
 
@@ -565,16 +538,7 @@ func newWorkerReportUnmergedToWorkers(
 				return err
 			}
 
-			var newJob dutil.JobWorkerNewJobFunc
-			var jobDone func()
-			var jobWait dutil.InErrorFunc[error]
-
-			switch n, j, w, err := dutil.NewFuncJobWorker(ctx, int64(len(workers))); {
-			case err != nil:
-				return err
-			default:
-				newJob, jobDone, jobWait = n, j, w
-			}
+			newJob, jobDone, jobWait := NewFuncJobWorker(ctx, int64(len(workers)))
 
 			for worker := range slices.Values(workers) {
 				if err := newJob(func(context.Context) error {

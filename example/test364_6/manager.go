@@ -165,7 +165,7 @@ func NewManager(
 
 			var opsTree, statesTree *fixedtree.Tree
 
-			if err := dutil.FuncsJobWorker(
+			if err := FuncsJobWorker(
 				wctx,
 				func(context.Context) error {
 					switch t, err := workerOpsTreeWait(g); {
@@ -206,16 +206,7 @@ func newManagerStartWorkers(
 	opsShare, statesShare uint64,
 	maxOpsSize uint64,
 ) error {
-	var newJob dutil.JobWorkerNewJobFunc
-	var jobDone func()
-	var jobWait dutil.InErrorFunc[error]
-
-	switch n, j, w, err := dutil.NewFuncJobWorker(ctx, int64(len(workers))); {
-	case err != nil:
-		return err
-	default:
-		newJob, jobDone, jobWait = n, j, w
-	}
+	newJob, jobDone, jobWait := NewFuncJobWorker(ctx, int64(len(workers)))
 
 	var checkWorker dop5.CheckFailedWorkersFunc
 

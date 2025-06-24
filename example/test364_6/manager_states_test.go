@@ -23,13 +23,6 @@ type testManagerStates struct {
 	baseMergerSuite
 }
 
-func (t *testManagerStates) TestNew() {
-	t.Run("zero approx states size", func() {
-		_, _, err := newManagerStates(context.Background(), 0, nil)
-		t.ErrorContains(err, "under 1")
-	})
-}
-
 func (t *testManagerStates) prepareStates(workers []string, n int) (
 	[][2]any,
 	map[string][][2]any,

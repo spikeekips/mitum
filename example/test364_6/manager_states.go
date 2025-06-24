@@ -40,16 +40,7 @@ func newManagerStates(
 		addState, doneState = a, d
 	}
 
-	var newJob dutil.JobWorkerNewJobFunc
-	var jobDone func()
-	var jobWait dutil.InErrorFunc[error]
-
-	switch n, d, w, err := dutil.NewFuncJobWorker(ctx, dutil.SafeUint64ToInt64(approxStatesSize)); {
-	case err != nil:
-		return nil, nil, err
-	default:
-		newJob, jobDone, jobWait = n, d, w
-	}
+	newJob, jobDone, jobWait := NewFuncJobWorker(ctx, dutil.SafeUint64ToInt64(approxStatesSize))
 
 	return func(worker string) (
 			dutil.In2ErrorFunc[string, util.Hash],

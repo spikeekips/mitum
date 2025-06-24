@@ -29,16 +29,7 @@ func newManagerDistributeOps(
 		return nil, nil, errors.New("empty ophs")
 	}
 
-	var newJob dutil.JobWorkerNewJobFunc
-	var jobDone func()
-	var jobWait dutil.InErrorFunc[error]
-
-	switch n, j, w, err := dutil.NewFuncJobWorker(ctx, int64(len(workers))); {
-	case err != nil:
-		return nil, nil, err
-	default:
-		newJob, jobDone, jobWait = n, j, w
-	}
+	newJob, jobDone, jobWait := NewFuncJobWorker(ctx, int64(len(workers)))
 
 	opsWorkers, seq := newOpsWorkersItems(workers, share, uint64(len(ophs)))
 
@@ -123,16 +114,7 @@ func newManagerUnmergedOps(
 		pool = m
 	}
 
-	var newJob dutil.JobWorkerNewJobFunc
-	var jobDone func()
-	var jobWait dutil.InErrorFunc[error]
-
-	switch n, d, w, err := dutil.NewFuncJobWorker(ctx, dutil.SafeUint64ToInt64(opsSize)); {
-	case err != nil:
-		return nil, nil, err
-	default:
-		newJob, jobDone, jobWait = n, d, w
-	}
+	newJob, jobDone, jobWait := NewFuncJobWorker(ctx, dutil.SafeUint64ToInt64(opsSize))
 
 	return func(worker string) (mergerUnmergedFunc, dutil.InErrorFunc[error]) {
 			return func(opindex uint64, reason string) error {
