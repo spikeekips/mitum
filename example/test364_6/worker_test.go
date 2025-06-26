@@ -467,6 +467,10 @@ func (t *testWorker) TestInsertOps() {
 		t.Run("insert ops from not ops worker", func() {})
 		t.Run("unmerge ops from not ops worker", func() {})
 	})
+
+	t.Run("multiple workers", func() {
+		t.Run("local is not state owner", func() {})
+	})
 }
 
 func TestWorker(t *testing.T) {

@@ -12,7 +12,7 @@ import (
 )
 
 type (
-	workerDistributeSMVsFunc    = func(uint64, SMV, []SMV) (subs []string, affected []string, _ error)
+	workerDistributeSMVsFunc    = func(uint64, SMV, []SMV) (localSubv SMV, localAddvs []SMV, subs []string, affected []string, _ error)
 	NewWorkerDistributeSMVsFunc = func(_ context.Context, worker string) (
 		mergerMergeSMVsFunc,
 		workerWorkerStateOwnersFunc,
@@ -139,6 +139,7 @@ func newCollectStateOwners(workersSize uint64) (
 
 func newWorkerDistributeSMVs(
 	ctx context.Context,
+	local string,
 	workers []string,
 	getFactStateOwners getFactStateOwnersFunc,
 	newf NewWorkerDistributeSMVsFunc,
@@ -235,18 +236,31 @@ func newWorkerDistributeSMVs(
 		return send(subs, affected)
 	}
 
-	return func(opindex uint64, subv SMV, addvs []SMV) ([]string, []string, error) {
+	return func(opindex uint64, subv SMV, addvs []SMV) (SMV, []SMV, []string, []string, error) {
 			var subs, affected []string
 			var seq iter.Seq2[string, [2][]SMV]
 
 			switch b, a, s, err := add(opindex, subv, addvs); {
 			case err != nil:
-				return nil, nil, err
+				return nil, nil, nil, nil, err
 			default:
 				subs, affected, seq = b, a, s
 			}
 
+			var localSubv SMV
+			var localAddvs []SMV
+
 			for worker, vs := range seq {
+				if worker == local {
+					if len(vs[0]) > 0 {
+						localSubv = vs[0][0]
+					}
+
+					localAddvs = vs[1]
+
+					continue
+				}
+
 				if err := newJob(func(context.Context) error {
 					var s SMV
 					if len(vs[0]) > 0 {
@@ -257,11 +271,11 @@ func newWorkerDistributeSMVs(
 
 					return nil
 				}); err != nil {
-					return nil, nil, err
+					return nil, nil, nil, nil, err
 				}
 			}
 
-			return subs, affected, nil
+			return localSubv, localAddvs, subs, affected, nil
 		},
 		jobDone,
 		func(err error) (func() ([]string, []string), dutil.ErrorFunc, error) {

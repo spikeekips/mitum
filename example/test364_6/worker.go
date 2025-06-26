@@ -104,7 +104,7 @@ func NewWorker(
 	var workerReportUnmerged func(uint64, string, []string) error
 	var workerReportUnmergedDone dutil.InErrorFunc[error]
 
-	switch r, d, err := newWorkerReportUnmergedToWorkers(wctx, uint64(len(workers)), reportUnmergedToWorker); {
+	switch r, d, err := newWorkerReportUnmergedToWorkers(wctx, local, uint64(len(workers)), reportUnmergedToWorker); {
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:
@@ -202,6 +202,7 @@ func NewWorker(
 
 	switch d, do, w, err := newWorkerDistributeSMVs(
 		wctx,
+		local,
 		workers,
 		getFactStateOwners,
 		newWorkerDistribute,
@@ -228,14 +229,20 @@ func NewWorker(
 					return nil
 				},
 				func(opindex uint64, subv SMV, addvs []SMV) error {
-					switch subs, affected, err := distribute(opindex, subv, addvs); {
+					switch localSubv, localAddvs, subs, affected, err := distribute(opindex, subv, addvs); {
 					case err != nil:
 						return err
 					default:
 						addLocalAffected(opindex, subs, affected)
+
+						if localSubv != nil || len(localAddvs) > 0 {
+							if err := mergerMerge(opindex, localSubv, localAddvs); err != nil {
+								return err
+							}
+						}
 					}
 
-					return mergerMerge(opindex, subv, addvs)
+					return nil
 				},
 			); err != nil {
 				return wctxCancel(err)
@@ -451,6 +458,7 @@ func newWorkerUnmergedAffectedOwners(
 
 func newWorkerReportUnmergedToWorkers(
 	ctx context.Context,
+	local string,
 	workersSize uint64,
 	f newWorkerReportUnmergedToWorkersFunc,
 ) (
@@ -505,6 +513,10 @@ func newWorkerReportUnmergedToWorkers(
 			_, _ = addWorker(affected...)
 
 			for worker := range slices.Values(affected) {
+				if worker == local {
+					continue
+				}
+
 				if err := sendNewJob(func(context.Context) error {
 					switch send, _, err := newf(worker); {
 					case err != nil: // ignore error
@@ -541,6 +553,10 @@ func newWorkerReportUnmergedToWorkers(
 			newJob, jobDone, jobWait := NewFuncJobWorker(ctx, int64(len(workers)))
 
 			for worker := range slices.Values(workers) {
+				if worker == local {
+					continue
+				}
+
 				if err := newJob(func(context.Context) error {
 					switch _, done, err := newf(worker); {
 					case err != nil: // ignore error

@@ -20,7 +20,7 @@ type testWorkerDistributeSMVs struct {
 
 func (t *testWorkerDistributeSMVs) TestNew() {
 	t.Run("empty workers", func() {
-		_, _, _, err := newWorkerDistributeSMVs(context.Background(), nil, nil, nil)
+		_, _, _, err := newWorkerDistributeSMVs(context.Background(), "local", nil, nil, nil)
 		t.ErrorContains(err, "empty size")
 	})
 }
@@ -83,7 +83,7 @@ func (t *testWorkerDistributeSMVs) newf(workers []string) (
 
 func (t *testWorkerDistributeSMVs) TestDistribute() {
 	t.Run("empty add", func() {
-		_, workers := t.workers(3)
+		local, workers := t.workers(3)
 
 		getFactStateOwners, _ := newDefaultGetFactStateOwners(workers, 1, 1)
 
@@ -91,6 +91,7 @@ func (t *testWorkerDistributeSMVs) TestDistribute() {
 
 		_, done, wait, err := newWorkerDistributeSMVs(
 			context.Background(),
+			local,
 			workers,
 			getFactStateOwners,
 			distribute,
@@ -129,6 +130,7 @@ func (t *testWorkerDistributeSMVs) TestDistribute() {
 
 		add, done, wait, err := newWorkerDistributeSMVs(
 			context.Background(),
+			local,
 			workers,
 			func(uint64, SMV, []SMV) ([]string, [][]string) {
 				return []string{local}, [][]string{{local}}
@@ -137,13 +139,18 @@ func (t *testWorkerDistributeSMVs) TestDistribute() {
 		)
 		t.NoError(err)
 
+		csmvs := map[uint64][2][]SMV{}
+
 		for i, v := range slices.All(smvs) {
-			_, _, err := add(
-				uint64(i),
+			opindex := uint64(i)
+			localSubv, localAddvs, _, _, err := add(
+				opindex,
 				v[0][0],
 				v[1],
 			)
 			t.NoError(err)
+
+			csmvs[opindex] = [2][]SMV{{localSubv}, localAddvs}
 		}
 
 		done()
@@ -157,21 +164,23 @@ func (t *testWorkerDistributeSMVs) TestDistribute() {
 		t.NoError(delayed())
 
 		for worker := range slices.Values(workers) {
-			csmvs := getSmvs(worker)
-			t.Equal(len(smvs), len(csmvs))
-
-			for opindex, vs := range maps.All(csmvs) {
-				t.Equal(smvs[opindex], vs)
-			}
-
-			subs, affected := getOwners(worker)
-			t.Equal(workers, subs)
-			t.Equal(workers, affected)
+			t.Empty(getSmvs(worker))
 		}
+
+		t.Equal(len(smvs), len(csmvs))
+
+		for opindex, vs := range maps.All(csmvs) {
+			t.Equal(smvs[opindex], vs)
+		}
+
+		subs, affected := getOwners(local)
+		t.Equal(workers, subs)
+		t.Equal(workers, affected)
 	})
 
 	t.Run("3 worker", func() {
 		workers := []string{"w0", "w1", "w2"}
+		local := workers[0]
 
 		owners := map[string]string{}
 		pubs := make([]base.Publickey, 3)
@@ -266,19 +275,33 @@ func (t *testWorkerDistributeSMVs) TestDistribute() {
 
 		add, done, wait, err := newWorkerDistributeSMVs(
 			context.Background(),
+			local,
 			workers,
 			getFactStateOwners,
 			distribute,
 		)
 		t.NoError(err)
 
+		localSMVs := map[uint64][2][]SMV{}
+
 		for i, v := range slices.All(smvs) {
-			_, _, err := add(
-				uint64(i),
+			opindex := uint64(i)
+
+			localSubv, localAddvs, _, _, err := add(
+				opindex,
 				v[0][0],
 				v[1],
 			)
 			t.NoError(err)
+
+			if localSubv != nil || len(localAddvs) > 0 {
+				var s []SMV
+				if localSubv != nil {
+					s = []SMV{localSubv}
+				}
+
+				localSMVs[opindex] = [2][]SMV{s, localAddvs}
+			}
 		}
 
 		done()
@@ -295,7 +318,14 @@ func (t *testWorkerDistributeSMVs) TestDistribute() {
 		t.NoError(delayed())
 
 		for worker := range slices.Values(workers) {
-			csmvs := getSmvs(worker)
+			var csmvs map[uint64][2][]SMV
+
+			if worker == local {
+				csmvs = localSMVs
+			} else {
+				csmvs = getSmvs(worker)
+			}
+
 			t.T().Logf("worker=%q expected=%v smvs=%v", worker,
 				t.Marshal(expectedSMVs[worker]),
 				t.Marshal(csmvs),
@@ -312,7 +342,8 @@ func (t *testWorkerDistributeSMVs) TestDistribute() {
 	})
 
 	t.Run("no subs", func() {
-		local, workers := t.workers(1)
+		local := "local"
+		_, workers := t.workers(1)
 
 		smvs := make([][2][]SMV, 3)
 		for i := range smvs {
@@ -323,16 +354,17 @@ func (t *testWorkerDistributeSMVs) TestDistribute() {
 
 		add, done, wait, err := newWorkerDistributeSMVs(
 			context.Background(),
+			local,
 			workers,
 			func(uint64, SMV, []SMV) ([]string, [][]string) {
-				return nil, [][]string{{local}}
+				return nil, [][]string{workers}
 			},
 			distribute,
 		)
 		t.NoError(err)
 
 		for i, v := range slices.All(smvs) {
-			_, _, err := add(
+			_, _, _, _, err := add(
 				uint64(i),
 				nil,
 				v[1],
@@ -346,7 +378,7 @@ func (t *testWorkerDistributeSMVs) TestDistribute() {
 
 		asubs, aaffected := allOwners()
 		t.Empty(asubs)
-		t.Equal([]string{local}, aaffected)
+		t.Equal(workers, aaffected)
 
 		t.NoError(delayed())
 
@@ -365,7 +397,8 @@ func (t *testWorkerDistributeSMVs) TestDistribute() {
 	})
 
 	t.Run("no adds", func() {
-		local, workers := t.workers(1)
+		local := "local"
+		_, workers := t.workers(1)
 
 		smvs := make([][2][]SMV, 3)
 		for i := range smvs {
@@ -376,16 +409,17 @@ func (t *testWorkerDistributeSMVs) TestDistribute() {
 
 		add, done, wait, err := newWorkerDistributeSMVs(
 			context.Background(),
+			local,
 			workers,
 			func(uint64, SMV, []SMV) ([]string, [][]string) {
-				return []string{local}, nil
+				return workers, nil
 			},
 			distribute,
 		)
 		t.NoError(err)
 
 		for i, v := range slices.All(smvs) {
-			_, _, err := add(uint64(i), v[0][0], nil)
+			_, _, _, _, err := add(uint64(i), v[0][0], nil)
 			t.NoError(err)
 		}
 
@@ -394,7 +428,7 @@ func (t *testWorkerDistributeSMVs) TestDistribute() {
 		t.NoError(err)
 
 		asubs, aaffected := allOwners()
-		t.Equal([]string{local}, asubs)
+		t.Equal(workers, asubs)
 		t.Empty(aaffected)
 
 		t.NoError(delayed())
