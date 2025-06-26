@@ -12,6 +12,8 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
+var MaxJobWorkerSemSize int64 = 1 << 9
+
 func FuncsJobWorker(ctx context.Context, fs ...dutil.InErrorFunc[context.Context]) error {
 	if len(fs) < 1 {
 		return nil
@@ -20,12 +22,16 @@ func FuncsJobWorker(ctx context.Context, fs ...dutil.InErrorFunc[context.Context
 	return dutil.FuncsJobWorker(ctx, fs...)
 }
 
+func defaultJobWorkerSemSize(s int64) int64 {
+	return min(max(s, 1), MaxJobWorkerSemSize)
+}
+
 func NewFuncJobWorker(ctx context.Context, semSize int64) (
 	dutil.JobWorkerNewJobFunc,
 	func(),
 	dutil.InErrorFunc[error],
 ) {
-	n, d, w, err := dutil.NewFuncJobWorker(ctx, max(semSize, 1))
+	n, d, w, err := dutil.NewFuncJobWorker(ctx, defaultJobWorkerSemSize(semSize))
 	if err != nil {
 		panic(err)
 	}
@@ -38,7 +44,7 @@ func NewFuncErrJobWorker(ctx context.Context, semSize int64, errf dutil.InErrorF
 	func(),
 	dutil.InErrorFunc[error],
 ) {
-	n, d, w, err := dutil.NewFuncErrJobWorker(ctx, max(semSize, 1), errf)
+	n, d, w, err := dutil.NewFuncErrJobWorker(ctx, defaultJobWorkerSemSize(semSize), errf)
 	if err != nil {
 		panic(err)
 	}
