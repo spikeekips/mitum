@@ -114,11 +114,17 @@ func newManagerUnmergedOps(
 		pool = m
 	}
 
-	newJob, jobDone, jobWait := NewFuncJobWorker(ctx, dutil.SafeUint64ToInt64(opsSize))
+	newJob, jobDone, jobWait := NewFuncErrJobWorker(ctx, dutil.SafeUint64ToInt64(opsSize), func(err error) error {
+		if errors.Is(err, dutil.ErrJobWorkerDone) {
+			return nil
+		}
+
+		return err
+	})
 
 	return func(worker string) (mergerUnmergedFunc, dutil.InErrorFunc[error]) {
 			return func(opindex uint64, reason string) error {
-					switch err := newJob(func(context.Context) error {
+					return newJob(func(context.Context) error {
 						hs := ophs[opindex]
 
 						switch n, err := dop5.NewOperationTreeNode(hs[0], hs[1], reason); {
@@ -129,13 +135,7 @@ func newManagerUnmergedOps(
 
 							return nil
 						}
-					}); {
-					case err == nil:
-					case !errors.Is(err, dutil.ErrJobWorkerDone):
-						return err
-					}
-
-					return nil
+					})
 				},
 				func(err error) error {
 					switch ok, enough, failed := checkWorker(worker, err); {

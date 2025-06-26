@@ -40,14 +40,20 @@ func newManagerStates(
 		addState, doneState = a, d
 	}
 
-	newJob, jobDone, jobWait := NewFuncJobWorker(ctx, dutil.SafeUint64ToInt64(approxStatesSize))
+	newJob, jobDone, jobWait := NewFuncErrJobWorker(ctx, dutil.SafeUint64ToInt64(approxStatesSize), func(err error) error {
+		if errors.Is(err, dutil.ErrJobWorkerDone) {
+			return nil
+		}
+
+		return err
+	})
 
 	return func(worker string) (
 			dutil.In2ErrorFunc[string, util.Hash],
 			dutil.InErrorFunc[error],
 		) {
 			return func(stateKey string, stateHash util.Hash) error {
-					switch err := newJob(func(context.Context) error {
+					return newJob(func(context.Context) error {
 						switch n, err := dop5.NewStateTreeNode(stateKey, stateHash); {
 						case err != nil:
 							return err
@@ -56,13 +62,7 @@ func newManagerStates(
 
 							return nil
 						}
-					}); {
-					case err == nil:
-					case !errors.Is(err, dutil.ErrJobWorkerDone):
-						return err
-					}
-
-					return nil
+					})
 				},
 				func(err error) error {
 					switch ok, enough, failed := checkWorker(worker, err); {
