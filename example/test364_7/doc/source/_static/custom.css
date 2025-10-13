@@ -1,0 +1,26 @@
+.document section a.reference:visited {
+    color: #298090 !important;
+}
+
+.toctree-wrapper > ul li {
+    list-style-type: none !important;
+}
+
+.wy-nav-side {
+    display: none;
+}
+.wy-nav-content-wrap {
+    margin-left:0 !important
+}
+
+.wy-nav-content {
+    max-width: none !important;
+}
+
+.bd-main .bd-content .bd-article-container {
+    max-width: 100% !important;
+}
+
+.bd-page-width {
+    max-width: 100% !important;
+}

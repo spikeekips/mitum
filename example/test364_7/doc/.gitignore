@@ -1,0 +1,7 @@
+/bin
+/build
+/include
+/lib
+/lib64
+/Makefile
+/pyvenv.cfg
