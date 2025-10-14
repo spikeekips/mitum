@@ -4,181 +4,17 @@ import (
 	"bytes"
 	"io"
 	"iter"
-	"slices"
-	"sync"
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 )
 
-type testReader struct {
+type testFramesIter struct {
 	suite.Suite
 }
 
-func (t *testReader) writeFrame(b []byte, chunkLength uint16) ReaderFunc {
-	buf := bytes.NewBuffer(nil)
-	defer buf.Reset()
-
-	if err := writeFrame(dataFrameType, buf, b, chunkLength); err != nil {
-		panic(err)
-	}
-
-	r := bytes.NewReader(buf.Bytes())
-
-	switch t, cr, _, err := NewReaderWithChunkLength(r, chunkLength); {
-	case err != nil:
-		panic(err)
-	case t != dataFrameType:
-		panic(errors.Errorf("unknown frame type, %v", t))
-	default:
-		return cr
-	}
-}
-
-func (t *testReader) checkEOF(r io.Reader, expected error) {
-	t.T().Helper()
-
-	p := make([]byte, 0, 9)
-	n, err := r.Read(p[:cap(p)])
-	p = p[:n]
-	t.ErrorIs(err, expected)
-	t.Equal(0, n)
-	t.Empty(p)
-}
-
-func (t *testReader) TestChunkReader() {
-	var chunkLength uint16 = 5
-
-	t.Run("read empty", func() {
-		b := sampleBytes(4)
-		cr := t.writeFrame(b, chunkLength)
-
-		n, err := cr.Read(nil)
-		t.NoError(err)
-		t.Equal(0, n)
-	})
-
-	t.Run("read same length", func() {
-		b := sampleBytes(4)
-		cr := t.writeFrame(b, chunkLength)
-
-		p := make([]byte, len(b))
-		n, err := cr.Read(p)
-		t.NoError(err)
-		t.Equal(len(p), n)
-		t.Equal(b, p)
-
-		// read more
-		t.checkEOF(cr, io.EOF)
-		t.checkEOF(cr, ErrClosed)
-	})
-
-	t.Run("read less", func() {
-		b := sampleBytes(4)
-		cr := t.writeFrame(b, chunkLength)
-
-		p := make([]byte, len(b)-1)
-		n, err := cr.Read(p)
-		t.NoError(err)
-		t.Equal(len(p), n)
-		t.Equal(b[:len(b)-1], p)
-
-		// read left
-		p = make([]byte, 0, len(b)-1)
-		n, err = cr.Read(p[:cap(p)])
-		t.ErrorIs(err, io.EOF)
-		t.Equal(1, n)
-		p = p[:n]
-		t.Equal(b[len(b)-1:], p)
-
-		// read again
-		t.checkEOF(cr, ErrClosed)
-	})
-
-	t.Run("read more", func() {
-		b := sampleBytes(4)
-		cr := t.writeFrame(b, chunkLength)
-
-		p := make([]byte, 0, 8)
-		n, err := cr.Read(p[:cap(p)])
-		t.ErrorIs(err, io.EOF)
-		t.Equal(len(b), n)
-		p = p[:n]
-		t.Equal(b, p)
-
-		// read again
-		t.checkEOF(cr, ErrClosed)
-	})
-
-	t.Run("read all", func() {
-		b := sampleBytes(4)
-		cr := t.writeFrame(b, chunkLength)
-
-		br, err := io.ReadAll(cr)
-		t.NoError(err)
-		t.Equal(b, br)
-
-		// read again
-		t.checkEOF(cr, ErrClosed)
-	})
-}
-
-func (t *testReader) TestChunkReaderAsync() {
-	var chunkLength uint16 = 3
-
-	b := sampleBytes(256)
-	cr := t.writeFrame(b, chunkLength)
-
-	var wg sync.WaitGroup
-
-	buf := bytes.NewBuffer(nil)
-
-	ch := make(chan []byte, len(b))
-	done := make(chan struct{})
-
-	go func() {
-		for p := range ch {
-			buf.Write(p)
-		}
-
-		done <- struct{}{}
-	}()
-
-	for i := 0; i < len(b); i += 5 {
-		wg.Go(func() {
-			p := make([]byte, 0, 5)
-
-			n, err := cr.Read(p[:cap(p)])
-			if err != nil && !errors.Is(err, io.EOF) {
-				panic(err)
-			}
-
-			ch <- p[:n]
-		})
-	}
-
-	wg.Wait()
-	close(ch)
-	<-done
-
-	br := buf.Bytes()
-	slices.Sort(br)
-	t.Equal(b, br)
-}
-
-func TestReader(t *testing.T) {
-	defer goleak.VerifyNone(t)
-
-	suite.Run(t, new(testReader))
-}
-
-type testIterFrames struct {
-	suite.Suite
-}
-
-func (t *testIterFrames) TestRead() {
+func (t *testFramesIter) TestRead() {
 	t.Run("empty", func() {
 		r := bytes.NewReader(nil)
 
@@ -198,8 +34,8 @@ func (t *testIterFrames) TestRead() {
 		buf := bytes.NewBuffer(nil)
 		defer buf.Reset()
 
-		t.NoError(writeFrame(dataFrameType, buf, b0, chunkLength))
-		t.NoError(writeFrame(dataFrameType, buf, b1, chunkLength))
+		t.NoError(writeStreamFrame(streamFrameType, buf, b0, chunkLength))
+		t.NoError(writeStreamFrame(streamFrameType, buf, b1, chunkLength))
 
 		r := bytes.NewReader(buf.Bytes())
 
@@ -228,8 +64,8 @@ func (t *testIterFrames) TestRead() {
 		buf := bytes.NewBuffer(nil)
 		defer buf.Reset()
 
-		t.NoError(writeFrame(dataFrameType, buf, b0, chunkLength))
-		t.NoError(writeFrame(dataFrameType, buf, b1, chunkLength))
+		t.NoError(writeStreamFrame(streamFrameType, buf, b0, chunkLength))
+		t.NoError(writeStreamFrame(streamFrameType, buf, b1, chunkLength))
 
 		r := bytes.NewReader(buf.Bytes())
 
@@ -262,8 +98,8 @@ func (t *testIterFrames) TestRead() {
 		buf := bytes.NewBuffer(nil)
 		defer buf.Reset()
 
-		t.NoError(writeFrame(dataFrameType, buf, b0, chunkLength))
-		t.NoError(writeFrame(errorFrameType, buf, b1, chunkLength))
+		t.NoError(writeStreamFrame(streamFrameType, buf, b0, chunkLength))
+		t.NoError(writeStreamFrame(errorFrameType, buf, b1, chunkLength))
 
 		r := bytes.NewReader(buf.Bytes())
 
@@ -300,8 +136,8 @@ func (t *testIterFrames) TestRead() {
 		buf := bytes.NewBuffer(nil)
 		defer buf.Reset()
 
-		t.NoError(writeFrame(dataFrameType, buf, b0, chunkLength))
-		t.NoError(writeFrame(errorFrameType, buf, nil, chunkLength))
+		t.NoError(writeStreamFrame(streamFrameType, buf, b0, chunkLength))
+		t.NoError(writeStreamFrame(errorFrameType, buf, nil, chunkLength))
 
 		r := bytes.NewReader(buf.Bytes())
 
@@ -330,9 +166,9 @@ func (t *testIterFrames) TestRead() {
 		buf := bytes.NewBuffer(nil)
 		defer buf.Reset()
 
-		t.NoError(writeFrame(dataFrameType, buf, b0, chunkLength))
-		t.NoError(writeFrame(errorFrameType, buf, b1, chunkLength))
-		t.NoError(writeFrame(dataFrameType, buf, b2, chunkLength))
+		t.NoError(writeStreamFrame(streamFrameType, buf, b0, chunkLength))
+		t.NoError(writeStreamFrame(errorFrameType, buf, b1, chunkLength))
+		t.NoError(writeStreamFrame(streamFrameType, buf, b2, chunkLength))
 
 		r := bytes.NewReader(buf.Bytes())
 
@@ -376,28 +212,8 @@ func (t *testIterFrames) TestRead() {
 	})
 }
 
-func TestIterFrames(t *testing.T) {
+func TestFramesIter(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	suite.Run(t, new(testIterFrames))
-}
-
-func sampleBytes(l uint64) []byte {
-	b := make([]byte, l)
-	for i := range b {
-		b[i] = byte(i)
-	}
-
-	return b
-}
-
-func writeFrame(t frameType, w io.Writer, b []byte, chunkLength uint16) error {
-	fw := NewWriterWithChunkLength(w, t, chunkLength)
-
-	_, err := fw.Write(b)
-	if err != nil {
-		return err
-	}
-
-	return fw.Close()
+	suite.Run(t, new(testFramesIter))
 }

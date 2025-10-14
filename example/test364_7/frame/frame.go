@@ -12,7 +12,7 @@ import (
 /*
 frame structure:: []bytes{frame type, chunk, [...], eof}
 frame type:
-	- data framedata
+	- stream frame: stream data
 	- error frame: empty error is end of frame in frames
 
 basic chunk: []bytes{length, [bytes]}
@@ -25,7 +25,7 @@ type frameType byte
 
 var (
 	unknownFrameType frameType = 0x00
-	dataFrameType    frameType = 0x01
+	streamFrameType  frameType = 0x01
 	errorFrameType   frameType = 0x02
 )
 
