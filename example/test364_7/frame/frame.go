@@ -9,16 +9,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-/*
-frame structure:: []bytes{frame type, chunk, [...], eof}
-frame type:
-	- stream frame: stream data
-	- error frame: empty error is end of frame in frames
-
-basic chunk: []bytes{length, [bytes]}
-eof chunk: []bytes{0 length}
-*/
-
 var ErrClosed = errors.New("closed")
 
 type frameType byte

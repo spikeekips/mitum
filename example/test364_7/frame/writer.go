@@ -4,42 +4,56 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	"sync/atomic"
 )
 
-func DefaultFramesWriterWithChunkLength(w io.Writer) (
-	writeFunc,
-	func(error) error,
-) {
-	return NewFramesWriterWithChunkLength(w, defaultChunkLength)
+type writeCloseFuncs [2]writeFunc
+
+func (w writeCloseFuncs) Write(b []byte) (int, error) {
+	return w[0](b)
 }
 
-func NewFramesWriterWithChunkLength(w io.Writer, chunkLength uint16) (
-	writeFunc,
+func (w writeCloseFuncs) Close() error {
+	_, err := w[1](nil)
+	return err
+}
+
+func DefaultWriter(w io.Writer) (
+	func() (io.WriteCloser, error),
 	func(error) error,
 ) {
-	var l sync.Mutex
-	var wroteFrame, isClosed bool
+	return NewWriterWithChunkLength(w, defaultChunkLength)
+}
 
-	return func(b []byte) (int, error) {
-			l.Lock()
-			defer l.Unlock()
+func NewWriterWithChunkLength(w io.Writer, chunkLength uint16) (
+	func() (io.WriteCloser, error),
+	func(error) error,
+) {
+	var l sync.RWMutex
+	var isClosed bool
+	var wrote int64
+
+	return func() (io.WriteCloser, error) {
+			l.RLock()
+			defer l.RUnlock()
 
 			if isClosed {
-				return 0, ErrClosed
+				return nil, ErrClosed
 			}
 
-			fw := NewStreamWriterWithChunkLength(w, streamFrameType, chunkLength)
+			fw, cw := newStreamWriterWithChunkLength(w, streamFrameType, chunkLength)
 
-			switch n, err := fw.Write(b); {
-			case err != nil:
-				return n, err
-			default:
-				if !wroteFrame {
-					wroteFrame = true
-				}
+			return writeCloseFuncs{
+					func(b []byte) (int, error) {
+						_ = atomic.CompareAndSwapInt64(&wrote, 0, 1)
 
-				return n, fw.Close()
-			}
+						return fw(b)
+					},
+					func([]byte) (int, error) {
+						return 0, cw()
+					},
+				},
+				nil
 		},
 		func(err error) error {
 			l.Lock()
@@ -51,11 +65,11 @@ func NewFramesWriterWithChunkLength(w io.Writer, chunkLength uint16) (
 
 			isClosed = true
 
-			if !wroteFrame {
+			if atomic.LoadInt64(&wrote) < 1 {
 				return nil
 			}
 
-			fw := NewStreamWriterWithChunkLength(w, errorFrameType, chunkLength)
+			fw, cw := newStreamWriterWithChunkLength(w, errorFrameType, chunkLength)
 
 			if err != nil {
 				errs := err.Error()
@@ -63,12 +77,12 @@ func NewFramesWriterWithChunkLength(w io.Writer, chunkLength uint16) (
 					errs = fmt.Sprintf("%v(%T)", err, err)
 				}
 
-				if _, err := fw.Write([]byte(errs)); err != nil {
+				if _, err := fw([]byte(errs)); err != nil {
 					return err
 				}
 
 			}
 
-			return fw.Close()
+			return cw()
 		}
 }

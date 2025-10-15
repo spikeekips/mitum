@@ -5,33 +5,16 @@ import (
 	"sync"
 )
 
-type (
-	writeFunc         func([]byte) (int, error)
-	streamWriterFuncs [2]writeFunc
-)
+type writeFunc = func([]byte) (int, error)
 
-func (w streamWriterFuncs) Write(b []byte) (int, error) {
-	return w[0](b)
-}
-
-func (w streamWriterFuncs) Close() error {
-	_, err := w[1](nil)
-
-	return err
-}
-
-var _ io.WriteCloser = (*streamWriterFuncs)(nil)
-
-func DefaultStreamWriter(w io.Writer, t frameType) io.WriteCloser {
-	return NewStreamWriterWithChunkLength(w, t, defaultChunkLength)
-}
-
-func NewStreamWriterWithChunkLength(w io.Writer, t frameType, chunkLength uint16) io.WriteCloser {
-	var l sync.Mutex
+func newStreamWriterWithChunkLength(w io.Writer, t frameType, chunkLength uint16) (
+	writeFunc,
+	func() error,
+) {
+	var l sync.RWMutex
 	var wroteFrameType, isClosed bool
 
-	return streamWriterFuncs{
-		func(b []byte) (int, error) {
+	return func(b []byte) (int, error) {
 			l.Lock()
 			defer l.Unlock()
 
@@ -65,12 +48,12 @@ func NewStreamWriterWithChunkLength(w io.Writer, t frameType, chunkLength uint16
 
 			return wn, nil
 		},
-		func([]byte) (int, error) {
+		func() error {
 			l.Lock()
 			defer l.Unlock()
 
 			if isClosed {
-				return 0, ErrClosed
+				return ErrClosed
 			}
 
 			isClosed = true
@@ -78,17 +61,20 @@ func NewStreamWriterWithChunkLength(w io.Writer, t frameType, chunkLength uint16
 			if !wroteFrameType {
 				switch {
 				case t != errorFrameType:
-					return 0, nil
+					return nil
 				default:
 					if _, err := w.Write(frameTypeToBytes(t)); err != nil {
-						return 0, err
+						return err
 					}
 				}
 			}
 
-			return writeStreamChunk(w, nil)
-		},
-	}
+			if _, err := writeStreamChunk(w, nil); err != nil {
+				return err
+			}
+
+			return nil
+		}
 }
 
 func writeStreamChunk(w io.Writer, b []byte) (int, error) {

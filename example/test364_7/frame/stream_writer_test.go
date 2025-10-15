@@ -16,64 +16,60 @@ type testStreamWriter struct {
 	suite.Suite
 }
 
-func (t *testStreamWriter) defaultWriter() (*bytes.Buffer, io.WriteCloser) {
+func (t *testStreamWriter) newWriter(chunkLength uint16) (*bytes.Buffer, writeFunc, func() error) {
 	buf := bytes.NewBuffer(nil)
 
-	return buf, DefaultStreamWriter(buf, streamFrameType)
-}
+	fw, cw := newStreamWriterWithChunkLength(buf, streamFrameType, chunkLength)
 
-func (t *testStreamWriter) newWriter(chunkLength uint16) (*bytes.Buffer, io.WriteCloser) {
-	buf := bytes.NewBuffer(nil)
-
-	return buf, NewStreamWriterWithChunkLength(buf, streamFrameType, chunkLength)
+	return buf, fw, cw
 }
 
 func (t *testStreamWriter) TestEmpty() {
 	t.Run("once", func() {
-		buf, w := t.defaultWriter()
+		buf, fw, cw := t.newWriter(3)
 
-		n, err := w.Write(nil)
+		n, err := fw(nil)
 		t.NoError(err)
 		t.Equal(0, n)
 		t.Empty(buf.Bytes())
 
-		t.NoError(w.Close())
+		t.NoError(cw())
 		t.Empty(buf.Bytes())
 	})
 
 	t.Run("more than once", func() {
-		buf, w := t.defaultWriter()
+		buf, fw, cw := t.newWriter(3)
 
-		n, err := w.Write(nil)
+		n, err := fw(nil)
 		t.NoError(err)
 		t.Equal(0, n)
 		t.Empty(buf.Bytes())
 
-		n, err = w.Write(nil)
+		n, err = fw(nil)
 		t.NoError(err)
 		t.Equal(0, n)
 		t.Empty(buf.Bytes())
 
-		t.NoError(w.Close())
+		t.NoError(cw())
 		t.Empty(buf.Bytes())
 	})
 }
 
 func (t *testStreamWriter) TestLengthJustRight() {
-	buf, w := t.newWriter(3)
+	buf, fw, cw := t.newWriter(3)
 
 	b0 := []byte{0x01, 0x02, 0x03}
 
-	n, err := w.Write(b0)
+	n, err := fw(b0)
 	t.NoError(err)
 	t.Equal(len(b0), n)
 
 	b1 := []byte{0x04, 0x05, 0x06}
-	n, err = w.Write(b1)
+	n, err = fw(b1)
 	t.NoError(err)
 	t.Equal(len(b1), n)
 
-	t.NoError(w.Close())
+	t.NoError(cw())
 
 	r := bytes.NewReader(buf.Bytes())
 
@@ -121,21 +117,21 @@ func (t *testStreamWriter) TestLengthJustRight() {
 func (t *testStreamWriter) TestOverLength() {
 	var chunkLength uint16 = 3
 
-	buf, w := t.newWriter(chunkLength)
+	buf, fw, cw := t.newWriter(chunkLength)
 
 	b0 := []byte{0x01, 0x02, 0x03, 0x04}
 
-	n, err := w.Write(b0)
+	n, err := fw(b0)
 	t.NoError(err)
 	t.Equal(len(b0), n)
 
 	b1 := []byte{0x05, 0x06, 0x07, 0x08}
 
-	n, err = w.Write(b1)
+	n, err = fw(b1)
 	t.NoError(err)
 	t.Equal(len(b1), n)
 
-	t.NoError(w.Close())
+	t.NoError(cw())
 
 	r := bytes.NewReader(buf.Bytes())
 
@@ -212,18 +208,18 @@ func (t *testStreamWriter) TestWriteAsync() {
 		b[i] = byte(i)
 	}
 
-	buf, w := t.newWriter(3)
+	buf, fw, cw := t.newWriter(3)
 
 	for i := 0; i < len(b); i += 5 {
 		wg.Go(func() {
-			if _, err := w.Write(b[i:min(i+5, len(b))]); err != nil {
+			if _, err := fw(b[i:min(i+5, len(b))]); err != nil {
 				panic(err)
 			}
 		})
 	}
 
 	wg.Wait()
-	t.NoError(w.Close())
+	t.NoError(cw())
 
 	r := bytes.NewReader(buf.Bytes())
 
@@ -257,29 +253,29 @@ func (t *testStreamWriter) TestWriteAsync() {
 
 func (t *testStreamWriter) TestClose() {
 	t.Run("close after close", func() {
-		buf, w := t.defaultWriter()
-		t.NoError(w.Close())
+		buf, _, cw := t.newWriter(3)
+		t.NoError(cw())
 
-		err := w.Close()
+		err := cw()
 		t.ErrorIs(err, ErrClosed)
 		t.Empty(buf.Bytes())
 	})
 
 	t.Run("write nil after close", func() {
-		buf, w := t.defaultWriter()
-		t.NoError(w.Close())
+		buf, fw, cw := t.newWriter(3)
+		t.NoError(cw())
 
-		n, err := w.Write(nil)
+		n, err := fw(nil)
 		t.Equal(0, n)
 		t.ErrorIs(err, ErrClosed)
 		t.Empty(buf.Bytes())
 	})
 
 	t.Run("write after close", func() {
-		buf, w := t.defaultWriter()
-		t.NoError(w.Close())
+		buf, fw, cw := t.newWriter(3)
+		t.NoError(cw())
 
-		n, err := w.Write([]byte{0x00, 0x01})
+		n, err := fw([]byte{0x00, 0x01})
 		t.Equal(0, n)
 		t.ErrorIs(err, ErrClosed)
 		t.Empty(buf.Bytes())

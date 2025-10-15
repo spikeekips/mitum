@@ -10,15 +10,15 @@ import (
 	"go.uber.org/goleak"
 )
 
-type testFramesIter struct {
+type testIter struct {
 	suite.Suite
 }
 
-func (t *testFramesIter) TestRead() {
+func (t *testIter) TestRead() {
 	t.Run("empty", func() {
 		r := bytes.NewReader(nil)
 
-		for cr, err := range NewFramesIterWithChunkLength(r, 3) {
+		for cr, err := range NewIterWithChunkLength(r, 3) {
 			t.NoError(err)
 
 			t.Fail("reader found", "cr == nil=%v err=%v", cr == nil, err)
@@ -42,7 +42,7 @@ func (t *testFramesIter) TestRead() {
 		bufr := bytes.NewBuffer(nil)
 		defer bufr.Reset()
 
-		for cr, err := range NewFramesIterWithChunkLength(r, chunkLength) {
+		for cr, err := range NewIterWithChunkLength(r, chunkLength) {
 			t.NoError(err)
 
 			br, err := io.ReadAll(cr)
@@ -72,7 +72,7 @@ func (t *testFramesIter) TestRead() {
 		bufr := bytes.NewBuffer(nil)
 		defer bufr.Reset()
 
-		next, stop := iter.Pull2(NewFramesIterWithChunkLength(r, chunkLength))
+		next, stop := iter.Pull2(NewIterWithChunkLength(r, chunkLength))
 		defer stop()
 
 		_, err, hasNext := next()
@@ -107,7 +107,7 @@ func (t *testFramesIter) TestRead() {
 		defer bufr.Reset()
 
 		var errr error
-		for cr, err := range NewFramesIterWithChunkLength(r, chunkLength) {
+		for cr, err := range NewIterWithChunkLength(r, chunkLength) {
 			if err != nil {
 				errr = err
 
@@ -144,7 +144,7 @@ func (t *testFramesIter) TestRead() {
 		bufr := bytes.NewBuffer(nil)
 		defer bufr.Reset()
 
-		for cr, err := range NewFramesIterWithChunkLength(r, chunkLength) {
+		for cr, err := range NewIterWithChunkLength(r, chunkLength) {
 			t.NoError(err)
 
 			br, err := io.ReadAll(cr)
@@ -176,7 +176,7 @@ func (t *testFramesIter) TestRead() {
 		defer bufr0.Reset()
 
 		var errr error
-		for cr, err := range NewFramesIterWithChunkLength(r, chunkLength) {
+		for cr, err := range NewIterWithChunkLength(r, chunkLength) {
 			if err != nil {
 				errr = err
 
@@ -199,7 +199,7 @@ func (t *testFramesIter) TestRead() {
 		bufr1 := bytes.NewBuffer(nil)
 		defer bufr1.Reset()
 
-		for cr, err := range NewFramesIterWithChunkLength(r, chunkLength) {
+		for cr, err := range NewIterWithChunkLength(r, chunkLength) {
 			t.NoError(err)
 
 			br, err := io.ReadAll(cr)
@@ -212,8 +212,8 @@ func (t *testFramesIter) TestRead() {
 	})
 }
 
-func TestFramesIter(t *testing.T) {
+func TestIter(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	suite.Run(t, new(testFramesIter))
+	suite.Run(t, new(testIter))
 }

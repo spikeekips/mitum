@@ -7,31 +7,18 @@ import (
 	"github.com/pkg/errors"
 )
 
-type ReaderFunc func([]byte) (int, error)
+type readerFunc func([]byte) (int, error)
 
-func (r ReaderFunc) Read(p []byte) (int, error) {
+func (r readerFunc) Read(p []byte) (int, error) {
 	return r(p)
 }
 
-func DefaultStreamReader(r io.Reader) (frameType, io.Reader, int, error) {
-	return NewStreamReaderWithChunkLength(r, defaultChunkLength)
-}
-
-func NewStreamReaderWithChunkLength(r io.Reader, chunkLength uint16) (frameType, io.Reader, int, error) {
-	switch t, n, err := readFrameType(r); {
-	case err != nil:
-		return t, nil, n, err
-	default:
-		return t, newChunksReader(r, chunkLength), n, nil
-	}
-}
-
-func newChunksReader(r io.Reader, chunkLength uint16) ReaderFunc {
+func newStreamChunksReader(r io.Reader, chunkLength uint16) io.Reader {
 	var l sync.Mutex
 	var left uint16
 	var isClosed bool
 
-	return func(p []byte) (int, error) {
+	return readerFunc(func(p []byte) (int, error) {
 		if len(p) < 1 {
 			return 0, nil
 		}
@@ -87,5 +74,5 @@ func newChunksReader(r io.Reader, chunkLength uint16) ReaderFunc {
 		}
 
 		return rn, nil
-	}
+	})
 }

@@ -3,29 +3,58 @@ package frame
 import (
 	"bytes"
 	"io"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 )
 
-type testFramesWriter struct {
+type testWriter struct {
 	suite.Suite
 }
 
-func (t *testFramesWriter) newWriter(chunkLength uint16) (
+func (t *testWriter) newWriter(chunkLength uint16) (
 	*bytes.Buffer,
-	writeFunc,
+	func() (io.WriteCloser, error),
 	func(error) error,
 ) {
 	buf := bytes.NewBuffer(nil)
 
-	fw, ew := NewFramesWriterWithChunkLength(buf, chunkLength)
+	fw, ew := NewWriterWithChunkLength(buf, chunkLength)
 
 	return buf, fw, ew
 }
 
-func (t *testFramesWriter) TestWrite() {
+func (t *testWriter) readFrame(r io.Reader) (frameType, []byte, error) {
+	ft, _, err := readFrameType(r)
+	if err != nil {
+		return ft, nil, err
+	}
+
+	var p []byte
+
+end:
+	for {
+		switch i, _, err := readLength(r); {
+		case err != nil:
+			return ft, nil, err
+		case i < 1:
+			break end
+		default:
+			b := make([]byte, i)
+			if _, err := io.ReadFull(r, b); err != nil {
+				return ft, nil, err
+			}
+
+			p = append(p, b...)
+		}
+	}
+
+	return ft, p, nil
+}
+
+func (t *testWriter) TestWrite() {
 	t.Run("empty", func() {
 		buf, _, ew := t.newWriter(3)
 
@@ -38,89 +67,90 @@ func (t *testFramesWriter) TestWrite() {
 		t.ErrorIs(err, ErrClosed)
 	})
 
-	t.Run("ok", func() {
+	t.Run("one stream", func() {
 		var chunkLength uint16 = 3
 
 		buf, fw, ew := t.newWriter(chunkLength)
 
-		b0 := sampleBytes(7)
-		b1 := sampleBytes(8)
-
-		n, err := fw(b0)
+		w, err := fw()
 		t.NoError(err)
-		t.Equal(len(b0), n)
 
-		n, err = fw(b1)
+		b := sampleBytes(7)
+		b = append(b, sampleBytes(8)...)
+
+		n, err := w.Write(b[:7])
 		t.NoError(err)
-		t.Equal(len(b1), n)
+		t.Equal(7, n)
+
+		n, err = w.Write(b[7:])
+		t.NoError(err)
+		t.Equal(8, n)
+
+		t.NoError(w.Close())
 
 		t.NoError(ew(nil))
 
 		r := bytes.NewReader(buf.Bytes())
 
-		// read 1st frame
-		ft, n, err := readFrameType(r)
+		ft, br, err := t.readFrame(r)
 		t.NoError(err)
-		t.Equal(1, n)
 		t.Equal(streamFrameType, ft)
+		t.Equal(b, br)
 
-		p0 := make([]byte, len(b0))
-		b, _, err := readChunk(r)
+		ft, br, err = t.readFrame(r)
 		t.NoError(err)
-		copy(p0, b)
-		b, _, err = readChunk(r)
-		t.NoError(err)
-		copy(p0[3:], b)
-		b, _, err = readChunk(r)
-		t.NoError(err)
-		copy(p0[6:], b)
-
-		t.Equal(b0, p0)
-
-		b, _, err = readChunk(r) // eof
-		t.NoError(err)
-		t.Empty(b)
-
-		// read 2nd frame
-		ft, n, err = readFrameType(r)
-		t.NoError(err)
-		t.Equal(1, n)
-		t.Equal(streamFrameType, ft)
-
-		p1 := make([]byte, len(b1))
-		b, _, err = readChunk(r)
-		t.NoError(err)
-		copy(p1, b)
-		b, _, err = readChunk(r)
-		t.NoError(err)
-		copy(p1[3:], b)
-		b, _, err = readChunk(r)
-		t.NoError(err)
-		copy(p1[6:], b)
-
-		t.Equal(b1, p1)
-
-		b, _, err = readChunk(r) // eof
-		t.NoError(err)
-		t.Empty(b)
-
-		// read end(error) frame
-		ft, n, err = readFrameType(r)
-		// t.NoError(err)
-		t.Equal(1, n)
 		t.Equal(errorFrameType, ft)
+		t.Empty(br)
 
-		b, _, err = readChunk(r) // eof
+		_, _, err = readChunk(r)
+		t.ErrorIs(err, io.EOF)
+	})
+
+	t.Run("multiple stream", func() {
+		var chunkLength uint16 = 3
+
+		buf, fw, ew := t.newWriter(chunkLength)
+
+		bs := [][]byte{
+			sampleBytes(7),
+			sampleBytes(8),
+			sampleBytes(9),
+		}
+
+		for b := range slices.Values(bs) {
+			w, err := fw()
+			t.NoError(err)
+
+			n, err := w.Write(b)
+			t.NoError(err)
+			t.Equal(len(b), n)
+
+			t.NoError(w.Close())
+		}
+
+		t.NoError(ew(nil))
+
+		r := bytes.NewReader(buf.Bytes())
+
+		for i := range len(bs) {
+			ft, br, err := t.readFrame(r)
+			t.NoError(err)
+			t.Equal(streamFrameType, ft)
+			t.Equal(bs[i], br)
+		}
+
+		ft, br, err := t.readFrame(r)
 		t.NoError(err)
-		t.Empty(b)
+		t.Equal(errorFrameType, ft)
+		t.Empty(br)
 
 		_, _, err = readChunk(r)
 		t.ErrorIs(err, io.EOF)
 	})
 }
 
-func TestFramesWriter(t *testing.T) {
+func TestWriter(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	suite.Run(t, new(testFramesWriter))
+	suite.Run(t, new(testWriter))
 }

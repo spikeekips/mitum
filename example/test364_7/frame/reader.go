@@ -7,24 +7,36 @@ import (
 	"github.com/pkg/errors"
 )
 
-func DefaultFramesIter(r io.Reader) iter.Seq2[io.Reader, error] {
-	return NewFramesIterWithChunkLength(r, defaultChunkLength)
+func DefaultIter(r io.Reader) iter.Seq2[io.Reader, error] {
+	return NewIterWithChunkLength(r, defaultChunkLength)
 }
 
-func NewFramesIterWithChunkLength(r io.Reader, chunkLength uint16) iter.Seq2[io.Reader, error] {
+func NewIterWithChunkLength(r io.Reader, chunkLength uint16) iter.Seq2[io.Reader, error] {
 	return func(yield func(io.Reader, error) bool) {
 		for {
-			switch t, cr, _, err := NewStreamReaderWithChunkLength(r, chunkLength); {
+			switch t, _, err := readFrameType(r); {
 			case err != nil:
-				if cr == nil && errors.Is(err, io.EOF) {
+				if errors.Is(err, io.EOF) {
 					return
 				}
 
 				_ = yield(nil, err)
 
 				return
+			case t == streamFrameType:
+				cr := newStreamChunksReader(r, chunkLength)
+				if !func() bool {
+					defer func() {
+						_, _ = io.ReadAll(cr) // force exhaust if the reader, cr is not used
+					}()
+
+					return yield(cr, nil)
+				}() {
+					return
+				}
+
 			case t == errorFrameType:
-				switch b, err := io.ReadAll(cr); {
+				switch b, err := io.ReadAll(newStreamChunksReader(r, chunkLength)); {
 				case err != nil:
 					_ = yield(nil, err)
 
@@ -37,15 +49,9 @@ func NewFramesIterWithChunkLength(r io.Reader, chunkLength uint16) iter.Seq2[io.
 					return
 				}
 			default:
-				if !func() bool {
-					defer func() {
-						_, _ = io.ReadAll(cr) // force exhaust if the reader, cr is not used
-					}()
+				_ = yield(nil, errors.Errorf("unknown frame type, %v", t))
 
-					return yield(cr, nil)
-				}() {
-					return
-				}
+				return
 			}
 		}
 	}

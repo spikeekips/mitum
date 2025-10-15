@@ -26,14 +26,11 @@ func (t *testStreamReader) writeFrame(b []byte, chunkLength uint16) io.Reader {
 
 	r := bytes.NewReader(buf.Bytes())
 
-	switch t, cr, _, err := NewStreamReaderWithChunkLength(r, chunkLength); {
-	case err != nil:
+	if _, _, err := readFrameType(r); err != nil {
 		panic(err)
-	case t != streamFrameType:
-		panic(errors.Errorf("unknown frame type, %v", t))
-	default:
-		return cr
 	}
+
+	return newStreamChunksReader(r, chunkLength)
 }
 
 func (t *testStreamReader) checkEOF(r io.Reader, expected error) {
@@ -183,12 +180,11 @@ func sampleBytes(l uint64) []byte {
 }
 
 func writeStreamFrame(t frameType, w io.Writer, b []byte, chunkLength uint16) error {
-	fw := NewStreamWriterWithChunkLength(w, t, chunkLength)
+	fw, cw := newStreamWriterWithChunkLength(w, t, chunkLength)
 
-	_, err := fw.Write(b)
-	if err != nil {
+	if _, err := fw(b); err != nil {
 		return err
 	}
 
-	return fw.Close()
+	return cw()
 }
