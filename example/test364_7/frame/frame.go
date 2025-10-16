@@ -19,12 +19,15 @@ var (
 	errorFrameType   frameType = 0x02
 )
 
-var lengthBytesLength int
+type chunkLengthType = uint16
 
-var defaultChunkLength uint16 = math.MaxUint16
+var (
+	lengthBytesLength int
+	maxChunkLength    uint16 = math.MaxUint16
+)
 
 func init() {
-	b, err := binary.Append(nil, binary.BigEndian, defaultChunkLength)
+	b, err := binary.Append(nil, binary.BigEndian, maxChunkLength)
 	if err != nil {
 		panic(err)
 	}
@@ -42,68 +45,70 @@ var frameTypePool = sync.Pool{
 	},
 }
 
-func frameTypePoolPut(b []byte) {
-	clear(b)
-
-	frameTypePool.Put(b)
-}
-
 func readFrameType(r io.Reader) (frameType, int, error) {
 	p := frameTypePool.Get().([]byte)
-	defer frameTypePoolPut(p)
+	defer frameTypePool.Put(p)
 
 	switch n, err := io.ReadFull(r, p); {
 	case err != nil && !errors.Is(err, io.EOF):
-		return unknownFrameType, n, withStack(err)
+		return unknownFrameType, n, errors.WithStack(err)
 	default:
 		return frameType(p[0]), n, err
 	}
 }
 
-func lengthToBytes(i uint16) ([]byte, error) {
+type bytableInts interface {
+	~int8 | ~int16 | ~int32 | ~int64 | ~uint8 | ~uint16 | ~uint32 | ~uint64
+}
+
+func intToBytes[T bytableInts](i T) ([]byte, error) {
 	b, err := binary.Append(nil, binary.BigEndian, i)
 
 	return b, errors.WithStack(err)
 }
 
-func bytesToLength(b []byte) (i uint16, _ error) {
+func bytesToInt[T bytableInts](b []byte) (i T, _ error) {
 	_, err := binary.Decode(b, binary.BigEndian, &i)
 
 	return i, errors.WithStack(err)
 }
 
-var chunkLengthPool = sync.Pool{
+var lengthBytesPool = sync.Pool{
 	New: func() any {
-		return make([]byte, lengthBytesLength)
+		return make([]byte, 0, 8)
 	},
 }
 
-func chunkLengthPoolPut(b []byte) {
-	clear(b)
-
-	chunkLengthPool.Put(b)
+var chunkLengthBytesPool = sync.Pool{
+	New: func() any {
+		return make([]byte, 0, lengthBytesLength)
+	},
 }
 
-func readLength(r io.Reader) (uint16, int, error) {
-	p := chunkLengthPool.Get().([]byte)
-	defer chunkLengthPoolPut(p)
+func writeChunkLength(w io.Writer, chunkLength chunkLengthType) (int, error) {
+	switch i, err := intToBytes(chunkLength); {
+	case err != nil:
+		return 0, err
+	default:
+		return w.Write(i)
+	}
+}
 
-	switch n, err := io.ReadFull(r, p); {
+func readChunkLength(r io.Reader) (chunkLengthType, int, error) {
+	p := chunkLengthBytesPool.Get().([]byte)
+	defer chunkLengthBytesPool.Put(p)
+
+	switch n, err := io.ReadFull(r, p[:lengthBytesLength]); {
 	case err != nil && !errors.Is(err, io.EOF):
-		return 0, n, withStack(err)
+		return 0, n, errors.WithStack(err)
 	case err != nil && errors.Is(err, io.EOF) && n < 1:
 		return 0, n, err
 	default:
-		i, err := bytesToLength(p)
+		var i chunkLengthType
+		if _, err := binary.Decode(p[:n], binary.BigEndian, &i); err != nil {
+			return i, n, errors.WithStack(err)
+		}
 
-		return i, n, err
+		return i, n, nil
 	}
-}
-
-func withStack(err error) error {
-	if err != nil && !errors.Is(err, io.EOF) {
-		return errors.WithStack(err)
-	}
-
-	return err
 }

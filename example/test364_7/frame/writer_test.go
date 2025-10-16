@@ -36,7 +36,7 @@ func (t *testWriter) readFrame(r io.Reader) (frameType, []byte, error) {
 
 end:
 	for {
-		switch i, _, err := readLength(r); {
+		switch i, _, err := readChunkLength(r); {
 		case err != nil:
 			return ft, nil, err
 		case i < 1:

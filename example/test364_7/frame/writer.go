@@ -22,7 +22,7 @@ func DefaultWriter(w io.Writer) (
 	func() (io.WriteCloser, error),
 	func(error) error,
 ) {
-	return NewWriterWithChunkLength(w, defaultChunkLength)
+	return NewWriterWithChunkLength(w, maxChunkLength)
 }
 
 func NewWriterWithChunkLength(w io.Writer, chunkLength uint16) (

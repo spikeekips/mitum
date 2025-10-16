@@ -8,7 +8,7 @@ import (
 )
 
 func DefaultIter(r io.Reader) iter.Seq2[io.Reader, error] {
-	return NewIterWithChunkLength(r, defaultChunkLength)
+	return NewIterWithChunkLength(r, maxChunkLength)
 }
 
 func NewIterWithChunkLength(r io.Reader, chunkLength uint16) iter.Seq2[io.Reader, error] {

@@ -34,7 +34,7 @@ func newStreamChunksReader(r io.Reader, chunkLength uint16) io.Reader {
 
 		for bc < len(p) {
 			if left < 1 {
-				switch i, _, err := readLength(r); {
+				switch i, _, err := readChunkLength(r); {
 				case err != nil:
 					isClosed = true
 

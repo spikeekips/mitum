@@ -78,26 +78,21 @@ func newStreamWriterWithChunkLength(w io.Writer, t frameType, chunkLength uint16
 }
 
 func writeStreamChunk(w io.Writer, b []byte) (int, error) {
-	bl := uint16(len(b))
+	bl := chunkLengthType(len(b))
+
 	var wn int
 
-	switch i, err := lengthToBytes(bl); {
+	switch n, err := writeChunkLength(w, bl); {
 	case err != nil:
-		return wn, err
+		return n, err
 	default:
-		n, err := w.Write(i)
-		if err != nil {
-			return wn + n, err
-		}
-
 		wn += n
 	}
 
 	if bl < 1 {
-		return wn, nil
+		return 0, nil
 	}
 
 	n, err := w.Write(b)
-
 	return wn + n, err
 }

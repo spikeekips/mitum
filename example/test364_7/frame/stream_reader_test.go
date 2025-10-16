@@ -86,8 +86,7 @@ func (t *testStreamReader) TestChunkReader() {
 		n, err = cr.Read(p[:cap(p)])
 		t.ErrorIs(err, io.EOF)
 		t.Equal(1, n)
-		p = p[:n]
-		t.Equal(b[len(b)-1:], p)
+		t.Equal(b[len(b)-1:], p[:n])
 
 		// read again
 		t.checkEOF(cr, ErrClosed)
@@ -170,7 +169,7 @@ func TestStreamReader(t *testing.T) {
 	suite.Run(t, new(testStreamReader))
 }
 
-func sampleBytes(l uint64) []byte {
+func sampleBytes(l int64) []byte {
 	b := make([]byte, l)
 	for i := range b {
 		b[i] = byte(i)

@@ -80,7 +80,7 @@ func (t *testStreamWriter) TestLengthJustRight() {
 	t.Equal(1, n)
 
 	// check b0 chunk length
-	b0l, n, err := readLength(r)
+	b0l, n, err := readChunkLength(r)
 	t.NoError(err)
 	t.EqualValues(3, b0l)
 
@@ -92,7 +92,7 @@ func (t *testStreamWriter) TestLengthJustRight() {
 	t.Equal(b0, b0r)
 
 	// check b1 chunk length
-	b1l, n, err := readLength(r)
+	b1l, n, err := readChunkLength(r)
 	t.NoError(err)
 	t.EqualValues(3, b1l)
 
@@ -104,7 +104,7 @@ func (t *testStreamWriter) TestLengthJustRight() {
 	t.Equal(b1, b1r)
 
 	// check eof chunk
-	eofl, n, err := readLength(r)
+	eofl, n, err := readChunkLength(r)
 	t.NoError(err)
 	t.EqualValues(0, eofl)
 
@@ -142,7 +142,7 @@ func (t *testStreamWriter) TestOverLength() {
 	t.Equal(1, n)
 
 	// check 1st chunk length
-	bl, n, err := readLength(r)
+	bl, n, err := readChunkLength(r)
 	t.NoError(err)
 	t.EqualValues(chunkLength, bl)
 
@@ -154,7 +154,7 @@ func (t *testStreamWriter) TestOverLength() {
 	t.Equal([]byte{0x01, 0x02, 0x03}, br)
 
 	// check 2nd chunk length
-	bl, n, err = readLength(r)
+	bl, n, err = readChunkLength(r)
 	t.NoError(err)
 	t.EqualValues(1, bl)
 
@@ -166,7 +166,7 @@ func (t *testStreamWriter) TestOverLength() {
 	t.Equal([]byte{0x04}, br)
 
 	// check 3rd chunk length
-	bl, n, err = readLength(r)
+	bl, n, err = readChunkLength(r)
 	t.NoError(err)
 	t.EqualValues(chunkLength, bl)
 
@@ -178,7 +178,7 @@ func (t *testStreamWriter) TestOverLength() {
 	t.Equal([]byte{0x05, 0x06, 0x07}, br)
 
 	// check 4th chunk length
-	bl, n, err = readLength(r)
+	bl, n, err = readChunkLength(r)
 	t.NoError(err)
 	t.EqualValues(1, bl)
 
@@ -190,7 +190,7 @@ func (t *testStreamWriter) TestOverLength() {
 	t.Equal([]byte{0x08}, br)
 
 	// check eof chunk
-	eofl, n, err := readLength(r)
+	eofl, n, err := readChunkLength(r)
 	t.NoError(err)
 	t.EqualValues(0, eofl)
 
@@ -291,7 +291,7 @@ func TestStreamWriter(t *testing.T) {
 func readChunk(r io.Reader) ([]byte, int, error) {
 	var rn int
 
-	switch l, n, err := readLength(r); {
+	switch l, n, err := readChunkLength(r); {
 	case err != nil:
 		return nil, n, err
 	case l < 1:
