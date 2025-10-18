@@ -3,8 +3,10 @@ package main
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"sync"
@@ -23,14 +25,21 @@ import (
 
 type cliControl struct {
 	baseCommand
-	NOpShare         uint64      `arg:"" name:"ops-share" help:"op share"`
+	NOpShare         uint64      `arg:"" name:"op-share" help:"op share"`
 	NStateValueShare uint64      `arg:"" name:"state-value-share" help:"state value share"`
 	NOps             uint64      `arg:"" name:"num-ops" help:"number of operations"`
 	Workers          uint64      `arg:"" help:"number of workers" default:"1"`
+	Launch           string      `default:"run.sh"`
+	Root             string      `default:"./"`
 	StartHeight      base.Height `name:"start-height" default:"33"`
 	Round            uint64      `name:"round" default:"3"`
+	nOpShare         uint64
+	nStateValueShare uint64
+	nOps             uint64
 	pubs             []base.Publickey
 	ophs             [][2]util.Hash
+	rootDir          string
+	launchProg       string
 }
 
 func (cmd *cliControl) Run(log *zerolog.Logger) error {
@@ -56,29 +65,84 @@ func (cmd *cliControl) Run(log *zerolog.Logger) error {
 		return err
 	}
 
+	if err := cmd.launch(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
 func (cmd *cliControl) validateFlags() error {
+	cmd.log.Debug().
+		Uint64("op-share", cmd.NOpShare).
+		Uint64("state-value-share", cmd.NStateValueShare).
+		Uint64("workers", cmd.Workers).
+		Uint64("ops", cmd.NOps).
+		Interface("--start-height", cmd.StartHeight).
+		Uint64("--round", cmd.Round).
+		Str("--root", cmd.Root).
+		Str("--launch", cmd.Launch).
+		Msg("flags")
+
 	switch {
+	case cmd.Workers < 1:
+		return errors.New("zero <workers>")
 	case cmd.NOps < 1:
 		return errors.New("zero <num-ops>")
 	case cmd.NOpShare < 1:
-		return errors.New("zero <ops-share>")
+		return errors.New("zero <op-share>")
 	case cmd.NStateValueShare < 1:
 		return errors.New("zero <state-value-share>")
-	case cmd.Workers < 1:
-		return errors.New("zero <workers>")
+	}
+
+	if cmd.NOpShare < cmd.Workers {
+		cmd.nOpShare = cmd.Workers
+	}
+
+	if cmd.NStateValueShare < cmd.Workers {
+		cmd.nStateValueShare = cmd.Workers
+	}
+
+	switch {
+	case cmd.Root == "":
+		cmd.rootDir = "./"
+	default:
+		if _, err := os.Stat(filepath.Clean(cmd.Root)); err != nil {
+			return err
+		}
+
+		cmd.rootDir = cmd.Root
+	}
+
+	switch i, err := filepath.Abs(cmd.rootDir); {
+	case err != nil:
+		return err
+	default:
+		cmd.rootDir = i
+	}
+
+	switch {
+	case cmd.Launch == "":
+		return errors.New("empty --launch")
+	default:
+		if _, err := os.Stat(filepath.Clean(cmd.Launch)); err != nil {
+			return err
+		}
+
+		switch i, err := filepath.Abs(cmd.Launch); {
+		case err != nil:
+			return err
+		default:
+			cmd.launchProg = i
+		}
 	}
 
 	cmd.log.Debug().
-		Uint64("NOpShare", cmd.NOpShare).
-		Uint64("NStateValueShare", cmd.NStateValueShare).
-		Uint64("NOpShare", cmd.NOpShare).
-		Uint64("workers", cmd.Workers).
-		Interface("start-height", cmd.StartHeight).
-		Uint64("round", cmd.Round).
-		Msg("flags")
+		Uint64("op-share", cmd.nOpShare).
+		Uint64("state-value-share", cmd.nStateValueShare).
+		Str("--root", cmd.rootDir).
+		Str("--launch", cmd.launchProg).
+		Msg("validated")
 
 	return nil
 }
@@ -99,8 +163,8 @@ func (cmd *cliControl) generateKeypairs() error {
 	size := cmd.NOps + 1
 
 	nCreated, pubs, err := generateControlItems(
-		context.Background(),
-		"pubs.b",
+		cmd.ctx,
+		filepath.Join(cmd.rootDir, "pubs.b"),
 		size,
 		func(i uint64) (base.Publickey, []byte, error) {
 			_, k := btcec.PrivKeyFromBytes([]byte(strconv.FormatUint(i, 10)))
@@ -131,7 +195,7 @@ func (cmd *cliControl) generateKeypairs() error {
 }
 
 func (cmd *cliControl) generateOps() error {
-	if err := valkeyFlushAll(context.Background(), cmd.dbClient); err != nil {
+	if err := valkeyFlushAll(cmd.ctx, cmd.dbClient); err != nil {
 		return err
 	}
 
@@ -150,8 +214,8 @@ func (cmd *cliControl) generateCreateOps() error {
 	cmd.ophs = make([][2]util.Hash, cmd.NOps)
 
 	nCreated, facts, err := generateControlItems(
-		context.Background(),
-		"ops-create.b",
+		cmd.ctx,
+		filepath.Join(cmd.rootDir, "ops-create.b"),
 		cmd.NOps,
 		func(i uint64) (dop5.OperationFact, []byte, error) {
 			fact := dop5.NewAccountOpFact(
@@ -191,7 +255,7 @@ func (cmd *cliControl) generateCreateOps() error {
 			return cmd.log.Debug().Int("n", len(facts)) //nolint:zerologlint
 		}, "cmd/ create op facts saved")()
 
-		return valkeySaveOperationFacts(context.Background(), cmd.dbClient, cmd.enc, 1<<9, 1<<9, facts) //nolint:mnd
+		return valkeySaveOperationFacts(cmd.ctx, cmd.dbClient, cmd.enc, 1<<9, 1<<9, facts) //nolint:mnd
 	}()
 }
 
@@ -199,8 +263,8 @@ func (cmd *cliControl) generateTransferOps() error {
 	cmd.ophs = make([][2]util.Hash, cmd.NOps)
 
 	nCreated, facts, err := generateControlItems(
-		context.Background(),
-		"ops-transfer.b",
+		cmd.ctx,
+		filepath.Join(cmd.rootDir, "ops-transfer.b"),
 		cmd.NOps,
 		func(i uint64) (dop5.OperationFact, []byte, error) {
 			fact := dop5.NewAccountOpFact(
@@ -240,8 +304,119 @@ func (cmd *cliControl) generateTransferOps() error {
 			return cmd.log.Debug().Int("n", len(facts)) //nolint:zerologlint
 		}, "cmd/ transfer facts saved")()
 
-		return valkeySaveOperationFacts(context.Background(), cmd.dbClient, cmd.enc, 1<<9, 1<<9, facts) //nolint:mnd
+		return valkeySaveOperationFacts(cmd.ctx, cmd.dbClient, cmd.enc, 1<<9, 1<<9, facts) //nolint:mnd
 	}()
+}
+
+func (cmd *cliControl) launch() error {
+	newJob, jobDone, jobWait := dop7.NewFuncNumCPUJobWorker(cmd.ctx)
+
+	if err := newJob(func(context.Context) error {
+		return cmd.launchManager()
+	}); err != nil {
+		return err
+	}
+
+	for i := range cmd.Workers {
+		if err := newJob(func(context.Context) error {
+			return cmd.launchWorker(i)
+		}); err != nil {
+			return err
+		}
+	}
+
+	jobDone()
+
+	if err := jobWait(nil); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (cmd *cliControl) launchManager() error {
+	return cmd.launchProcess("manager", nil)
+}
+
+func (cmd *cliControl) launchWorker(worker uint64) error {
+	return cmd.launchProcess(fmt.Sprintf("worker-%02d", worker), []string{
+		fmt.Sprintf("MITUM_DOP7_WORKER_ID=%d", worker),
+	})
+}
+
+func (cmd *cliControl) launchProcess(name string, envs []string) error {
+	cmd.log.Debug().Str("name", name).Msg("launch process")
+
+	flogstdout, flogstderr := name+"-stdout.log", name+"-stderr.log"
+
+	var logstdout, logstderr io.WriteCloser
+
+	switch i, err := os.Create(filepath.Join(cmd.rootDir, flogstdout)); {
+	case err != nil:
+		return errors.Wrap(err, name+": process stdout log")
+	default:
+		logstdout = i
+	}
+
+	switch i, err := os.Create(filepath.Join(cmd.rootDir, flogstderr)); {
+	case err != nil:
+		return errors.Wrap(err, name+": process stderr log")
+	default:
+		logstderr = i
+	}
+
+	c := exec.CommandContext(cmd.ctx, cmd.launchProg)
+	c.Env = append(os.Environ(),
+		"MITUM_DOP7_NODE_TYPE="+name,
+		"MITUM_DOP7_CONTROL_URL=192.168.54.3:12340", // FIXME set control url
+	)
+	c.Env = append(os.Environ(), envs...)
+
+	var stdout, stderr io.ReadCloser
+	switch i, err := c.StdoutPipe(); {
+	case err != nil:
+		return err
+	default:
+		stdout = i
+	}
+
+	switch i, err := c.StderrPipe(); {
+	case err != nil:
+		return err
+	default:
+		stderr = i
+	}
+
+	go func() {
+		_, err := io.Copy(logstdout, stdout)
+		cmd.log.Debug().Err(err).Str("name", name).Msg("process stdout")
+	}()
+
+	go func() {
+		_, err := io.Copy(logstderr, stderr)
+		cmd.log.Debug().Err(err).Str("name", name).Msg("process stderr")
+	}()
+
+	if err := c.Start(); err != nil {
+		return err
+	}
+
+	go func() {
+		defer func() {
+			_ = stdout.Close()
+			_ = stderr.Close()
+			_ = logstdout.Close()
+			_ = logstderr.Close()
+		}()
+
+		err := c.Wait()
+		cmd.log.Debug().Err(err).Str("name", name).Msg("process stopped")
+		if err != nil {
+			_ = cmd.ctxCancel(err)
+		}
+	}()
+
+	return nil
 }
 
 func generateControlItems[T any](

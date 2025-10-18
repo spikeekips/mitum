@@ -76,16 +76,22 @@ func main() {
 }
 
 type baseCommand struct {
-	Redis    string `default:"valkey://127.0.0.1:6379"`
-	log      *zerolog.Logger
-	enc      *jsonenc.Encoder
-	dbClient valkey.Client
+	Redis     string          `default:"valkey://127.0.0.1:6379"`
+	ctx       context.Context //nolint:containedctx
+	ctxCancel dutil.InErrorFunc[error]
+	log       *zerolog.Logger
+	enc       *jsonenc.Encoder
+	dbClient  valkey.Client
 }
 
-func (cmd *baseCommand) prepare(log *zerolog.Logger) error {
+func (cmd *baseCommand) prepare(
+	log *zerolog.Logger,
+) error {
 	cmd.log = log
 
-	cmd.enc = jsonenc.NewEncoder(context.Background(), 1<<9) //nolint:mnd
+	cmd.ctx, cmd.ctxCancel = dutil.ContextWithCancelCause(context.Background())
+
+	cmd.enc = jsonenc.NewEncoder(cmd.ctx, 1<<9) //nolint:mnd
 	if err := cmd.addHinters(); err != nil {
 		return err
 	}
