@@ -150,7 +150,7 @@ func serveConnection(
 			return errors.WithStack(err)
 		default:
 			go func() {
-				_, err := f(ctx, stream)
+				_, err := f(bctx, stream)
 				_ = closeStream(stream, err)
 			}()
 		}

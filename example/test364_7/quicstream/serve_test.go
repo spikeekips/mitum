@@ -17,7 +17,6 @@ import (
 )
 
 type testServe struct {
-	dutil.BaseSuite
 	BaseTest
 }
 
