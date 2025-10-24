@@ -208,7 +208,7 @@ func exhaustDatagram(ctx context.Context, conn QuicConn) error {
 			errors.Is(err, context.Canceled):
 			return err
 		case err != nil:
-			panic(errors.Errorf("exhaustDatagram: unknown error, %T %+v\n", err, err))
+			panic(errors.Errorf("exhaustDatagram: unexpected error, %T %+v\n", err, err))
 		}
 	}
 }

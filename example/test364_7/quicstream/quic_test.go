@@ -124,7 +124,7 @@ func (t *testQuic) TestPacketConn() {
 		case errors.Is(err, quic.ErrTransportClosed),
 			errors.As(err, &operr):
 		default:
-			t.Fail("unexpected: err=%v", err)
+			t.Fail("unexpected", "%T %v", err, err)
 		}
 	})
 
@@ -154,7 +154,7 @@ func (t *testQuic) TestPacketConn() {
 		case errors.Is(err, quic.ErrTransportClosed):
 		case errors.As(err, &nerr):
 		default:
-			t.Fail("unexpected err=(%T)%v", err, err)
+			t.Fail("unexpected", "%T %v", err, err)
 		}
 
 		_, err = remoteStream.Write([]byte{0})
@@ -207,7 +207,7 @@ func (t *testQuic) TestPacketConn() {
 		case errors.Is(err, quic.ErrTransportClosed),
 			errors.As(err, &operr):
 		default:
-			t.Fail("unexpected: err=%v", err)
+			t.Fail("unexpected", "%T %v", err, err)
 		}
 
 		t.T().Log("remote stream: trying to read all")
@@ -253,7 +253,7 @@ func (t *testQuic) TestPacketConn() {
 		case errors.Is(err, quic.ErrTransportClosed),
 			errors.As(err, &operr):
 		default:
-			t.Fail("unexpected: err=%v", err)
+			t.Fail("unexpected", "%T %v", err, err)
 		}
 
 		t.T().Log("remote stream: trying to read all")
@@ -1056,7 +1056,7 @@ func (t *testQuic) TestLocalReboot() {
 				case errors.As(err, &ierr):
 				case errors.As(err, &serr):
 				default:
-					t.Failf("unknown error", "%T %v", err, err)
+					t.Failf("unexpected error", "%T %v", err, err)
 				}
 			}
 		})

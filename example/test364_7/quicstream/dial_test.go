@@ -139,7 +139,7 @@ func (t *testConnPool) TestGetConnection() {
 			case errors.Is(err, context.Canceled),
 				errors.As(err, &aerr):
 			default:
-				t.Failf("unknown error", "%T", err)
+				t.Failf("unexpected error", "%T", err)
 			}
 		} else {
 			t.NoError(err)
@@ -173,7 +173,7 @@ func (t *testConnPool) TestGetConnection() {
 		case errors.As(err, &herr):
 		case errors.As(err, &ierr):
 		default:
-			t.Fail("unknown error: %T %v", err, err)
+			t.Fail("unexpected error", "%T %v", err, err)
 		}
 
 		t.Equal(0, pool.Len())
@@ -471,7 +471,7 @@ func (t *testRequest) TestRetry() {
 		case errors.As(err, &herr):
 		case errors.As(err, &ierr):
 		default:
-			t.Fail("unknown error: %T %v", err, err)
+			t.Fail("unexpected error", "%T %v", err, err)
 		}
 	})
 
