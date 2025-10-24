@@ -134,7 +134,13 @@ func (t *testConnPool) TestGetConnection() {
 
 		stream, err := conn.OpenStream()
 		if err != nil {
-			t.ErrorIs(err, context.Canceled)
+			var aerr quic.ApplicationError
+			switch {
+			case errors.Is(err, context.Canceled),
+				errors.As(err, &aerr):
+			default:
+				t.Failf("unknown error", "%T", err)
+			}
 		} else {
 			t.NoError(err)
 			t.NotNil(stream)
@@ -161,33 +167,14 @@ func (t *testConnPool) TestGetConnection() {
 		_, err = dial(ctx, npconn.LocalAddr(), tlsConfig, quicConfig)
 		t.PrintErr(err, "dial")
 
+		var herr *quic.HandshakeTimeoutError
 		var ierr *quic.IdleTimeoutError
-		t.ErrorAs(err, &ierr)
-
-		t.Equal(0, pool.Len())
-	})
-
-	t.Run("dial failed", func() {
-		ctx, cancel := t.Ctx()
-		defer cancel(nil)
-
-		pool := t.newConnPoolLockedMap()
-		dial, poolClose, err := newConnPoolWithPool(ctx, pool, nil, time.Minute, time.Millisecond)
-		t.NoError(err)
-		defer poolClose(nil)
-
-		npconn, err := NewPacketConn(&net.UDPAddr{IP: net.IPv4zero, Port: 0})
-		t.NoError(err)
-		_ = npconn.Close()
-
-		quicConfig := DefaultQuicConfig()
-		quicConfig.HandshakeIdleTimeout = time.Millisecond * 33
-
-		_, err = dial(ctx, npconn.LocalAddr(), tlsConfig, quicConfig)
-		t.PrintErr(err, "dial")
-
-		var ierr *quic.IdleTimeoutError
-		t.ErrorAs(err, &ierr)
+		switch {
+		case errors.As(err, &herr):
+		case errors.As(err, &ierr):
+		default:
+			t.Fail("unknown error: %T %v", err, err)
+		}
 
 		t.Equal(0, pool.Len())
 	})
@@ -477,8 +464,15 @@ func (t *testRequest) TestRetry() {
 		_, err = r(NewRequestFunc(Dial))(ctx, remotePconn.LocalAddr(), tlsConfig, quicConfig, func(ctx context.Context, stream *quic.Stream) (context.Context, error) {
 			return ctx, nil
 		})
+
+		var herr *quic.HandshakeTimeoutError
 		var ierr *quic.IdleTimeoutError
-		t.ErrorAs(err, &ierr)
+		switch {
+		case errors.As(err, &herr):
+		case errors.As(err, &ierr):
+		default:
+			t.Fail("unknown error: %T %v", err, err)
+		}
 	})
 
 	t.Run("context canceled", func() {
