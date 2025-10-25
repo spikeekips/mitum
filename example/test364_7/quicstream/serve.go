@@ -5,6 +5,7 @@ import (
 	"crypto/sha3"
 	"crypto/tls"
 	"net"
+	"slices"
 
 	"github.com/pkg/errors"
 	"github.com/quic-go/quic-go"
@@ -192,6 +193,14 @@ func newFuncCloseStream(err error) func(*quic.Stream) error {
 
 func closeStream(stream *quic.Stream, err error) error {
 	return newFuncCloseStream(err)(stream)
+}
+
+func closeStreams(streams []*quic.Stream, err error) {
+	for stream := range slices.Values(streams) {
+		if stream != nil {
+			_ = closeStream(stream, err)
+		}
+	}
 }
 
 func exhaustDatagram(ctx context.Context, conn QuicConn) error {
