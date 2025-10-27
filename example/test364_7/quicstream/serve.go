@@ -6,6 +6,8 @@ import (
 	"crypto/tls"
 	"net"
 	"slices"
+	"sync"
+	"sync/atomic"
 
 	"github.com/pkg/errors"
 	"github.com/quic-go/quic-go"
@@ -14,8 +16,9 @@ import (
 )
 
 const (
-	connErrorCodeUnknown quic.ApplicationErrorCode = iota
+	_ quic.ApplicationErrorCode = iota
 	connErrorCodeOK
+	connErrorCodeUnknown
 )
 
 var (
@@ -24,7 +27,7 @@ var (
 )
 
 const (
-	streamErrorCodeOK quic.StreamErrorCode = iota
+	_ quic.StreamErrorCode = iota
 	streamErrorCodeUnknown
 )
 
@@ -158,7 +161,7 @@ func serveConnection(
 	}
 }
 
-func closeConnection(conn QuicConn, err error) error {
+func newFuncCloseConnection(err error) dutil.InErrorFunc[QuicConn] {
 	var errcode quic.ApplicationErrorCode
 	var errmsg string
 
@@ -170,7 +173,13 @@ func closeConnection(conn QuicConn, err error) error {
 		errcode = connErrorCodeOK
 	}
 
-	return errors.WithStack(conn.CloseWithError(errcode, errmsg))
+	return func(conn QuicConn) error {
+		return errors.WithStack(conn.CloseWithError(errcode, errmsg))
+	}
+}
+
+func closeConnection(conn QuicConn, err error) error {
+	return newFuncCloseConnection(err)(conn)
 }
 
 func newFuncCloseStream(err error) func(*quic.Stream) error {
@@ -184,8 +193,6 @@ func newFuncCloseStream(err error) func(*quic.Stream) error {
 		}
 	default:
 		return func(stream *quic.Stream) error {
-			stream.CancelRead(streamErrorCodeOK)
-
 			return stream.Close()
 		}
 	}
@@ -195,12 +202,38 @@ func closeStream(stream *quic.Stream, err error) error {
 	return newFuncCloseStream(err)(stream)
 }
 
-func closeStreams(streams []*quic.Stream, err error) {
+func closeStreams(streams []*quic.Stream, err error) (gerr error) {
+	f := newFuncCloseStream(err)
+
+	switch len(streams) {
+	case 0:
+		return nil
+	case 1:
+		if streams[0] == nil {
+			return nil
+		}
+
+		return f(streams[0])
+	}
+
+	var wg sync.WaitGroup
+	var e int64
+
 	for stream := range slices.Values(streams) {
 		if stream != nil {
-			_ = closeStream(stream, err)
+			wg.Go(func() {
+				if err := f(stream); err != nil {
+					if atomic.CompareAndSwapInt64(&e, 0, 1) {
+						gerr = err
+					}
+				}
+			})
 		}
 	}
+
+	wg.Wait()
+
+	return gerr
 }
 
 func exhaustDatagram(ctx context.Context, conn QuicConn) error {

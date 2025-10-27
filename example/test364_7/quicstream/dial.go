@@ -7,6 +7,7 @@ import (
 	"net"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/pkg/errors"
@@ -142,14 +143,23 @@ func checkPoolQuicConfig(idleTimeout time.Duration) func(*quic.Config) *quic.Con
 	}
 }
 
-func closePoolConns(seq iter.Seq2[string, QuicConn], err error) error {
-	var gerr error
+func closePoolConns(seq iter.Seq2[string, QuicConn], err error) (gerr error) {
+	var wg sync.WaitGroup
+	var e int64
+
+	f := newFuncCloseConnection(err)
 
 	for _, conn := range seq {
-		if err := closeConnection(conn.(*noCloseQuicConn).QuicConn, err); err != nil && gerr == nil {
-			gerr = err
-		}
+		wg.Go(func() {
+			if err := f(conn.(*noCloseQuicConn).QuicConn); err != nil {
+				if atomic.CompareAndSwapInt64(&e, 0, 1) {
+					gerr = err
+				}
+			}
+		})
 	}
+
+	wg.Wait()
 
 	return gerr
 }
