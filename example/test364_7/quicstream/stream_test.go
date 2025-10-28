@@ -1,13 +1,10 @@
 package quicstream
 
 import (
-	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"net"
 	"slices"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -15,61 +12,87 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/quic-go/quic-go"
-	"github.com/spikeekips/mitum/example/test364_5/frame"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
+	"github.com/spikeekips/mitum/example/test364_7/frame"
 	"github.com/spikeekips/mitum/util"
 	"github.com/stretchr/testify/suite"
 )
+
+/* FIXME
+- context canceled; request/serve
+	- before request, serve
+	- during request, serve
+	- during handler; request/serve
+- packet conn closed; request/serve
+	- before request, serve
+	- during request, serve
+	- during handler; request/serve
+- control stream closed; request/serve
+	- before request, serve
+	- during request, serve
+	- during handler; request/serve
+- sub streams
+	- after handler, sub streams closed
+- timeout; context.WithTimeout/without context.WithTimeout/quic config.MaxIdleTimeout
+	- timeout handler; request/serve
+	- request:
+		- but serve
+		- serve started, but timeout
+	- serve
+		- no request
+		- request started, but timeout
+- returned context; request/serv
+*/
 
 type testSubStreams struct {
 	BaseTest
 }
 
-func (t *testSubStreams) OpenConnections(
-	waitCtx, reqCtx context.Context,
-	waitQuicConfig, reqQuicConfig *quic.Config,
+func (t *testSubStreams) openConnections(
+	serveCtx, reqCtx context.Context,
+	serveQuicConfig, reqQuicConfig *quic.Config,
 ) (net.PacketConn, net.PacketConn, QuicConn, QuicConn, func()) {
-	if waitCtx == nil {
-		waitCtx = context.Background()
+	if serveCtx == nil {
+		serveCtx = context.Background()
 	}
 	if reqCtx == nil {
 		reqCtx = context.Background()
 	}
 
-	if waitQuicConfig == nil {
-		waitQuicConfig = DefaultQuicConfig()
+	if serveQuicConfig == nil {
+		serveQuicConfig = DefaultQuicConfig()
 	}
 	if reqQuicConfig == nil {
 		reqQuicConfig = DefaultQuicConfig()
 	}
 
-	waitpconn, l := t.RandomListener(nil, waitQuicConfig)
+	servepconn, l := t.RandomListener(nil, serveQuicConfig)
 	reqpconn := t.RandomPacketConn()
 
-	waitConnCh := make(chan QuicConn, 1)
+	servech := make(chan QuicConn, 1)
 	go func() {
-		conn, err := l.Accept(waitCtx)
+		conn, err := l.Accept(serveCtx)
 		t.PrintIfErrPanic(err, "accept")
 
-		waitConnCh <- conn
+		servech <- conn
 	}()
 
-	reqConn, err := dialWithPacketConn(reqCtx, reqpconn, waitpconn.LocalAddr(), t.NewTLSConfig(), reqQuicConfig)
+	reqConn, err := dialWithPacketConn(reqCtx, reqpconn, servepconn.LocalAddr(), t.NewTLSConfig(), reqQuicConfig)
 	t.PrintIfErrPanic(err, "req dial")
 
-	waitConn := <-waitConnCh
+	serveconn := <-servech
 
-	return waitpconn, reqpconn, waitConn, reqConn, sync.OnceFunc(func() {
-		err := waitpconn.Close()
-		t.PrintIfErrCaller(err, 2, "wait: PacketConn closed")
+	return servepconn, reqpconn, serveconn, reqConn, sync.OnceFunc(func() {
+		err := servepconn.Close()
+		t.PrintIfErrCaller(err, 2, "serve: PacketConn closed")
 		err = reqpconn.Close()
 		t.PrintIfErrCaller(err, 2, "req: PacketConn closed")
 	})
 }
 
-func (t *testSubStreams) OpenStreams(
+func (t *testSubStreams) openStreams(
 	ctx context.Context,
-	waitQuicConfig, reqQuicConfig *quic.Config,
+	serveQuicConfig, reqQuicConfig *quic.Config,
 ) (
 	net.PacketConn, net.PacketConn, QuicConn, QuicConn,
 	*quic.Stream, *quic.Stream,
@@ -78,942 +101,504 @@ func (t *testSubStreams) OpenStreams(
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	waitpconn, reqpconn, waitConn, reqConn, closef := t.OpenConnections(ctx, ctx, waitQuicConfig, reqQuicConfig)
+	servepconn, reqpconn, serveconn, reqconn, closef := t.openConnections(ctx, ctx, serveQuicConfig, reqQuicConfig)
 
-	waitWaitStream := dutil.AssertWaitChan(t.Assert(), time.Second, func() *quic.Stream {
-		stream, err := waitConn.AcceptStream(ctx)
-		t.PrintIfErrPanic(err, "wait conn: AcceptStream")
+	sctx, sctxCancel := context.WithTimeout(ctx, time.Second*3)
+	defer sctxCancel()
 
-		_, _, err = frame.ReadFixed(stream)
-		t.IfErrPanicf(err, "wait stream: read")
+	servestreamch := make(chan *quic.Stream, 1)
+	go func() {
+		stream, err := contextEnsureWait(sctx, func(ctx context.Context) (*quic.Stream, error) {
+			stream, err := serveconn.AcceptStream(ctx)
+			if err != nil {
+				return nil, err
+			}
+			t.PrintIfErr(err, "serve conn: AcceptStream")
 
-		return stream
-	})
+			_, r, err := frame.ReadBytes(stream)
+			t.PrintIfErr(err, "serve stream: read")
+			_, err = io.ReadAll(r)
+			t.PrintIfErr(err, "serve stream: read all")
 
-	reqStream, err := reqConn.OpenStream()
+			return stream, err
+		})
+		t.IfErrPanicf(err, "serve")
+
+		servestreamch <- stream
+	}()
+
+	reqstream, err := reqconn.OpenStream()
 	t.PrintIfErrPanic(err, "req conn: OpenStream")
-	t.IfErrPanicf(frame.WriteFixed(reqStream, []byte{0}), "req stream: write")
+	_, err = frame.WriteBytes(reqstream, []byte{0})
+	t.IfErrPanicf(err, "req stream: write")
 
-	return waitpconn, reqpconn, waitConn, reqConn, waitWaitStream(), reqStream, closef
+	var servestream *quic.Stream
+
+	select {
+	case <-sctx.Done():
+		t.PrintIfErrPanic(err, "wait serve stream")
+	case servestream = <-servestreamch:
+	}
+
+	return servepconn, reqpconn, serveconn, reqconn, servestream, reqstream, sync.OnceFunc(func() {
+		closeStream(servestream, nil)
+		closeStream(reqstream, nil)
+		closeConnection(serveconn, nil)
+		closeConnection(reqconn, nil)
+		closef()
+	})
 }
 
-func (t *testSubStreams) TestOpen() {
-	run := func(n, limit uint64, re, wa SubStreamsHandlerFunc) {
-		t.T().Helper()
+func (t *testSubStreams) defaultRequest(
+	ctx context.Context,
+	reqconn QuicConn,
+	pool *dutil.SingleLockedMap[subStreamsRequestUID, *subStreamPoolItem],
+) (
+	RequestSubStreamsFunc,
+	dutil.InErrorFunc[error],
+) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 
-		_, _, waitconn, reqconn, waitstream, reqstream, closef := t.OpenStreams(nil, nil, nil)
-		defer closef()
+	if pool == nil {
+		pool = dutil.NewSingleLockedMap[subStreamsRequestUID, *subStreamPoolItem]()
+	}
 
-		pool := dutil.NewSingleLockedMap[string, *subStreamPoolItem]()
-		defer pool.Close()
+	f, c := newRequestSubStreamsWithPool(ctx, reqconn, time.Second*2, pool)
 
-		request, poolClose, err := newFuncRequestSubStreamsWithPool(
-			context.Background(),
-			reqconn,
-			pool,
-		)
-		t.NoError(err)
-		defer poolClose(nil)
+	return f, c
+}
 
-		waitDone := make(chan error, 1)
-		wait := newFuncWaitSubStreams(waitconn, limit)
+func (t *testSubStreams) requestServeHandlers(
+	ctx context.Context,
+	n, limit uint64,
+	pool *dutil.SingleLockedMap[subStreamsRequestUID, *subStreamPoolItem],
+) (
+	net.PacketConn, net.PacketConn, QuicConn, QuicConn,
+	*quic.Stream, *quic.Stream,
+	RequestSubStreamsFunc,
+	ServeSubStreamsFunc,
+	func(SubStreamsHandlerFunc, SubStreamsHandlerFunc) error,
+	func(),
+) {
+	servepconn, reqpconn, serveconn, reqconn, servestream, reqstream, closef := t.openStreams(nil, nil, nil)
+
+	request, closerequest := t.defaultRequest(ctx, reqconn, pool)
+	serve := newServeSubStreams(serveconn, limit)
+
+	doHandler := func(reqhandler, servehandler SubStreamsHandlerFunc) error {
+		serveDone := make(chan error, 1)
+
+		var servehandlerCalled, reqhandlerCalled int64
 
 		go func() {
-			waitDone <- wait(context.Background(), waitstream, func(s []*quic.Stream, err error) error {
-				t.Print("wait err: %T %v", err, err)
+			serveh, err := serve(ctx, servestream)
+			if err != nil {
+				serveDone <- err
 
-				return wa(s, err)
+				return
+			}
+
+			_, err = serveh(ctx, func(ctx context.Context, streams []*quic.Stream) (context.Context, error) {
+				t.Print("serve handler: streams=%d", len(streams))
+
+				if !atomic.CompareAndSwapInt64(&servehandlerCalled, 0, 1) {
+					return ctx, errors.New("multiple serve handler called")
+				}
+
+				if servehandler != nil {
+					return servehandler(ctx, streams)
+				}
+
+				return ctx, nil
 			})
+
+			serveDone <- err
 		}()
 
-		t.NoError(request(context.Background(), reqstream, n, func(s []*quic.Stream, err error) error {
-			t.Print("request err: %T %v", err, err)
+		reqh, err := request(ctx, reqstream, n)
+		if err != nil {
+			return err
+		}
 
-			return re(s, err)
-		}))
+		if _, err := reqh(ctx, func(ctx context.Context, streams []*quic.Stream) (context.Context, error) {
+			t.Print("request handler: streams=%d", len(streams))
+
+			if !atomic.CompareAndSwapInt64(&reqhandlerCalled, 0, 1) {
+				return ctx, errors.New("multiple req handler called")
+			}
+
+			if servehandler != nil {
+				return reqhandler(ctx, streams)
+			}
+
+			return ctx, nil
+		}); err != nil {
+			return err
+		}
 
 		select {
 		case <-time.After(time.Second * 3):
-			t.Fail("wait")
-		case err := <-waitDone:
-			t.NoError(err)
+			return errors.New("wait serve handler")
+		case err := <-serveDone:
+			return err
 		}
+	}
+
+	return servepconn, reqpconn, serveconn, reqconn, servestream, reqstream,
+		request, serve,
+		doHandler,
+		sync.OnceFunc(func() {
+			closerequest(nil)
+
+			closef()
+		})
+}
+
+func (t *testSubStreams) TestRequestNumber() {
+	run := func(n, limit uint64, servehandler, reqhandler SubStreamsHandlerFunc) {
+		t.T().Logf("n=%d limit=%d", n, limit)
+
+		ctx, ctxCancel := t.Ctx()
+		defer ctxCancel(nil)
+
+		var reqn, serven uint64
+
+		_, _, _, _, _, _, _, _, doHandler, closef := t.requestServeHandlers(ctx, n, limit, nil)
+		defer closef()
+
+		err := doHandler(
+			func(ctx context.Context, streams []*quic.Stream) (context.Context, error) {
+				ok := atomic.CompareAndSwapUint64(&reqn, 0, uint64(len(streams)))
+				t.IfTruePanic(!ok, "multiple request handler called")
+
+				if servehandler != nil {
+					return reqhandler(ctx, streams)
+				}
+
+				return ctx, nil
+			},
+			func(ctx context.Context, streams []*quic.Stream) (context.Context, error) {
+				ok := atomic.CompareAndSwapUint64(&serven, 0, uint64(len(streams)))
+				t.IfTruePanic(!ok, "multiple serve handler called")
+
+				if servehandler != nil {
+					return servehandler(ctx, streams)
+				}
+
+				return ctx, nil
+			},
+		)
+		t.NoError(err)
+
+		expected := min(n, limit)
+		t.T().Logf("n=%d expected=%d", n, expected)
+
+		t.Equal(expected, atomic.LoadUint64(&reqn))
+		t.Equal(expected, atomic.LoadUint64(&serven))
+	}
+
+	t.Run("n < limit", func() { run(1, 2, nil, nil) })
+	t.Run("n == limit", func() { run(2, 2, nil, nil) })
+	t.Run("n > limit", func() { run(3, 2, nil, nil) })
+	t.Run("n = 0", func() {
+		var servehandlerCalled, reqhandlerCalled int64
+
+		run(0, 2,
+			func(ctx context.Context, streams []*quic.Stream) (context.Context, error) {
+				_ = atomic.CompareAndSwapInt64(&servehandlerCalled, 0, 1)
+
+				return ctx, nil
+			},
+			func(ctx context.Context, streams []*quic.Stream) (context.Context, error) {
+				_ = atomic.CompareAndSwapInt64(&reqhandlerCalled, 0, 1)
+
+				return ctx, nil
+			},
+		)
+
+		t.EqualValues(1, atomic.LoadInt64(&servehandlerCalled))
+		t.EqualValues(1, atomic.LoadInt64(&reqhandlerCalled))
+	})
+	t.Run("limit = 0", func() {
+		var servehandlerCalled, reqhandlerCalled int64
+
+		run(2, 0,
+			func(ctx context.Context, streams []*quic.Stream) (context.Context, error) {
+				_ = atomic.CompareAndSwapInt64(&servehandlerCalled, 0, 1)
+
+				return ctx, nil
+			},
+			func(ctx context.Context, streams []*quic.Stream) (context.Context, error) {
+				_ = atomic.CompareAndSwapInt64(&reqhandlerCalled, 0, 1)
+
+				return ctx, nil
+			},
+		)
+
+		t.EqualValues(1, atomic.LoadInt64(&servehandlerCalled))
+		t.EqualValues(1, atomic.LoadInt64(&reqhandlerCalled))
+	})
+}
+
+func (t *testSubStreams) TestRequest() {
+	t.Run("accept timeout", func() {
+		_, _, _, reqconn, _, reqstream, closef := t.openStreams(nil, nil, nil)
+		defer closef()
+
+		request, closerequest := newRequestSubStreams(context.Background(), reqconn, time.Minute)
+		defer closerequest(nil)
+
+		tctx, tctxCancel := context.WithTimeout(context.Background(), time.Millisecond*333)
+		defer tctxCancel()
+
+		h, err := request(tctx, reqstream, 3)
+		t.ErrorIs(err, context.DeadlineExceeded)
+		t.Nil(h)
+	})
+}
+
+func (t *testSubStreams) TestRequestLoopStopped() {
+	t.Run("main context canceled", func() {
+		t.Run("after request", func() {
+			var n, limit uint64 = 2, 2
+
+			ctx, ctxCancel := t.Ctx()
+			defer ctxCancel(nil)
+
+			pool := dutil.NewSingleLockedMap[subStreamsRequestUID, *subStreamPoolItem]()
+
+			_, _, _, _, _, reqstream, request, _, doHandler, closef := t.requestServeHandlers(ctx, n, limit, pool)
+			defer closef()
+
+			err := doHandler(
+				func(ctx context.Context, streams []*quic.Stream) (context.Context, error) {
+					t.IfTruePanic(pool.Len() != 0, "pool.Len(), %d != 0", pool.Len())
+
+					t.IfTruePanic(uint64(len(streams)) != n, "wrong streams number")
+					return ctx, nil
+				},
+				func(ctx context.Context, streams []*quic.Stream) (context.Context, error) {
+					t.IfTruePanic(uint64(len(streams)) != n, "wrong streams number")
+					return ctx, nil
+				},
+			)
+			t.NoError(err)
+
+			t.True(pool.Len() == 0)
+
+			t.T().Log("main context canceled")
+			ctxCancel(nil)
+
+			h, err := request(ctx, reqstream, n)
+			t.ErrorIs(err, context.Canceled)
+			t.Nil(h)
+		})
+
+		t.Run("before request", func() {
+			_, _, _, reqconn, _, reqstream, closef := t.openStreams(nil, nil, nil)
+			defer closef()
+
+			ctx, ctxCancel := t.Ctx()
+			defer ctxCancel(nil)
+
+			pool := dutil.NewSingleLockedMap[subStreamsRequestUID, *subStreamPoolItem]()
+
+			request, closerequest := t.defaultRequest(ctx, reqconn, pool)
+			defer closerequest(nil)
+
+			t.T().Log("main context canceled")
+			ctxCancel(nil)
+
+			h, err := request(ctx, reqstream, 3)
+			t.ErrorIs(err, context.Canceled)
+			t.Nil(h)
+
+			t.Equal(0, pool.Len())
+		})
+	})
+}
+
+func (t *testSubStreams) TestRequestPool() {
+	t.Run("after request, pool cleaned", func() {
+		var n, limit uint64 = 2, 2
+
+		ctx, ctxCancel := t.Ctx()
+		defer ctxCancel(nil)
+
+		pool := dutil.NewSingleLockedMap[subStreamsRequestUID, *subStreamPoolItem]()
+
+		_, _, _, _, _, _, _, _, doHandler, closef := t.requestServeHandlers(ctx, n, limit, pool)
+		defer closef()
+
+		var reqstreams, servestreams []*quic.Stream
+		err := doHandler(
+			func(ctx context.Context, streams []*quic.Stream) (context.Context, error) {
+				reqstreams = streams
+
+				return ctx, nil
+			},
+			func(ctx context.Context, streams []*quic.Stream) (context.Context, error) {
+				servestreams = streams
+
+				return ctx, nil
+			},
+		)
+		t.NoError(err)
 
 		t.Equal(0, pool.Len())
-	}
-
-	t.Run("n=0 limit=1", func() {
-		var waitCalled, reqCalled int64
-		run(0, 1,
-			func([]*quic.Stream, error) error {
-				atomic.AddInt64(&reqCalled, 1)
-
-				return nil
-			},
-			func([]*quic.Stream, error) error {
-				atomic.AddInt64(&waitCalled, 1)
-
-				return nil
-			},
-		)
-
-		t.EqualValues(1, reqCalled)
-		t.EqualValues(1, waitCalled)
-	})
-
-	t.Run("n=9 limti=9", func() {
-		var n uint64 = 9
-
-		var bs [][]byte
-		for range n {
-			bs = append(bs, util.UUID().Bytes())
+		for stream := range slices.Values(reqstreams) {
+			_, err := stream.Write(util.UUID().Bytes())
+			t.ErrorContains(err, "closed stream")
 		}
 
-		done := make(chan [][]byte, 1)
-
-		run(n, n,
-			func(s []*quic.Stream, err error) error {
-				for i, stream := range slices.All(s) {
-					t.IfErrPanic(err)
-
-					if _, err := stream.Write(bs[i]); err != nil {
-						t.IfErrPanic(err)
-					}
-
-					t.IfErrPanic(stream.Close())
-				}
-
-				return nil
-			},
-			func(s []*quic.Stream, _ error) error {
-				var bb [][]byte
-				for stream := range slices.Values(s) {
-					b, err := io.ReadAll(stream)
-					if err != nil {
-						t.IfErrPanic(err)
-					}
-					bb = append(bb, b)
-
-					_ = stream.Close()
-				}
-
-				done <- bb
-
-				return nil
-			},
-		)
-
-		select {
-		case <-time.After(time.Second * 3):
-			t.Fail("wait")
-		case bb := <-done:
-			t.EqualValues(n, len(bb))
-
-			for b0 := range slices.Values(bs) {
-				var found bool
-				for b1 := range slices.Values(bb) {
-					if bytes.Equal(b0, b1) {
-						found = true
-
-						break
-					}
-				}
-
-				t.True(found)
-			}
+		for stream := range slices.Values(servestreams) {
+			_, err := stream.Write(util.UUID().Bytes())
+			t.ErrorContains(err, "closed stream")
 		}
 	})
 
-	t.Run("n=9 limti=3", func() {
-		var waitCalled, reqCalled int64
-		run(9, 3,
-			func(s []*quic.Stream, err error) error {
-				t.IfErrPanic(err)
-
-				atomic.AddInt64(&reqCalled, int64(len(s)))
-
-				return nil
-			},
-			func(s []*quic.Stream, err error) error {
-				atomic.AddInt64(&waitCalled, int64(len(s)))
-
-				return nil
-			},
-		)
-
-		t.EqualValues(3, reqCalled)
-		t.EqualValues(3, waitCalled)
-	})
-}
-
-type lazyQuicConn struct {
-	QuicConn
-	acceptStream func(context.Context) error
-	openStream   func(context.Context) error
-}
-
-func (c lazyQuicConn) AcceptStream(ctx context.Context) (*quic.Stream, error) {
-	if c.acceptStream != nil {
-		if err := c.acceptStream(ctx); err != nil {
-			return nil, err
-		}
-	}
-
-	return c.QuicConn.AcceptStream(ctx)
-}
-
-func (c lazyQuicConn) OpenStreamSync(ctx context.Context) (*quic.Stream, error) {
-	if c.openStream != nil {
-		if err := c.openStream(ctx); err != nil {
-			return nil, err
-		}
-	}
-
-	return c.QuicConn.OpenStreamSync(ctx)
-}
-
-func newLazyQuicConn(conn QuicConn, accept, open dutil.InErrorFunc[context.Context]) lazyQuicConn {
-	return lazyQuicConn{
-		QuicConn:     conn,
-		acceptStream: accept,
-		openStream:   open,
-	}
-}
-
-func funcDelayConn(delay int64, next dutil.InErrorFunc[context.Context]) dutil.InErrorFunc[context.Context] {
-	return func(ctx context.Context) error {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(time.Second * time.Duration(delay)):
-		}
-
-		if next != nil {
-			return next(ctx)
-		}
-
-		return nil
-	}
-}
-
-func funcCloseConn(conn QuicConn, i int64, next dutil.InErrorFunc[context.Context]) dutil.InErrorFunc[context.Context] {
-	var opened int64
-
-	return func(ctx context.Context) error {
-		if atomic.AddInt64(&opened, 1) == i {
-			err := conn.CloseWithError(3, "showme")
-			fmt.Println("lazy quic conn closed", err)
-			if err != nil {
-				return err
-			}
-		}
-
-		if next != nil {
-			return next(ctx)
-		}
-
-		return nil
-	}
-}
-
-func (t *testSubStreams) TestConnClosed() {
-	t.Run("wait side conn closed", func() {
-		_, _, waitconn, reqconn, waitstream, reqstream, closef := t.OpenStreams(nil, nil, nil)
-		defer closef()
-
-		pool := dutil.NewSingleLockedMap[string, *subStreamPoolItem]()
-		defer pool.Close()
-
-		request, poolClose, err := newFuncRequestSubStreamsWithPool(
-			context.Background(),
-			reqconn,
-			pool,
-		)
-		t.NoError(err)
-		defer poolClose(nil)
-
-		waitDone := make(chan error, 1)
-
-		lazywaitconn := newLazyQuicConn(waitconn, nil,
-			funcCloseConn(waitconn, 3, funcDelayConn(1, nil)),
-		)
-
-		go func() {
-			wait := newFuncWaitSubStreams(lazywaitconn, 9)
-
-			waitDone <- wait(context.Background(), waitstream, func(_ []*quic.Stream, err error) error {
-				t.Print("wait err: %T %v", err, err)
-
-				var aerr *quic.ApplicationError
-				t.IfTruePanic(!errors.As(err, &aerr), "not *quic.ApplicationError")
-				t.IfTruePanic(aerr.Remote, "remote")
-				t.IfTruePanic(aerr.ErrorCode != 3, "error code")
-				t.IfTruePanic(aerr.ErrorMessage != "showme", "error message")
-
-				return nil
-			})
-		}()
-
-		err = request(context.Background(), reqstream, 9, func(s []*quic.Stream, err error) error {
-			t.Print("request err: %T %v", err, err)
-
-			var aerr *quic.ApplicationError
-			t.IfTruePanic(!errors.As(err, &aerr), "not *quic.ApplicationError")
-			t.IfTruePanic(!aerr.Remote, "remote")
-			t.IfTruePanic(aerr.ErrorCode != 3, "error code")
-			t.IfTruePanic(aerr.ErrorMessage != "showme", "error message")
-
-			t.IfTruePanic(len(s) > 0, "not empty streams")
-
-			return err
-		})
-		var aerr *quic.ApplicationError
-		t.ErrorAs(err, &aerr)
-		t.True(aerr.Remote)
-		t.EqualValues(aerr.ErrorCode, 3)
-		t.Equal(aerr.ErrorMessage, "showme")
-
-		select {
-		case <-time.After(time.Second * 3):
-			t.Fail("wait")
-		case err := <-waitDone:
-			var aerr *quic.ApplicationError
-			t.ErrorAs(err, &aerr)
-			t.False(aerr.Remote)
-			t.EqualValues(aerr.ErrorCode, 3)
-			t.Equal(aerr.ErrorMessage, "showme")
-		}
-	})
-
-	t.Run("wait side conn closed before wait", func() {
-		_, _, waitconn, reqconn, waitstream, reqstream, closef := t.OpenStreams(nil, nil, nil)
-		defer closef()
-
-		pool := dutil.NewSingleLockedMap[string, *subStreamPoolItem]()
-		defer pool.Close()
-
-		request, poolClose, err := newFuncRequestSubStreamsWithPool(
-			context.Background(),
-			reqconn,
-			pool,
-		)
-		t.NoError(err)
-		defer poolClose(nil)
-
-		waitDone := make(chan error, 1)
-
-		t.NoError(waitconn.CloseWithError(3, "showme"))
-		go func() {
-			wait := newFuncWaitSubStreams(waitconn, 3)
-
-			waitDone <- wait(context.Background(), waitstream, func(_ []*quic.Stream, err error) error {
-				t.Print("wait err: %T %v", err, err)
-
-				var aerr *quic.ApplicationError
-				t.IfTruePanic(!errors.As(err, &aerr), "not *quic.ApplicationError")
-				t.IfTruePanic(aerr.Remote, "remote")
-				t.IfTruePanic(aerr.ErrorCode != 3, "error code")
-				t.IfTruePanic(aerr.ErrorMessage != "showme", "error message")
-
-				return nil
-			})
-		}()
-
-		err = request(context.Background(), reqstream, 3, func(s []*quic.Stream, err error) error {
-			t.Print("request err: %T %v", err, err)
-
-			var aerr *quic.ApplicationError
-			t.IfTruePanic(!errors.As(err, &aerr), "not *quic.ApplicationError")
-			t.IfTruePanic(!aerr.Remote, "remote")
-			t.IfTruePanic(aerr.ErrorCode != 3, "error code")
-			t.IfTruePanic(aerr.ErrorMessage != "showme", "error message")
-
-			t.IfTruePanic(len(s) > 0, "not empty streams")
-
-			return err
-		})
-
-		var aerr *quic.ApplicationError
-		switch {
-		case errors.Is(err, context.Canceled):
-		case errors.As(err, &aerr):
-			t.True(aerr.Remote)
-			t.EqualValues(aerr.ErrorCode, 3)
-			t.Equal(aerr.ErrorMessage, "showme")
-		default:
-			t.Fail("unexpected error", "%T %v", err, err)
-		}
-
-		select {
-		case <-time.After(time.Second * 3):
-			t.Fail("wait")
-		case err := <-waitDone:
-			var aerr *quic.ApplicationError
-			t.ErrorAs(err, &aerr)
-			t.False(aerr.Remote)
-			t.EqualValues(aerr.ErrorCode, 3)
-			t.Equal(aerr.ErrorMessage, "showme")
-		}
-	})
-
-	t.Run("request side conn closed", func() {
-		_, _, waitconn, reqconn, waitstream, reqstream, closef := t.OpenStreams(nil, nil, nil)
-		defer closef()
-
-		pool := dutil.NewSingleLockedMap[string, *subStreamPoolItem]()
-		defer pool.Close()
-
-		var opened int64
-		lazyreqconn := lazyQuicConn{
-			QuicConn: reqconn,
-			acceptStream: func(context.Context) error {
-				if atomic.CompareAndSwapInt64(&opened, 0, 1) {
-					reqconn.CloseWithError(3, "showme")
-					t.Print("request conn closed")
-				}
-
-				return nil
-			},
-		}
-
-		request, poolClose, err := newFuncRequestSubStreamsWithPool(
-			context.Background(),
-			lazyreqconn,
-			pool,
-		)
-		t.NoError(err)
-		defer poolClose(nil)
-
-		waitDone := make(chan error, 1)
-
-		go func() {
-			wait := newFuncWaitSubStreams(waitconn, 9)
-
-			waitDone <- wait(context.Background(), waitstream, func(s []*quic.Stream, err error) error {
-				t.Print("wait stream: %d err=%T %v", len(s), err, err)
-
-				var aerr *quic.ApplicationError
-				t.IfTruePanic(!errors.As(err, &aerr), "not *quic.ApplicationError")
-				t.IfTruePanic(!aerr.Remote, "remote")
-				t.IfTruePanic(aerr.ErrorCode != 3, "error code")
-				t.IfTruePanic(aerr.ErrorMessage != "showme", "error message")
-
-				return nil
-			})
-		}()
-
-		err = request(context.Background(), reqstream, 9, func(s []*quic.Stream, err error) error {
-			t.Print("request err: %T %v", err, err)
-
-			var aerr *quic.ApplicationError
-			t.IfTruePanic(!errors.As(err, &aerr), "not *quic.ApplicationError")
-			t.IfTruePanic(aerr.Remote, "remote")
-			t.IfTruePanic(aerr.ErrorCode != 3, "error code")
-			t.IfTruePanic(aerr.ErrorMessage != "showme", "error message")
-
-			t.IfTruePanic(len(s) > 0, "not empty streams")
-
-			return err
-		})
-		var aerr *quic.ApplicationError
-		t.ErrorAs(err, &aerr)
-		t.False(aerr.Remote)
-		t.EqualValues(aerr.ErrorCode, 3)
-		t.Equal(aerr.ErrorMessage, "showme")
-
-		select {
-		case <-time.After(time.Second * 3):
-			t.Fail("wait")
-		case err := <-waitDone:
-			t.T().Logf("wait error: %T %v", err, err)
-
-			var aerr *quic.ApplicationError
-			t.ErrorAs(err, &aerr)
-			t.True(aerr.Remote)
-			t.EqualValues(aerr.ErrorCode, 3)
-			t.Equal(aerr.ErrorMessage, "showme")
-		}
-	})
-
-	t.Run("request side conn closed before wait", func() {
-		_, _, waitconn, reqconn, waitstream, reqstream, closef := t.OpenStreams(nil, nil, nil)
-		defer closef()
-
-		pool := dutil.NewSingleLockedMap[string, *subStreamPoolItem]()
-		defer pool.Close()
-
-		t.NoError(reqconn.CloseWithError(3, "showme"))
-
-		request, poolClose, err := newFuncRequestSubStreamsWithPool(
-			context.Background(),
-			reqconn,
-			pool,
-		)
-		t.NoError(err)
-		defer poolClose(nil)
-
-		waitDone := make(chan error, 1)
-
-		go func() {
-			wait := newFuncWaitSubStreams(waitconn, 3)
-
-			waitDone <- wait(context.Background(), waitstream, func(_ []*quic.Stream, err error) error {
-				t.Print("wait err: %T %v", err, err)
-
-				var aerr *quic.ApplicationError
-				t.IfTruePanic(!errors.As(err, &aerr), "not *quic.ApplicationError")
-				t.IfTruePanic(!aerr.Remote, "remote")
-				t.IfTruePanic(aerr.ErrorCode != 3, "error code")
-				t.IfTruePanic(aerr.ErrorMessage != "showme", "error message")
-
-				return nil
-			})
-		}()
-
-		err = request(context.Background(), reqstream, 3, func(s []*quic.Stream, err error) error {
-			t.Print("request err: %T %v", err, err)
-
-			var aerr *quic.ApplicationError
-			t.IfTruePanic(!errors.As(err, &aerr), "not *quic.ApplicationError")
-			t.IfTruePanic(aerr.Remote, "remote")
-			t.IfTruePanic(aerr.ErrorCode != 3, "error code")
-			t.IfTruePanic(aerr.ErrorMessage != "showme", "error message")
-
-			t.IfTruePanic(len(s) > 0, "not empty streams")
-
-			return err
-		})
-		var aerr *quic.ApplicationError
-		t.ErrorAs(err, &aerr)
-		t.False(aerr.Remote)
-		t.EqualValues(aerr.ErrorCode, 3)
-		t.Equal(aerr.ErrorMessage, "showme")
-
-		select {
-		case <-time.After(time.Second * 3):
-			t.Fail("wait")
-		case err := <-waitDone:
-			t.T().Logf("wait error: %T %v", err, err)
-
-			var aerr *quic.ApplicationError
-			t.ErrorAs(err, &aerr)
-			t.True(aerr.Remote)
-			t.EqualValues(aerr.ErrorCode, 3)
-			t.Equal(aerr.ErrorMessage, "showme")
-		}
-	})
-}
-
-func (t *testSubStreams) TestContextCanceled() {
-	t.Run("wait side canceled before wait", func() {
-		_, _, waitconn, _, waitstream, _, closef := t.OpenStreams(nil, nil, nil)
-		defer closef()
-
-		waitctx, waitctxCancel := dutil.ContextWithCancelCause(context.Background())
-		waitctxCancel(nil)
-		t.T().Log("wait context canceled")
-
-		wait := newFuncWaitSubStreams(waitconn, 3)
-
-		err := wait(waitctx, waitstream, func(_ []*quic.Stream, err error) error {
-			t.Print("wait err: %T %v", err, err)
-
-			return nil
-		})
-		t.ErrorIs(err, context.Canceled)
-	})
-
-	t.Run("wait side", func() {
-		_, _, waitconn, reqconn, waitstream, reqstream, closef := t.OpenStreams(nil, nil, nil)
-		defer closef()
-
-		pool := dutil.NewSingleLockedMap[string, *subStreamPoolItem]()
-		defer pool.Close()
-
-		request, poolClose, err := newFuncRequestSubStreamsWithPool(
-			context.Background(),
-			reqconn,
-			pool,
-		)
-		t.NoError(err)
-		defer poolClose(nil)
-
-		waitDone := make(chan error, 1)
-
-		waitctx, waitctxCancel := dutil.ContextWithCancelCause(context.Background())
-		defer waitctxCancel(nil)
-
-		var opened int64
-		lazywaitconn := lazyQuicConn{
-			QuicConn: waitconn,
-			openStream: func(ctx context.Context) error {
-				if atomic.CompareAndSwapInt64(&opened, 0, 1) {
-					waitctxCancel(errors.New("showme"))
-					t.Print("wait canceled")
-				}
-
-				select {
-				case <-ctx.Done():
-					return ctx.Err()
-				case <-time.After(time.Second * 1):
+	checkPoolLen := func(pool *dutil.SingleLockedMap[subStreamsRequestUID, *subStreamPoolItem]) error {
+		ticker := time.NewTicker(time.Millisecond * 33)
+		defer ticker.Stop()
+
+		after := time.After(time.Second * 3)
+
+		for {
+			select {
+			case <-after:
+				return errors.New("wait pool.Len() == 0")
+			case <-ticker.C:
+				if pool.Len() == 0 {
 					return nil
 				}
-			},
+			}
 		}
+	}
 
-		go func() {
-			wait := newFuncWaitSubStreams(lazywaitconn, 9)
+	t.Run("request failed, pool cleaned", func() {
+		t.Run("timeout", func() {
+			var n uint64 = 2
 
-			waitDone <- wait(waitctx, waitstream, func([]*quic.Stream, error) error {
-				t.Print("wait err: %T %v", err, err)
+			_, _, _, reqconn, servestream, reqstream, closef := t.openStreams(nil, nil, nil)
+			defer closef()
 
-				return nil
-			})
-		}()
+			ctx, ctxCancel := t.Ctx()
+			defer ctxCancel(nil)
 
-		err = request(context.Background(), reqstream, 9, func(s []*quic.Stream, err error) error {
-			t.Print("request err: %T %v", err, err)
+			pool := dutil.NewSingleLockedMap[subStreamsRequestUID, *subStreamPoolItem]()
 
-			t.IfTruePanic(
-				err.Error() != "context canceled" && !strings.Contains(err.Error(), "showme"),
-				"request error: %T %v", err, err)
-			t.IfTruePanic(len(s) > 0, "not empty streams")
+			request, closerequest := t.defaultRequest(ctx, reqconn, pool)
+			defer closerequest(nil)
 
-			return err
-		})
-		t.ErrorContains(err, "context canceled")
+			go func() {
+				// read until uid
+				n, _, err := frame.ReadUint64(servestream)
+				t.IfErrPanicf(err, "serve: read n")
 
-		select {
-		case <-time.After(time.Second * 3):
-			t.Fail("wait")
-		case err := <-waitDone:
-			t.ErrorIs(err, context.Canceled)
-		}
-	})
-
-	t.Run("request side", func() {
-		_, _, waitconn, reqconn, waitstream, reqstream, closef := t.OpenStreams(nil, nil, nil)
-		defer closef()
-
-		pool := dutil.NewSingleLockedMap[string, *subStreamPoolItem]()
-		defer pool.Close()
-
-		reqctx, reqctxCancel := dutil.ContextWithCancelCause(context.Background())
-		defer reqctxCancel(nil)
-
-		var opened int64
-		lazyreqconn := lazyQuicConn{
-			QuicConn: reqconn,
-			acceptStream: func(ctx context.Context) error {
-				if atomic.CompareAndSwapInt64(&opened, 0, 1) {
-					reqctxCancel(errors.New("showme"))
-					t.Print("req canceled")
+				_, err = frame.WriteUint64(servestream, n)
+				t.IfErrPanicf(err, "serve: write n, %d", n)
+				if n < 1 {
+					return
 				}
 
-				select {
-				case <-ctx.Done():
-					return ctx.Err()
-				case <-time.After(time.Second * 1):
-					return nil
+				_, err = readSubStreamRequestUID(servestream)
+				t.IfErrPanicf(err, "serve: read uid")
+
+				t.Print("serve: no OpenStream")
+				t.IfTruePanic(pool.Len() < 1, "pool.Len()")
+			}()
+
+			tctx, tctxCancel := context.WithTimeout(ctx, time.Second*2)
+			defer tctxCancel()
+
+			_, err := request(tctx, reqstream, n)
+			t.ErrorIs(err, context.DeadlineExceeded)
+
+			t.NoError(checkPoolLen(pool))
+		})
+
+		t.Run("no end from serve", func() {
+			var n uint64 = 1
+
+			_, _, serveconn, reqconn, servestream, reqstream, closef := t.openStreams(nil, nil, nil)
+			defer closef()
+
+			ctx, ctxCancel := t.Ctx()
+			defer ctxCancel(nil)
+
+			pool := dutil.NewSingleLockedMap[subStreamsRequestUID, *subStreamPoolItem]()
+
+			request, closerequest := t.defaultRequest(ctx, reqconn, pool)
+			defer closerequest(nil)
+
+			go func() {
+				// read until uid
+				n, _, err := frame.ReadUint64(servestream)
+				t.IfErrPanicf(err, "serve: read n")
+
+				_, err = frame.WriteUint64(servestream, n)
+				t.IfErrPanicf(err, "serve: write n, %d", n)
+
+				uid, err := readSubStreamRequestUID(servestream)
+				t.IfErrPanicf(err, "serve: read uid")
+
+				for range n {
+					_, err = openSubStream(ctx, serveconn, uid)
+					t.IfErrPanicf(err, "serve: open stream")
 				}
-			},
-		}
 
-		request, poolClose, err := newFuncRequestSubStreamsWithPool(
-			context.Background(),
-			lazyreqconn,
-			pool,
-		)
-		t.NoError(err)
-		defer poolClose(nil)
+				t.Print("serve: no end")
+			}()
 
-		waitDone := make(chan error, 1)
+			tctx, tctxCancel := context.WithTimeout(ctx, time.Second*1)
+			defer tctxCancel()
 
-		go func() {
-			wait := newFuncWaitSubStreams(waitconn, 9)
+			_, err := request(tctx, reqstream, n)
+			t.ErrorIs(err, context.DeadlineExceeded)
 
-			waitDone <- wait(context.Background(), waitstream, func([]*quic.Stream, error) error {
-				t.Print("wait err: %T %v", err, err)
-
-				return nil
-			})
-		}()
-
-		rerr := request(reqctx, reqstream, 9, func(s []*quic.Stream, err error) error {
-			t.Print("request streams: %d err: %T %v", len(s), err, err)
-
-			t.IfTruePanic(!errors.Is(err, context.Canceled), "request error: %T %v", err, err)
-
-			return err
+			t.NoError(checkPoolLen(pool))
 		})
-		t.ErrorIs(rerr, context.Canceled)
-
-		select {
-		case <-time.After(time.Second * 3):
-			t.Fail("wait")
-		case err := <-waitDone:
-			t.NoError(err)
-		}
-	})
-
-	t.Run("request side before request", func() {
-		_, _, _, reqconn, _, reqstream, closef := t.OpenStreams(nil, nil, nil)
-		defer closef()
-
-		pool := dutil.NewSingleLockedMap[string, *subStreamPoolItem]()
-		defer pool.Close()
-
-		reqctx, reqctxCancel := dutil.ContextWithCancelCause(context.Background())
-		reqctxCancel(nil)
-
-		request, poolClose, err := newFuncRequestSubStreamsWithPool(
-			context.Background(),
-			reqconn,
-			pool,
-		)
-		t.NoError(err)
-		defer poolClose(nil)
-
-		reqctxCancel(errors.New("showme"))
-		t.T().Log("req canceled")
-
-		err = request(reqctx, reqstream, 3, func(s []*quic.Stream, err error) error {
-			t.Print("request err: %T %v", err, err)
-
-			return nil
-		})
-		t.ErrorIs(err, context.Canceled)
 	})
 }
 
-func (t *testSubStreams) TestPacketConnClosed() {
-	t.Run("wait side closed before wait", func() {
-		waitpconn, _, waitconn, _, waitstream, _, closef := t.OpenStreams(nil, nil, nil)
+func (t *testSubStreams) TestServe() {
+	t.Run("no n from request", func() {
+		_, _, serveconn, _, servestream, _, closef := t.openStreams(nil, nil, nil)
 		defer closef()
 
-		t.T().Log("wait context canceled")
+		serve := newServeSubStreams(serveconn, 3)
 
-		wait := newFuncWaitSubStreams(waitconn, 3)
+		tctx, tctxCancel := context.WithTimeout(context.Background(), time.Second*2)
+		defer tctxCancel()
 
-		t.NoError(waitpconn.Close())
-
-		err := wait(context.Background(), waitstream, func(_ []*quic.Stream, err error) error {
-			t.Print("wait err: %T %v", err, err)
-
-			return nil
-		})
-		t.Print("wait err: %T %v", err, err)
-		var nerr *net.OpError
-		switch {
-		case errors.As(err, &nerr):
-		case errors.Is(err, quic.ErrTransportClosed):
-		default:
-			t.Fail("unexpected error", "%T %v", err, err)
-		}
+		_, err := serve(tctx, servestream)
+		t.ErrorIs(err, context.DeadlineExceeded)
 	})
 
-	t.Run("wait side", func() {
-		reqQuicConfig := DefaultQuicConfig()
-		reqQuicConfig.MaxIdleTimeout = time.Millisecond * 333
-
-		waitpconn, _, waitconn, reqconn, waitstream, reqstream, closef := t.OpenStreams(nil, nil, reqQuicConfig)
+	t.Run("no uid from request", func() {
+		_, _, serveconn, _, servestream, reqstream, closef := t.openStreams(nil, nil, nil)
 		defer closef()
 
-		pool := dutil.NewSingleLockedMap[string, *subStreamPoolItem]()
-		defer pool.Close()
-
-		request, poolClose, err := newFuncRequestSubStreamsWithPool(
-			context.Background(),
-			reqconn,
-			pool,
-		)
-		t.NoError(err)
-		defer poolClose(nil)
-
-		waitDone := make(chan error, 1)
-
-		var opened int64
-		lazywaitconn := lazyQuicConn{
-			QuicConn: waitconn,
-			openStream: func(ctx context.Context) error {
-				if atomic.AddInt64(&opened, 1) == 3 {
-					t.IfErrPanic(waitpconn.Close())
-					t.Print("wait packetconn closed")
-				}
-
-				select {
-				case <-ctx.Done():
-					return ctx.Err()
-				case <-time.After(time.Second * 1):
-					return nil
-				}
-			},
-		}
+		serve := newServeSubStreams(serveconn, 3)
 
 		go func() {
-			wait := newFuncWaitSubStreams(lazywaitconn, 9)
+			_, err := frame.WriteUint64(reqstream, 3)
+			t.IfErrPanicf(err, "request: write n")
 
-			waitDone <- wait(context.Background(), waitstream, func(_ []*quic.Stream, err error) error {
-				t.Print("wait err: %T %v", err, err)
-
-				return nil
-			})
+			n, _, err := frame.ReadUint64(reqstream)
+			t.IfErrPanicf(err, "request: read n")
+			t.IfTruePanic(n != 3, "request: n, %d != 3", n)
 		}()
 
-		err = request(context.Background(), reqstream, 9, func(s []*quic.Stream, err error) error {
-			t.Print("request err: %T %v", err, err)
+		tctx, tctxCancel := context.WithTimeout(context.Background(), time.Second*2)
+		defer tctxCancel()
 
-			return err
-		})
-		t.T().Logf("request err: %T %v", err, err)
-
-		var ierr *quic.IdleTimeoutError
-		t.ErrorAs(err, &ierr)
-
-		select {
-		case <-time.After(time.Second * 3):
-			t.Fail("wait")
-		case err := <-waitDone:
-			t.T().Logf("wait err: %T %v", err, err)
-
-			var nerr *net.OpError
-			t.ErrorAs(err, &nerr)
-		}
-	})
-
-	t.Run("request side before request", func() {
-		_, reqpconn, _, reqconn, _, reqstream, closef := t.OpenStreams(nil, nil, nil)
-		defer closef()
-
-		pool := dutil.NewSingleLockedMap[string, *subStreamPoolItem]()
-		defer pool.Close()
-
-		request, poolClose, err := newFuncRequestSubStreamsWithPool(
-			context.Background(),
-			reqconn,
-			pool,
-		)
-		t.NoError(err)
-		defer poolClose(nil)
-
-		t.NoError(reqpconn.Close())
-
-		err = request(context.Background(), reqstream, 3, func(s []*quic.Stream, err error) error {
-			t.Print("request err: %T %v", err, err)
-
-			var aerr *quic.ApplicationError
-			var nerr *net.OpError
-
-			switch {
-			case errors.Is(err, quic.ErrTransportClosed):
-			case errors.As(err, &nerr):
-			case errors.As(err, &aerr):
-				t.IfTruePanic(aerr.Remote, "remote")
-				t.IfTruePanic(aerr.ErrorCode != 3, "error code")
-				t.IfTruePanic(aerr.ErrorMessage != "showme", "error message")
-			default:
-				t.IfErrPanic(err)
-			}
-
-			t.IfTruePanic(len(s) > 0, "not empty streams")
-
-			return err
-		})
-
-		t.Print("request err: %T %v", err, err)
-		var nerr *net.OpError
-		switch {
-		case errors.As(err, &nerr):
-		case errors.Is(err, quic.ErrTransportClosed):
-		default:
-			t.Fail("unexpected error", "%T %v", err, err)
-		}
-	})
-
-	t.Run("request side", func() {
-		_, reqpconn, waitconn, reqconn, waitstream, reqstream, closef := t.OpenStreams(nil, nil, nil)
-		defer closef()
-
-		pool := dutil.NewSingleLockedMap[string, *subStreamPoolItem]()
-		defer pool.Close()
-
-		var opened int64
-		lazyreqconn := lazyQuicConn{
-			QuicConn: reqconn,
-			acceptStream: func(ctx context.Context) error {
-				if atomic.CompareAndSwapInt64(&opened, 0, 1) {
-					t.IfErrPanic(reqpconn.Close())
-					t.Print("request packetconn closed")
-				}
-
-				select {
-				case <-ctx.Done():
-					return ctx.Err()
-				case <-time.After(time.Second * 1):
-					return nil
-				}
-			},
-		}
-
-		request, poolClose, err := newFuncRequestSubStreamsWithPool(
-			context.Background(),
-			lazyreqconn,
-			pool,
-		)
-		t.NoError(err)
-		defer poolClose(nil)
-
-		waitDone := make(chan error, 1)
-
-		go func() {
-			wctx, wctxCancel := context.WithTimeout(context.Background(), time.Second)
-			defer wctxCancel()
-
-			wait := newFuncWaitSubStreams(waitconn, 9)
-
-			waitDone <- wait(wctx, waitstream, func(_ []*quic.Stream, err error) error {
-				t.Print("wait err: %T %v", err, err)
-
-				return nil
-			})
-		}()
-
-		err = request(context.Background(), reqstream, 9, func(s []*quic.Stream, err error) error {
-			t.Print("request err: %T %v", err, err)
-
-			return err
-		})
-
-		t.Print("request err: %T %v", err, err)
-		var nerr *net.OpError
-		switch {
-		case errors.As(err, &nerr):
-		case errors.Is(err, quic.ErrTransportClosed):
-		default:
-			t.Fail("unexpected error", "%T %v", err, err)
-		}
-
-		select {
-		case <-time.After(time.Second * 9):
-			t.Fail("wait")
-		case err := <-waitDone:
-			t.T().Logf("wait err: %T %v", err, err)
-
-			var ierr *quic.IdleTimeoutError
-			var nerr *net.OpError
-			switch {
-			case errors.As(err, &ierr):
-			case errors.As(err, &nerr):
-			case errors.Is(err, context.DeadlineExceeded):
-			default:
-				t.Failf("unexpected error", "%T %v", err, err)
-			}
-		}
+		_, err := serve(tctx, servestream)
+		t.ErrorIs(err, context.DeadlineExceeded)
 	})
 }
-
-// FIXME timeout
-// FIXME sub streams opened and using, but conn closed
 
 func TestSubStreams(t *testing.T) {
 	suite.Run(t, new(testSubStreams))
