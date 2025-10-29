@@ -82,7 +82,7 @@ func newRequestSubStreamsWithPool(
 ) {
 	log := dutil.LoadContextValueLogger(ctx)
 
-	pctx, pctxCancel := dutil.ContextWithCancelCause(ctx)
+	pctx, pctxCancel := contextWithCancelCause(ctx)
 
 	var cancelOnce sync.Once
 	cancel := func(err error) error {
@@ -98,7 +98,7 @@ func newRequestSubStreamsWithPool(
 	go func() {
 		for {
 			if pctx.Err() != nil {
-				err := context.Cause(pctx)
+				err := contextCause(pctx)
 				_ = cancel(err)
 
 				log.Error().Err(err).Msg("request sub streams stopped")
@@ -117,12 +117,12 @@ func newRequestSubStreamsWithPool(
 	}()
 
 	return func(ctx context.Context, cstream *quic.Stream, n uint64) (RSubStreamsHandlerFunc, error) {
-			nctx := dutil.JoinContext(pctx, ctx)
+			nctx := joinContext(pctx, ctx)
 			if nctx.Err() != nil {
-				return nil, context.Cause(nctx)
+				return nil, contextCause(nctx)
 			}
 
-			streams, gerr := contextEnsureWait(nctx, func(ctx context.Context) ([]*quic.Stream, error) {
+			streams, gerr := contextEnsureWaitT(nctx, func(ctx context.Context) ([]*quic.Stream, error) {
 				var uid subStreamsRequestUID
 				copy(uid[:], util.UUID().Bytes())
 
@@ -248,7 +248,7 @@ func endRequestSubStreams(ctx context.Context, cstream *quic.Stream) error {
 
 func newServeSubStreams(conn QuicConn, limit uint64) ServeSubStreamsFunc {
 	return func(ctx context.Context, cstream *quic.Stream) (RSubStreamsHandlerFunc, error) {
-		streams, gerr := contextEnsureWait(ctx, func(ctx context.Context) ([]*quic.Stream, error) {
+		streams, gerr := contextEnsureWaitT(ctx, func(ctx context.Context) ([]*quic.Stream, error) {
 			streams, gerr := serveSubStreams(ctx, conn, limit, cstream)
 
 			var errb []byte
@@ -363,7 +363,7 @@ func requestAcceptSubStream(
 
 	var uv atomic.Value
 
-	stream, err := contextEnsureWait(tctx, func(ctx context.Context) (*quic.Stream, error) {
+	stream, err := contextEnsureWaitT(tctx, func(ctx context.Context) (*quic.Stream, error) {
 		switch stream, u, err := acceptSubStream(ctx, conn); {
 		case err != nil:
 			return nil, err
@@ -455,78 +455,4 @@ func readSubStreamRequestUID(r io.Reader) (uid subStreamsRequestUID, _ error) {
 
 		return uid, nil
 	}
-}
-
-func contextEnsureWait[T any](ctx context.Context, f func(context.Context) (T, error)) (T, error) {
-	var t T
-
-	if ctx.Err() != nil {
-		return t, context.Cause(ctx)
-	}
-
-	done, wait := newContextDone(ctx)
-	defer done(nil)
-
-	var p atomic.Pointer[T]
-
-	go func() {
-		i, err := f(ctx)
-		if err == nil {
-			p.Store(&i)
-		}
-
-		_ = done(err)
-	}()
-
-	if err := wait(); err != nil {
-		return t, err
-	}
-
-	if i := p.Load(); i != nil {
-		t = *i
-	}
-
-	return t, nil
-}
-
-func TimeoutSubStreamsHandler(timeout time.Duration, next SubStreamsHandlerFunc) SubStreamsHandlerFunc {
-	return func(ctx context.Context, streams []*quic.Stream) (context.Context, error) {
-		tctx, tctxCancel := context.WithTimeout(ctx, timeout)
-		defer tctxCancel()
-
-		return next(tctx, streams)
-	}
-}
-
-func newContextDone(ctx context.Context) (
-	dutil.InErrorFunc[error],
-	dutil.ErrorFunc,
-) {
-	done := make(chan struct{})
-
-	var gerr atomic.Pointer[error]
-
-	return func(err error) error {
-			if gerr.CompareAndSwap(nil, &err) {
-				close(done)
-			}
-
-			return err
-		},
-		func() error {
-			select {
-			case <-ctx.Done():
-				if i := gerr.Load(); i != nil {
-					return *i
-				}
-
-				return context.Cause(ctx)
-			case <-done:
-				if i := gerr.Load(); i != nil {
-					return *i
-				}
-
-				return nil
-			}
-		}
 }

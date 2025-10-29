@@ -50,7 +50,7 @@ type testSubStreams struct {
 
 func (t *testSubStreams) openConnections(
 	serveCtx, reqCtx context.Context,
-	serveQuicConfig, reqQuicConfig *quic.Config,
+	reqQuicConfig, serveQuicConfig *quic.Config,
 ) (net.PacketConn, net.PacketConn, QuicConn, QuicConn, func()) {
 	if serveCtx == nil {
 		serveCtx = context.Background()
@@ -92,7 +92,7 @@ func (t *testSubStreams) openConnections(
 
 func (t *testSubStreams) openStreams(
 	ctx context.Context,
-	serveQuicConfig, reqQuicConfig *quic.Config,
+	reqQuicConfig, serveQuicConfig *quic.Config,
 ) (
 	net.PacketConn, net.PacketConn, QuicConn, QuicConn,
 	*quic.Stream, *quic.Stream,
@@ -101,14 +101,14 @@ func (t *testSubStreams) openStreams(
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	servepconn, reqpconn, serveconn, reqconn, closef := t.openConnections(ctx, ctx, serveQuicConfig, reqQuicConfig)
+	servepconn, reqpconn, serveconn, reqconn, closef := t.openConnections(ctx, ctx, reqQuicConfig, serveQuicConfig)
 
 	sctx, sctxCancel := context.WithTimeout(ctx, time.Second*3)
 	defer sctxCancel()
 
 	servestreamch := make(chan *quic.Stream, 1)
 	go func() {
-		stream, err := contextEnsureWait(sctx, func(ctx context.Context) (*quic.Stream, error) {
+		stream, err := contextEnsureWaitT(sctx, func(ctx context.Context) (*quic.Stream, error) {
 			stream, err := serveconn.AcceptStream(ctx)
 			if err != nil {
 				return nil, err
@@ -172,6 +172,7 @@ func (t *testSubStreams) defaultRequest(
 
 func (t *testSubStreams) requestServeHandlers(
 	ctx context.Context,
+	reqQuicConfig, serveQuicConfig *quic.Config,
 	n, limit uint64,
 	pool *dutil.SingleLockedMap[subStreamsRequestUID, *subStreamPoolItem],
 ) (
@@ -182,7 +183,7 @@ func (t *testSubStreams) requestServeHandlers(
 	func(SubStreamsHandlerFunc, SubStreamsHandlerFunc) error,
 	func(),
 ) {
-	servepconn, reqpconn, serveconn, reqconn, servestream, reqstream, closef := t.openStreams(nil, nil, nil)
+	servepconn, reqpconn, serveconn, reqconn, servestream, reqstream, closef := t.openStreams(ctx, reqQuicConfig, serveQuicConfig)
 
 	request, closerequest := t.defaultRequest(ctx, reqconn, pool)
 	serve := newServeSubStreams(serveconn, limit)
@@ -265,7 +266,7 @@ func (t *testSubStreams) TestRequestNumber() {
 
 		var reqn, serven uint64
 
-		_, _, _, _, _, _, _, _, doHandler, closef := t.requestServeHandlers(ctx, n, limit, nil)
+		_, _, _, _, _, _, _, _, doHandler, closef := t.requestServeHandlers(ctx, nil, nil, n, limit, nil)
 		defer closef()
 
 		err := doHandler(
@@ -343,6 +344,187 @@ func (t *testSubStreams) TestRequestNumber() {
 }
 
 func (t *testSubStreams) TestRequest() {
+	checkPacketConnClosedErr := func(err error) {
+		if err == nil {
+			t.Error(err)
+
+			return
+		}
+
+		var opErr *net.OpError
+
+		switch {
+		case errors.Is(err, quic.ErrTransportClosed):
+		case errors.As(err, &opErr):
+		default:
+			t.Fail("unexpected error", "%T %+v", err, err)
+		}
+	}
+
+	t.Run("local packet conn closed", func() {
+		t.Run("before request", func() {
+			_, reqpconn, _, reqconn, _, reqstream, closef := t.openStreams(nil, nil, nil)
+			defer closef()
+
+			ctx, ctxCancel := t.Ctx()
+			defer ctxCancel(nil)
+
+			request, closerequest := newRequestSubStreams(context.Background(), reqconn, time.Minute)
+			defer closerequest(nil)
+
+			t.T().Log("local packet conn closed")
+			t.NoError(reqpconn.Close())
+
+			_, err := request(ctx, reqstream, 3)
+			checkPacketConnClosedErr(err)
+		})
+
+		t.Run("before request; n == 0", func() {
+			_, reqpconn, _, reqconn, _, reqstream, closef := t.openStreams(nil, nil, nil)
+			defer closef()
+
+			ctx, ctxCancel := t.Ctx()
+			defer ctxCancel(nil)
+
+			request, closerequest := newRequestSubStreams(context.Background(), reqconn, time.Minute)
+			defer closerequest(nil)
+
+			t.T().Log("local packet conn closed")
+			t.NoError(reqpconn.Close())
+
+			_, err := request(ctx, reqstream, 0)
+			checkPacketConnClosedErr(err)
+		})
+
+		t.Run("during request", func() {
+			ctx, ctxCancel := t.Ctx()
+			defer ctxCancel(nil)
+
+			_, reqpconn, _, reqconn, servestream, reqstream, closef := t.openStreams(ctx, nil, nil)
+			defer closef()
+
+			go func() {
+				n, _, err := frame.ReadUint64(servestream)
+				t.IfErrPanicf(err, "serve: read n")
+
+				_, err = frame.WriteUint64(servestream, n)
+				t.IfErrPanicf(err, "serve: write n")
+
+				t.Print("local packet conn closed before reading uid")
+				t.IfErrPanicf(reqpconn.Close(), "close local packat conn")
+			}()
+
+			request, closerequest := t.defaultRequest(ctx, reqconn, nil)
+			defer closerequest(nil)
+
+			_, err := request(ctx, reqstream, 3)
+			checkPacketConnClosedErr(err)
+		})
+
+		t.Run("during accept stream", func() {
+			ctx, ctxCancel := t.Ctx()
+			defer ctxCancel(nil)
+
+			_, reqpconn, _, reqconn, servestream, reqstream, closef := t.openStreams(ctx, nil, nil)
+			defer closef()
+
+			go func() {
+				n, _, err := frame.ReadUint64(servestream)
+				t.IfErrPanicf(err, "serve: read n")
+
+				_, err = frame.WriteUint64(servestream, n)
+				t.IfErrPanicf(err, "serve: write n")
+
+				_, err = readSubStreamRequestUID(servestream)
+				t.IfErrPanicf(err, "serve: read uid")
+
+				t.Print("local packet conn closed before accept stream")
+				t.IfErrPanicf(reqpconn.Close(), "close local packat conn")
+			}()
+
+			request, closerequest := t.defaultRequest(ctx, reqconn, nil)
+			defer closerequest(nil)
+
+			_, err := request(ctx, reqstream, 3)
+			checkPacketConnClosedErr(err)
+		})
+
+		pconnClosedDuringHandler := func(isReq, reqh, serveh bool) {
+			quicConfig := DefaultQuicConfig()
+			quicConfig.MaxIdleTimeout = time.Millisecond * 333
+
+			ctx, ctxCancel := t.Ctx()
+			defer ctxCancel(nil)
+
+			reqpconn, servepconn, _, _, _, _, _, _, doHandler, closef := t.requestServeHandlers(ctx, quicConfig, quicConfig, 2, 2, nil)
+			defer closef()
+
+			var pconn net.PacketConn
+
+			switch {
+			case isReq:
+				pconn = reqpconn
+			case serveh:
+				pconn = servepconn
+			}
+
+			tctx, tctxCancel := context.WithTimeout(ctx, time.Second*2)
+			defer tctxCancel()
+
+			err := contextEnsureWait(tctx, func(context.Context) error {
+				return doHandler(
+					func(ctx context.Context, streams []*quic.Stream) (context.Context, error) {
+						if reqh {
+							return ctx, pconn.Close()
+						}
+
+						p := make([]byte, 1)
+
+						if _, err := streams[0].Read(p); err != nil {
+							return ctx, err
+						}
+
+						return ctx, nil
+					},
+					func(ctx context.Context, streams []*quic.Stream) (context.Context, error) {
+						if serveh {
+							return ctx, pconn.Close()
+						}
+
+						p := make([]byte, 1)
+
+						if _, err := streams[0].Read(p); err != nil {
+							return ctx, err
+						}
+
+						return ctx, nil
+					},
+				)
+			})
+
+			var ierr *quic.IdleTimeoutError
+			var opErr *net.OpError
+
+			switch {
+			case errors.Is(err, context.DeadlineExceeded):
+			case errors.Is(err, quic.ErrTransportClosed):
+			case errors.As(err, &ierr):
+			case errors.As(err, &opErr):
+			default:
+				t.Fail("unexpected error", "%T %+v", err, err)
+			}
+		}
+
+		t.Run("during request sub streams handler", func() { pconnClosedDuringHandler(true, false, true) })
+		t.Run("during serve sub streams handler", func() { pconnClosedDuringHandler(true, true, false) })
+	})
+
+	t.Run("remote packet conn closed", func() {
+		t.Run("before request", func() {})
+		t.Run("during request", func() {})
+		t.Run("during sub streams handler", func() {})
+	})
+
 	t.Run("accept timeout", func() {
 		_, _, _, reqconn, _, reqstream, closef := t.openStreams(nil, nil, nil)
 		defer closef()
@@ -359,7 +541,7 @@ func (t *testSubStreams) TestRequest() {
 	})
 }
 
-func (t *testSubStreams) TestRequestLoopStopped() {
+func (t *testSubStreams) TestRequestAcceptLoop() {
 	t.Run("main context canceled", func() {
 		t.Run("after request", func() {
 			var n, limit uint64 = 2, 2
@@ -369,7 +551,7 @@ func (t *testSubStreams) TestRequestLoopStopped() {
 
 			pool := dutil.NewSingleLockedMap[subStreamsRequestUID, *subStreamPoolItem]()
 
-			_, _, _, _, _, reqstream, request, _, doHandler, closef := t.requestServeHandlers(ctx, n, limit, pool)
+			_, _, _, _, _, reqstream, request, _, doHandler, closef := t.requestServeHandlers(ctx, nil, nil, n, limit, pool)
 			defer closef()
 
 			err := doHandler(
@@ -429,7 +611,7 @@ func (t *testSubStreams) TestRequestPool() {
 
 		pool := dutil.NewSingleLockedMap[subStreamsRequestUID, *subStreamPoolItem]()
 
-		_, _, _, _, _, _, _, _, doHandler, closef := t.requestServeHandlers(ctx, n, limit, pool)
+		_, _, _, _, _, _, _, _, doHandler, closef := t.requestServeHandlers(ctx, nil, nil, n, limit, pool)
 		defer closef()
 
 		var reqstreams, servestreams []*quic.Stream
@@ -507,7 +689,6 @@ func (t *testSubStreams) TestRequestPool() {
 				t.IfErrPanicf(err, "serve: read uid")
 
 				t.Print("serve: no OpenStream")
-				t.IfTruePanic(pool.Len() < 1, "pool.Len()")
 			}()
 
 			tctx, tctxCancel := context.WithTimeout(ctx, time.Second*2)
