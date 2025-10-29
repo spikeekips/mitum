@@ -2,6 +2,7 @@ package quicstream
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"slices"
@@ -49,25 +50,25 @@ type testSubStreams struct {
 }
 
 func (t *testSubStreams) openConnections(
-	serveCtx, reqCtx context.Context,
+	reqCtx, serveCtx context.Context,
 	reqQuicConfig, serveQuicConfig *quic.Config,
 ) (net.PacketConn, net.PacketConn, QuicConn, QuicConn, func()) {
-	if serveCtx == nil {
-		serveCtx = context.Background()
-	}
 	if reqCtx == nil {
 		reqCtx = context.Background()
 	}
-
-	if serveQuicConfig == nil {
-		serveQuicConfig = DefaultQuicConfig()
+	if serveCtx == nil {
+		serveCtx = context.Background()
 	}
+
 	if reqQuicConfig == nil {
 		reqQuicConfig = DefaultQuicConfig()
 	}
+	if serveQuicConfig == nil {
+		serveQuicConfig = DefaultQuicConfig()
+	}
 
-	servepconn, l := t.RandomListener(nil, serveQuicConfig)
 	reqpconn := t.RandomPacketConn()
+	servepconn, l := t.RandomListener(nil, serveQuicConfig)
 
 	servech := make(chan QuicConn, 1)
 	go func() {
@@ -82,7 +83,7 @@ func (t *testSubStreams) openConnections(
 
 	serveconn := <-servech
 
-	return servepconn, reqpconn, serveconn, reqConn, sync.OnceFunc(func() {
+	return reqpconn, servepconn, reqConn, serveconn, sync.OnceFunc(func() {
 		err := servepconn.Close()
 		t.PrintIfErrCaller(err, 2, "serve: PacketConn closed")
 		err = reqpconn.Close()
@@ -101,7 +102,7 @@ func (t *testSubStreams) openStreams(
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	servepconn, reqpconn, serveconn, reqconn, closef := t.openConnections(ctx, ctx, reqQuicConfig, serveQuicConfig)
+	reqpconn, servepconn, reqconn, serveconn, closef := t.openConnections(ctx, ctx, reqQuicConfig, serveQuicConfig)
 
 	sctx, sctxCancel := context.WithTimeout(ctx, time.Second*3)
 	defer sctxCancel()
@@ -140,7 +141,7 @@ func (t *testSubStreams) openStreams(
 	case servestream = <-servestreamch:
 	}
 
-	return servepconn, reqpconn, serveconn, reqconn, servestream, reqstream, sync.OnceFunc(func() {
+	return reqpconn, servepconn, reqconn, serveconn, reqstream, servestream, sync.OnceFunc(func() {
 		closeStream(servestream, nil)
 		closeStream(reqstream, nil)
 		closeConnection(serveconn, nil)
@@ -183,7 +184,7 @@ func (t *testSubStreams) requestServeHandlers(
 	func(SubStreamsHandlerFunc, SubStreamsHandlerFunc) error,
 	func(),
 ) {
-	servepconn, reqpconn, serveconn, reqconn, servestream, reqstream, closef := t.openStreams(ctx, reqQuicConfig, serveQuicConfig)
+	reqpconn, servepconn, reqconn, serveconn, reqstream, servestream, closef := t.openStreams(ctx, reqQuicConfig, serveQuicConfig)
 
 	request, closerequest := t.defaultRequest(ctx, reqconn, pool)
 	serve := newServeSubStreams(serveconn.OpenStreamSync, limit)
@@ -363,7 +364,7 @@ func (t *testSubStreams) TestRequest() {
 
 	t.Run("local packet conn closed", func() {
 		t.Run("before request", func() {
-			_, reqpconn, _, reqconn, _, reqstream, closef := t.openStreams(nil, nil, nil)
+			reqpconn, _, reqconn, _, reqstream, _, closef := t.openStreams(nil, nil, nil)
 			defer closef()
 
 			ctx, ctxCancel := t.Ctx()
@@ -380,7 +381,7 @@ func (t *testSubStreams) TestRequest() {
 		})
 
 		t.Run("before request; n == 0", func() {
-			_, reqpconn, _, reqconn, _, reqstream, closef := t.openStreams(nil, nil, nil)
+			reqpconn, _, reqconn, _, reqstream, _, closef := t.openStreams(nil, nil, nil)
 			defer closef()
 
 			ctx, ctxCancel := t.Ctx()
@@ -400,7 +401,7 @@ func (t *testSubStreams) TestRequest() {
 			ctx, ctxCancel := t.Ctx()
 			defer ctxCancel(nil)
 
-			_, reqpconn, _, reqconn, servestream, reqstream, closef := t.openStreams(ctx, nil, nil)
+			reqpconn, _, reqconn, _, reqstream, servestream, closef := t.openStreams(ctx, nil, nil)
 			defer closef()
 
 			go func() {
@@ -425,7 +426,7 @@ func (t *testSubStreams) TestRequest() {
 			ctx, ctxCancel := t.Ctx()
 			defer ctxCancel(nil)
 
-			_, reqpconn, _, reqconn, servestream, reqstream, closef := t.openStreams(ctx, nil, nil)
+			reqpconn, _, reqconn, _, reqstream, servestream, closef := t.openStreams(ctx, nil, nil)
 			defer closef()
 
 			go func() {
@@ -520,13 +521,28 @@ func (t *testSubStreams) TestRequest() {
 	})
 
 	t.Run("remote packet conn closed", func() {
-		t.Run("before request", func() {})
+		t.Run("before request", func() {
+			_, servepconn, reqconn, _, reqstream, _, closef := t.openStreams(nil, nil, nil)
+			defer closef()
+
+			ctx, ctxCancel := t.Ctx()
+			defer ctxCancel(nil)
+
+			request, closerequest := newRequestSubStreams(context.Background(), reqconn.AcceptStream, time.Minute)
+			defer closerequest(nil)
+
+			t.T().Log("remote packet conn closed")
+			t.NoError(servepconn.Close())
+
+			_, err := request(ctx, reqstream, 3)
+			fmt.Println(">", err)
+		})
 		t.Run("during request", func() {})
 		t.Run("during sub streams handler", func() {})
 	})
 
 	t.Run("accept timeout", func() {
-		_, _, _, reqconn, _, reqstream, closef := t.openStreams(nil, nil, nil)
+		_, _, reqconn, _, reqstream, _, closef := t.openStreams(nil, nil, nil)
 		defer closef()
 
 		request, closerequest := newRequestSubStreams(context.Background(), reqconn.AcceptStream, time.Minute)
@@ -579,7 +595,7 @@ func (t *testSubStreams) TestRequestAcceptLoop() {
 		})
 
 		t.Run("before request", func() {
-			_, _, _, reqconn, _, reqstream, closef := t.openStreams(nil, nil, nil)
+			_, _, reqconn, _, reqstream, _, closef := t.openStreams(nil, nil, nil)
 			defer closef()
 
 			ctx, ctxCancel := t.Ctx()
@@ -663,7 +679,7 @@ func (t *testSubStreams) TestRequestPool() {
 		t.Run("timeout", func() {
 			var n uint64 = 2
 
-			_, _, _, reqconn, servestream, reqstream, closef := t.openStreams(nil, nil, nil)
+			_, _, reqconn, _, reqstream, servestream, closef := t.openStreams(nil, nil, nil)
 			defer closef()
 
 			ctx, ctxCancel := t.Ctx()
@@ -703,7 +719,7 @@ func (t *testSubStreams) TestRequestPool() {
 		t.Run("no end from serve", func() {
 			var n uint64 = 1
 
-			_, _, serveconn, reqconn, servestream, reqstream, closef := t.openStreams(nil, nil, nil)
+			_, _, reqconn, serveconn, reqstream, servestream, closef := t.openStreams(nil, nil, nil)
 			defer closef()
 
 			ctx, ctxCancel := t.Ctx()
@@ -746,7 +762,7 @@ func (t *testSubStreams) TestRequestPool() {
 
 func (t *testSubStreams) TestServe() {
 	t.Run("no n from request", func() {
-		_, _, serveconn, _, servestream, _, closef := t.openStreams(nil, nil, nil)
+		_, _, _, serveconn, _, servestream, closef := t.openStreams(nil, nil, nil)
 		defer closef()
 
 		serve := newServeSubStreams(serveconn.OpenStreamSync, 3)
@@ -759,7 +775,7 @@ func (t *testSubStreams) TestServe() {
 	})
 
 	t.Run("no uid from request", func() {
-		_, _, serveconn, _, servestream, reqstream, closef := t.openStreams(nil, nil, nil)
+		_, _, _, serveconn, reqstream, servestream, closef := t.openStreams(nil, nil, nil)
 		defer closef()
 
 		serve := newServeSubStreams(serveconn.OpenStreamSync, 3)
