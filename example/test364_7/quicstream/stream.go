@@ -62,18 +62,18 @@ func subStreamPoolItemPoolPut(item *subStreamPoolItem) {
 	subStreamPoolItemPool.Put(item)
 }
 
-func newRequestSubStreams(ctx context.Context, conn QuicConn, acceptTimeout time.Duration) (
+func newRequestSubStreams(ctx context.Context, accept OpenStreamFunc, acceptTimeout time.Duration) (
 	RequestSubStreamsFunc,
 	dutil.InErrorFunc[error],
 ) {
 	pool := dutil.NewSingleLockedMap[subStreamsRequestUID, *subStreamPoolItem]()
 
-	return newRequestSubStreamsWithPool(ctx, conn, acceptTimeout, pool)
+	return newRequestSubStreamsWithPool(ctx, accept, acceptTimeout, pool)
 }
 
 func newRequestSubStreamsWithPool(
 	ctx context.Context,
-	conn QuicConn,
+	accept OpenStreamFunc,
 	acceptTimeout time.Duration,
 	pool *dutil.SingleLockedMap[subStreamsRequestUID, *subStreamPoolItem],
 ) (
@@ -106,7 +106,7 @@ func newRequestSubStreamsWithPool(
 				return
 			}
 
-			if err := requestAcceptSubStream(pctx, conn, pool, acceptTimeout); err != nil {
+			if err := requestAcceptSubStream(pctx, accept, pool, acceptTimeout); err != nil {
 				_ = cancel(err)
 
 				log.Error().Err(err).Msg("request sub streams stopped")
@@ -126,7 +126,7 @@ func newRequestSubStreamsWithPool(
 				var uid subStreamsRequestUID
 				copy(uid[:], util.UUID().Bytes())
 
-				streams, gerr := requestSubStreams(ctx, conn, cstream, n, pool, uid)
+				streams, gerr := requestSubStreams(ctx, cstream, n, pool, uid)
 				if err := endRequestSubStreams(nctx, cstream); err != nil {
 					gerr = err
 				}
@@ -163,7 +163,6 @@ func newRequestSubStreamsWithPool(
 
 func requestSubStreams(
 	ctx context.Context,
-	conn QuicConn,
 	cstream *quic.Stream,
 	n uint64,
 	pool *dutil.SingleLockedMap[subStreamsRequestUID, *subStreamPoolItem],
@@ -246,10 +245,10 @@ func endRequestSubStreams(ctx context.Context, cstream *quic.Stream) error {
 	}
 }
 
-func newServeSubStreams(conn QuicConn, limit uint64) ServeSubStreamsFunc {
+func newServeSubStreams(open OpenStreamFunc, limit uint64) ServeSubStreamsFunc {
 	return func(ctx context.Context, cstream *quic.Stream) (RSubStreamsHandlerFunc, error) {
 		streams, gerr := contextEnsureWaitT(ctx, func(ctx context.Context) ([]*quic.Stream, error) {
-			streams, gerr := serveSubStreams(ctx, conn, limit, cstream)
+			streams, gerr := serveSubStreams(ctx, open, limit, cstream)
 
 			var errb []byte
 			if gerr != nil {
@@ -294,7 +293,7 @@ func newServeSubStreams(conn QuicConn, limit uint64) ServeSubStreamsFunc {
 	}
 }
 
-func serveSubStreams(ctx context.Context, conn QuicConn, limit uint64, cstream *quic.Stream) ([]*quic.Stream, error) {
+func serveSubStreams(ctx context.Context, open OpenStreamFunc, limit uint64, cstream *quic.Stream) ([]*quic.Stream, error) {
 	var n uint64
 
 	switch i, _, err := frame.ReadUint64(cstream); {
@@ -327,7 +326,7 @@ func serveSubStreams(ctx context.Context, conn QuicConn, limit uint64, cstream *
 
 	for i := range n {
 		eg.Go(func() error {
-			switch stream, err := openSubStream(ectx, conn, uid); {
+			switch stream, err := openSubStream(ectx, open, uid); {
 			case err != nil:
 				return err
 			default:
@@ -354,7 +353,7 @@ func serveSubStreams(ctx context.Context, conn QuicConn, limit uint64, cstream *
 
 func requestAcceptSubStream(
 	ctx context.Context,
-	conn QuicConn,
+	accept OpenStreamFunc,
 	pool *dutil.SingleLockedMap[subStreamsRequestUID, *subStreamPoolItem],
 	timeout time.Duration,
 ) error {
@@ -364,7 +363,7 @@ func requestAcceptSubStream(
 	var uv atomic.Value
 
 	stream, err := contextEnsureWaitT(tctx, func(ctx context.Context) (*quic.Stream, error) {
-		switch stream, u, err := acceptSubStream(ctx, conn); {
+		switch stream, u, err := acceptSubStream(ctx, accept); {
 		case err != nil:
 			return nil, err
 		default:
@@ -401,12 +400,12 @@ func requestAcceptSubStream(
 	return nil
 }
 
-func acceptSubStream(ctx context.Context, conn QuicConn) (
+func acceptSubStream(ctx context.Context, accept OpenStreamFunc) (
 	_ *quic.Stream,
 	uid subStreamsRequestUID,
 	_ error,
 ) {
-	switch stream, err := conn.AcceptStream(ctx); {
+	switch stream, err := accept(ctx); {
 	case err != nil:
 		return nil, uid, err
 	default:
@@ -421,8 +420,8 @@ func acceptSubStream(ctx context.Context, conn QuicConn) (
 	}
 }
 
-func openSubStream(ctx context.Context, conn QuicConn, uid subStreamsRequestUID) (*quic.Stream, error) {
-	switch stream, err := conn.OpenStreamSync(ctx); {
+func openSubStream(ctx context.Context, open OpenStreamFunc, uid subStreamsRequestUID) (*quic.Stream, error) {
+	switch stream, err := open(ctx); {
 	case err != nil:
 		return nil, errors.WithStack(err)
 	default:

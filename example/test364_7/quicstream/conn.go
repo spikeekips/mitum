@@ -12,6 +12,10 @@ import (
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 )
 
+type (
+	OpenStreamFunc = func(context.Context) (*quic.Stream, error)
+)
+
 type QuicConn interface {
 	AcceptStream(context.Context) (*quic.Stream, error)
 	AcceptUniStream(context.Context) (*quic.ReceiveStream, error)

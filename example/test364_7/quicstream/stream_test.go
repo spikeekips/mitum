@@ -165,7 +165,7 @@ func (t *testSubStreams) defaultRequest(
 		pool = dutil.NewSingleLockedMap[subStreamsRequestUID, *subStreamPoolItem]()
 	}
 
-	f, c := newRequestSubStreamsWithPool(ctx, reqconn, time.Second*2, pool)
+	f, c := newRequestSubStreamsWithPool(ctx, reqconn.AcceptStream, time.Second*2, pool)
 
 	return f, c
 }
@@ -186,7 +186,7 @@ func (t *testSubStreams) requestServeHandlers(
 	servepconn, reqpconn, serveconn, reqconn, servestream, reqstream, closef := t.openStreams(ctx, reqQuicConfig, serveQuicConfig)
 
 	request, closerequest := t.defaultRequest(ctx, reqconn, pool)
-	serve := newServeSubStreams(serveconn, limit)
+	serve := newServeSubStreams(serveconn.OpenStreamSync, limit)
 
 	doHandler := func(reqhandler, servehandler SubStreamsHandlerFunc) error {
 		serveDone := make(chan error, 1)
@@ -369,7 +369,7 @@ func (t *testSubStreams) TestRequest() {
 			ctx, ctxCancel := t.Ctx()
 			defer ctxCancel(nil)
 
-			request, closerequest := newRequestSubStreams(context.Background(), reqconn, time.Minute)
+			request, closerequest := newRequestSubStreams(context.Background(), reqconn.AcceptStream, time.Minute)
 			defer closerequest(nil)
 
 			t.T().Log("local packet conn closed")
@@ -386,7 +386,7 @@ func (t *testSubStreams) TestRequest() {
 			ctx, ctxCancel := t.Ctx()
 			defer ctxCancel(nil)
 
-			request, closerequest := newRequestSubStreams(context.Background(), reqconn, time.Minute)
+			request, closerequest := newRequestSubStreams(context.Background(), reqconn.AcceptStream, time.Minute)
 			defer closerequest(nil)
 
 			t.T().Log("local packet conn closed")
@@ -529,7 +529,7 @@ func (t *testSubStreams) TestRequest() {
 		_, _, _, reqconn, _, reqstream, closef := t.openStreams(nil, nil, nil)
 		defer closef()
 
-		request, closerequest := newRequestSubStreams(context.Background(), reqconn, time.Minute)
+		request, closerequest := newRequestSubStreams(context.Background(), reqconn.AcceptStream, time.Minute)
 		defer closerequest(nil)
 
 		tctx, tctxCancel := context.WithTimeout(context.Background(), time.Millisecond*333)
@@ -726,7 +726,7 @@ func (t *testSubStreams) TestRequestPool() {
 				t.IfErrPanicf(err, "serve: read uid")
 
 				for range n {
-					_, err = openSubStream(ctx, serveconn, uid)
+					_, err = openSubStream(ctx, serveconn.OpenStreamSync, uid)
 					t.IfErrPanicf(err, "serve: open stream")
 				}
 
@@ -749,7 +749,7 @@ func (t *testSubStreams) TestServe() {
 		_, _, serveconn, _, servestream, _, closef := t.openStreams(nil, nil, nil)
 		defer closef()
 
-		serve := newServeSubStreams(serveconn, 3)
+		serve := newServeSubStreams(serveconn.OpenStreamSync, 3)
 
 		tctx, tctxCancel := context.WithTimeout(context.Background(), time.Second*2)
 		defer tctxCancel()
@@ -762,7 +762,7 @@ func (t *testSubStreams) TestServe() {
 		_, _, serveconn, _, servestream, reqstream, closef := t.openStreams(nil, nil, nil)
 		defer closef()
 
-		serve := newServeSubStreams(serveconn, 3)
+		serve := newServeSubStreams(serveconn.OpenStreamSync, 3)
 
 		go func() {
 			_, err := frame.WriteUint64(reqstream, 3)
