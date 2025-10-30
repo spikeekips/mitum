@@ -163,7 +163,7 @@ func (c *joinedContext) Value(key any) any {
 func (c *joinedContext) cause() error {
 	var c1err error
 
-	if err := context.Cause(c.c1); err != nil {
+	if err := contextCause(c.c1); err != nil {
 		if !errors.Is(err, context.Canceled) {
 			return err
 		}
@@ -171,7 +171,7 @@ func (c *joinedContext) cause() error {
 		c1err = err
 	}
 
-	if err := context.Cause(c.c0); err != nil {
+	if err := contextCause(c.c0); err != nil {
 		switch {
 		case !errors.Is(err, context.Canceled):
 			return err
