@@ -596,12 +596,7 @@ func readIndexItem(r io.Reader) (uint64, []byte, error) { // FIXME remove
 	case err != nil:
 		return 0, nil, err
 	default:
-		_, br, err := frame.ReadBytes(r)
-		if err != nil {
-			return 0, nil, err
-		}
-
-		b, err := io.ReadAll(br)
+		_, b, err := frame.ReadBytes(r)
 
 		return index, b, err
 	}

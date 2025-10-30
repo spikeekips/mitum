@@ -85,7 +85,7 @@ func (t *testRWBytes) TestCases() {
 
 			t.Equal(len(c.b), n)
 
-			l, lr, err := ReadBytes(bytes.NewReader(buf.Bytes()))
+			l, lr, err := NewBytesReader(bytes.NewReader(buf.Bytes()))
 			t.NoError(err)
 			t.EqualValues(len(c.b), l)
 

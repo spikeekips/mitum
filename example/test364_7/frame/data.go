@@ -48,7 +48,7 @@ func WriteBytes(w io.Writer, b []byte) (int, error) {
 	return len(b), err
 }
 
-func ReadBytes(r io.Reader) (int64, io.Reader, error) {
+func NewBytesReader(r io.Reader) (int64, io.Reader, error) {
 	switch l, _, err := readDataLength(r); {
 	case err != nil:
 		return 0, nil, err
@@ -56,6 +56,25 @@ func ReadBytes(r io.Reader) (int64, io.Reader, error) {
 		return l, nil, nil
 	default:
 		return l, &io.LimitedReader{R: r, N: l}, nil
+	}
+}
+
+func ReadBytes(r io.Reader) (int64, []byte, error) {
+	switch l, _, err := readDataLength(r); {
+	case err != nil:
+		return 0, nil, err
+	case l < 1:
+		return l, nil, nil
+	default:
+		p := make([]byte, 0, l)
+		n, err := io.ReadFull(r, p[:cap(p)])
+		if err != nil {
+			clear(p)
+
+			return l + int64(n), nil, errors.WithStack(err)
+		}
+
+		return l + int64(n), p[:cap(p)], nil
 	}
 }
 
