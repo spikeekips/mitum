@@ -13,6 +13,7 @@ import (
 
 	"github.com/madflojo/testcerts"
 	"github.com/quic-go/quic-go"
+	"github.com/rs/zerolog"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 )
@@ -31,6 +32,14 @@ type BaseTest struct {
 	dutil.BaseSuite
 	tlsPool *sync.Pool
 	tlsUsed []*[2]any
+}
+
+func (t *BaseTest) Ctx() (context.Context, dutil.InErrorFunc[error]) {
+	ctx, cancel := t.BaseSuite.Ctx()
+
+	i := dutil.TestLogger.Level(zerolog.TraceLevel)
+
+	return dutil.SetContextValueLogger(ctx, &i), cancel
 }
 
 func (t *BaseTest) TearDownTest() {
