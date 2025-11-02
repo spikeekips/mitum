@@ -6,6 +6,7 @@ import (
 	"slices"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/quic-go/quic-go"
@@ -16,7 +17,7 @@ type (
 	OpenStreamFunc = func(context.Context) (*quic.Stream, error)
 )
 
-type QuicConn interface {
+type Conn interface {
 	AcceptStream(context.Context) (*quic.Stream, error)
 	AcceptUniStream(context.Context) (*quic.ReceiveStream, error)
 	AddPath(*quic.Transport) (*quic.Path, error)
@@ -36,100 +37,113 @@ type QuicConn interface {
 	SendDatagram([]byte) error
 }
 
-type noCloseQuicConn struct {
-	QuicConn
+type Stream interface {
+	CancelRead(quic.StreamErrorCode)
+	CancelWrite(quic.StreamErrorCode)
+	Close() error
+	Context() context.Context
+	Read([]byte) (int, error)
+	SetDeadline(time.Time) error
+	SetReadDeadline(time.Time) error
+	SetWriteDeadline(time.Time) error
+	StreamID() quic.StreamID
+	Write([]byte) (int, error)
+}
+
+type noCloseConn struct {
+	Conn
 	ic atomic.Value
 }
 
-func (c *noCloseQuicConn) AcceptStream(ctx context.Context) (*quic.Stream, error) {
+func (c *noCloseConn) AcceptStream(ctx context.Context) (*quic.Stream, error) {
 	if err := c.isClosed(); err != nil {
 		return nil, err
 	}
 
-	return c.QuicConn.AcceptStream(ctx)
+	return c.Conn.AcceptStream(ctx)
 }
 
-func (c *noCloseQuicConn) AcceptUniStream(ctx context.Context) (*quic.ReceiveStream, error) {
+func (c *noCloseConn) AcceptUniStream(ctx context.Context) (*quic.ReceiveStream, error) {
 	if err := c.isClosed(); err != nil {
 		return nil, err
 	}
 
-	return c.QuicConn.AcceptUniStream(ctx)
+	return c.Conn.AcceptUniStream(ctx)
 }
 
-func (c *noCloseQuicConn) AddPath(t *quic.Transport) (*quic.Path, error) {
+func (c *noCloseConn) AddPath(t *quic.Transport) (*quic.Path, error) {
 	if err := c.isClosed(); err != nil {
 		return nil, err
 	}
 
-	return c.QuicConn.AddPath(t)
+	return c.Conn.AddPath(t)
 }
 
-func (c *noCloseQuicConn) HandshakeComplete() <-chan struct{} {
+func (c *noCloseConn) HandshakeComplete() <-chan struct{} {
 	if err := c.isClosed(); err != nil {
 		return nil
 	}
 
-	return c.QuicConn.HandshakeComplete()
+	return c.Conn.HandshakeComplete()
 }
 
-func (c *noCloseQuicConn) NextConnection(ctx context.Context) (*quic.Conn, error) {
+func (c *noCloseConn) NextConnection(ctx context.Context) (*quic.Conn, error) {
 	if err := c.isClosed(); err != nil {
 		return nil, err
 	}
 
-	return c.QuicConn.NextConnection(ctx)
+	return c.Conn.NextConnection(ctx)
 }
 
-func (c *noCloseQuicConn) OpenStream() (*quic.Stream, error) {
+func (c *noCloseConn) OpenStream() (*quic.Stream, error) {
 	if err := c.isClosed(); err != nil {
 		return nil, err
 	}
 
-	return c.QuicConn.OpenStream()
+	return c.Conn.OpenStream()
 }
 
-func (c *noCloseQuicConn) OpenStreamSync(ctx context.Context) (*quic.Stream, error) {
+func (c *noCloseConn) OpenStreamSync(ctx context.Context) (*quic.Stream, error) {
 	if err := c.isClosed(); err != nil {
 		return nil, err
 	}
 
-	return c.QuicConn.OpenStreamSync(ctx)
+	return c.Conn.OpenStreamSync(ctx)
 }
 
-func (c *noCloseQuicConn) OpenUniStream() (*quic.SendStream, error) {
+func (c *noCloseConn) OpenUniStream() (*quic.SendStream, error) {
 	if err := c.isClosed(); err != nil {
 		return nil, err
 	}
 
-	return c.QuicConn.OpenUniStream()
+	return c.Conn.OpenUniStream()
 }
 
-func (c *noCloseQuicConn) OpenUniStreamSync(ctx context.Context) (*quic.SendStream, error) {
+func (c *noCloseConn) OpenUniStreamSync(ctx context.Context) (*quic.SendStream, error) {
 	if err := c.isClosed(); err != nil {
 		return nil, err
 	}
 
-	return c.QuicConn.OpenUniStreamSync(ctx)
+	return c.Conn.OpenUniStreamSync(ctx)
 }
 
-func (c *noCloseQuicConn) ReceiveDatagram(ctx context.Context) ([]byte, error) {
+func (c *noCloseConn) ReceiveDatagram(ctx context.Context) ([]byte, error) {
 	if err := c.isClosed(); err != nil {
 		return nil, err
 	}
 
-	return c.QuicConn.ReceiveDatagram(ctx)
+	return c.Conn.ReceiveDatagram(ctx)
 }
 
-func (c *noCloseQuicConn) SendDatagram(b []byte) error {
+func (c *noCloseConn) SendDatagram(b []byte) error {
 	if err := c.isClosed(); err != nil {
 		return err
 	}
 
-	return c.QuicConn.SendDatagram(b)
+	return c.Conn.SendDatagram(b)
 }
 
-func (c *noCloseQuicConn) CloseWithError(errcode quic.ApplicationErrorCode, desc string) error {
+func (c *noCloseConn) CloseWithError(errcode quic.ApplicationErrorCode, desc string) error {
 	if !c.ic.CompareAndSwap(nil, true) {
 		return quic.ErrTransportClosed
 	}
@@ -138,10 +152,10 @@ func (c *noCloseQuicConn) CloseWithError(errcode quic.ApplicationErrorCode, desc
 		return nil
 	}
 
-	return c.QuicConn.CloseWithError(errcode, desc)
+	return c.Conn.CloseWithError(errcode, desc)
 }
 
-func (c *noCloseQuicConn) isClosed() error {
+func (c *noCloseConn) isClosed() error {
 	if i := c.ic.Load(); i != nil && i.(bool) {
 		return quic.ErrTransportClosed
 	}
@@ -149,15 +163,15 @@ func (c *noCloseQuicConn) isClosed() error {
 	return nil
 }
 
-func newNoCloseQuicConn(conn QuicConn) QuicConn {
-	if _, ok := conn.(*noCloseQuicConn); ok {
+func newNoCloseConn(conn Conn) Conn {
+	if _, ok := conn.(*noCloseConn); ok {
 		return conn
 	}
 
-	return &noCloseQuicConn{QuicConn: conn}
+	return &noCloseConn{Conn: conn}
 }
 
-func newFuncCloseConnection(err error) dutil.InErrorFunc[QuicConn] {
+func newFuncCloseConnection(err error) dutil.InErrorFunc[Conn] {
 	var errcode quic.ApplicationErrorCode
 	var errmsg string
 
@@ -169,36 +183,36 @@ func newFuncCloseConnection(err error) dutil.InErrorFunc[QuicConn] {
 		errcode = connErrorCodeOK
 	}
 
-	return func(conn QuicConn) error {
+	return func(conn Conn) error {
 		return errors.WithStack(conn.CloseWithError(errcode, errmsg))
 	}
 }
 
-func closeConnection(conn QuicConn, err error) error {
+func closeConnection(conn Conn, err error) error {
 	return newFuncCloseConnection(err)(conn)
 }
 
-func newFuncCloseStream(err error) func(*quic.Stream) error {
+func newFuncCloseStream(err error) func(Stream) error {
 	switch {
 	case err != nil:
-		return func(stream *quic.Stream) error {
+		return func(stream Stream) error {
 			stream.CancelRead(streamErrorCodeUnknown)
 			stream.CancelWrite(streamErrorCodeUnknown)
 
 			return nil
 		}
 	default:
-		return func(stream *quic.Stream) error {
+		return func(stream Stream) error {
 			return stream.Close()
 		}
 	}
 }
 
-func closeStream(stream *quic.Stream, err error) error {
+func closeStream(stream Stream, err error) error {
 	return newFuncCloseStream(err)(stream)
 }
 
-func closeStreams(streams []*quic.Stream, err error) (gerr error) {
+func closeStreams(streams []Stream, err error) (gerr error) {
 	f := newFuncCloseStream(err)
 
 	switch len(streams) {

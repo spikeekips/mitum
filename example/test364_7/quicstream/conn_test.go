@@ -26,7 +26,7 @@ func (t *testNoCloseQuicConn) TestClose() {
 	t.NoError(err)
 	defer conn.CloseWithError(3, "")
 
-	nconn := newNoCloseQuicConn(conn)
+	nconn := newNoCloseConn(conn)
 
 	// before closed
 	//_, err = nconn.AcceptStream(ctx)
@@ -97,15 +97,15 @@ func (t *testNoCloseQuicConn) TestCloseWithError() {
 		t.NoError(err)
 		defer conn.CloseWithError(3, "")
 
-		nconn := newNoCloseQuicConn(conn).(*noCloseQuicConn)
+		nconn := newNoCloseConn(conn).(*noCloseConn)
 
 		t.NoError(nconn.Context().Err())
-		t.NoError(nconn.QuicConn.Context().Err())
+		t.NoError(nconn.Conn.Context().Err())
 
 		t.NoError(nconn.CloseWithError(connErrorCodeOK, ""))
 
 		t.NoError(nconn.Context().Err())
-		t.NoError(nconn.QuicConn.Context().Err())
+		t.NoError(nconn.Conn.Context().Err())
 	})
 
 	t.Run("other error", func() {
@@ -122,16 +122,16 @@ func (t *testNoCloseQuicConn) TestCloseWithError() {
 		t.NoError(err)
 		defer conn.CloseWithError(3, "")
 
-		nconn := newNoCloseQuicConn(conn).(*noCloseQuicConn)
+		nconn := newNoCloseConn(conn).(*noCloseConn)
 
 		t.NoError(nconn.Context().Err())
-		t.NoError(nconn.QuicConn.Context().Err())
+		t.NoError(nconn.Conn.Context().Err())
 
 		t.NoError(nconn.CloseWithError(connErrorCodeUnknown, ""))
 
 		err = nconn.Context().Err()
 		t.ErrorIs(err, context.Canceled)
-		t.Error(nconn.QuicConn.Context().Err())
+		t.Error(nconn.Conn.Context().Err())
 	})
 }
 

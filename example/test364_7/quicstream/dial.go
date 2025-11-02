@@ -16,14 +16,14 @@ import (
 )
 
 type (
-	DialFunc    = func(context.Context, net.Addr, *tls.Config, *quic.Config) (QuicConn, error)
+	DialFunc    = func(context.Context, net.Addr, *tls.Config, *quic.Config) (Conn, error)
 	RequestFunc = func(context.Context, net.Addr, *tls.Config, *quic.Config, StreamHandler) (context.Context, error)
 )
 
 func Dial(
 	ctx context.Context,
 	addr net.Addr, tlsConfig *tls.Config, quicConfig *quic.Config,
-) (QuicConn, error) {
+) (Conn, error) {
 	c, err := quic.DialAddrEarly(ctx, addr.String(), tlsConfig, quicConfig)
 	return c, errors.WithStack(err)
 }
@@ -38,9 +38,9 @@ func NewConnPool(
 	dutil.InErrorFunc[error],
 	error,
 ) {
-	var pool dutil.LockedMap[string, QuicConn]
+	var pool dutil.LockedMap[string, Conn]
 
-	switch p, err := dutil.NewLockedMap[string, QuicConn](nil, poolSize); {
+	switch p, err := dutil.NewLockedMap[string, Conn](nil, poolSize); {
 	case err != nil:
 		return nil, nil, err
 	default:
@@ -52,7 +52,7 @@ func NewConnPool(
 
 func newConnPoolWithPool(
 	ctx context.Context,
-	pool dutil.LockedMap[string, QuicConn],
+	pool dutil.LockedMap[string, Conn],
 	dialf DialFunc,
 	idleTimeout, cleanInterval time.Duration,
 ) (
@@ -77,7 +77,7 @@ func newConnPoolWithPool(
 	return func(
 			ctx context.Context,
 			addr net.Addr, tlsConfig *tls.Config, quicConfig *quic.Config,
-		) (QuicConn, error) {
+		) (Conn, error) {
 			if !quicConfig.Allow0RTT {
 				return nil, errors.New("Allow0RTT is disabled")
 			}
@@ -90,9 +90,9 @@ func newConnPoolWithPool(
 				return nil, err
 			}
 
-			var conn QuicConn
+			var conn Conn
 
-			if _, _, err := pool.SetOrRemove(addr.String(), func(prev QuicConn, _ bool) (QuicConn, bool, error) {
+			if _, _, err := pool.SetOrRemove(addr.String(), func(prev Conn, _ bool) (Conn, bool, error) {
 				if prev != nil && prev.Context().Err() == nil {
 					if err := prev.SendDatagram([]byte{0x00}); err == nil {
 						conn = prev
@@ -105,7 +105,7 @@ func newConnPoolWithPool(
 				case err != nil:
 					return nil, true, err
 				default:
-					conn = newNoCloseQuicConn(c)
+					conn = newNoCloseConn(c)
 
 					return conn, false, nil
 				}
@@ -143,7 +143,7 @@ func checkPoolQuicConfig(idleTimeout time.Duration) func(*quic.Config) *quic.Con
 	}
 }
 
-func closePoolConns(seq iter.Seq2[string, QuicConn], err error) (gerr error) {
+func closePoolConns(seq iter.Seq2[string, Conn], err error) (gerr error) {
 	var wg sync.WaitGroup
 	var e int64
 
@@ -151,7 +151,7 @@ func closePoolConns(seq iter.Seq2[string, QuicConn], err error) (gerr error) {
 
 	for _, conn := range seq {
 		wg.Go(func() {
-			if err := f(conn.(*noCloseQuicConn).QuicConn); err != nil {
+			if err := f(conn.(*noCloseConn).Conn); err != nil {
 				if atomic.CompareAndSwapInt64(&e, 0, 1) {
 					gerr = err
 				}
@@ -166,7 +166,7 @@ func closePoolConns(seq iter.Seq2[string, QuicConn], err error) (gerr error) {
 
 func cleanConnPool(
 	ctx context.Context,
-	pool dutil.LockedMap[string, QuicConn],
+	pool dutil.LockedMap[string, Conn],
 	interval time.Duration,
 ) {
 	ticker := time.NewTicker(interval)
@@ -200,7 +200,7 @@ func cleanConnPool(
 				if conn != nil && conn.Context().Err() != nil {
 					removes = append(removes, saddr)
 
-					_ = closeConnection(conn.(*noCloseQuicConn).QuicConn, nil)
+					_ = closeConnection(conn.(*noCloseConn).Conn, nil)
 				}
 			}
 
@@ -219,7 +219,7 @@ func NewRequestFunc(dialf DialFunc) RequestFunc {
 	return func(ctx context.Context, addr net.Addr, tlsConfig *tls.Config, quicConfig *quic.Config, h StreamHandler) (
 		context.Context, error,
 	) {
-		var conn QuicConn
+		var conn Conn
 
 		switch o, err := dialf(ctx, addr, tlsConfig, quicConfig); {
 		case err != nil:

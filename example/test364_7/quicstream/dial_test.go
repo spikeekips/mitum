@@ -283,7 +283,7 @@ func (t *testConnPool) TestAsync() {
 
 	var dialed int64
 
-	dial, poolClose, err := newConnPoolWithPool(context.Background(), pool, func(ctx context.Context, addr net.Addr, tlsConfig *tls.Config, quicConfig *quic.Config) (QuicConn, error) {
+	dial, poolClose, err := newConnPoolWithPool(context.Background(), pool, func(ctx context.Context, addr net.Addr, tlsConfig *tls.Config, quicConfig *quic.Config) (Conn, error) {
 		atomic.AddInt64(&dialed, 1)
 
 		return Dial(ctx, addr, tlsConfig, quicConfig)
@@ -505,7 +505,7 @@ func dialWithPacketConn(
 	ctx context.Context,
 	pconn net.PacketConn,
 	addr net.Addr, tlsConfig *tls.Config, quicConfig *quic.Config,
-) (QuicConn, error) {
+) (Conn, error) {
 	c, err := quic.DialEarly(ctx, pconn, addr, tlsConfig, quicConfig)
 	return c, errors.WithStack(err)
 }

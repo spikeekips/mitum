@@ -24,11 +24,11 @@ type testQuic struct {
 func (t *testQuic) OpenConnections(
 	localCtx, remoteCtx context.Context,
 	localQuicConfig, remoteQuicConfig *quic.Config,
-) (net.PacketConn, net.PacketConn, QuicConn, QuicConn, func()) {
+) (net.PacketConn, net.PacketConn, Conn, Conn, func()) {
 	lpconn, l := t.RandomListener(nil, localQuicConfig)
 	rpconn := t.RandomPacketConn()
 
-	localConnCh := make(chan QuicConn, 1)
+	localConnCh := make(chan Conn, 1)
 	go func() {
 		conn, err := l.Accept(localCtx)
 		t.PrintIfErrPanic(err, "accept")
@@ -99,7 +99,7 @@ func (t *testQuic) TestPacketConn() {
 	t.RunWithGoLeak("PacketConn closed; before accept stream", func() {
 		pconn, l := t.RandomListener(nil, nil)
 
-		wait := dutil.AssertWaitChan(t.Assert(), time.Second, func() QuicConn {
+		wait := dutil.AssertWaitChan(t.Assert(), time.Second, func() Conn {
 			conn, err := l.Accept(context.Background())
 			t.PrintIfErrPanic(err, "local listener: accept")
 
@@ -905,7 +905,7 @@ func (t *testQuic) TestRemoteReboot() {
 		return lpconn
 	}
 
-	remoteWrite := func(remoteConn QuicConn) error {
+	remoteWrite := func(remoteConn Conn) error {
 		remoteStream, err := remoteConn.OpenStream()
 		if err != nil {
 			return err
@@ -999,7 +999,7 @@ func (t *testQuic) TestLocalReboot() {
 		}
 	}
 
-	remoteWrite := func(remoteConn QuicConn) error {
+	remoteWrite := func(remoteConn Conn) error {
 		t.Print("> remote write")
 
 		remoteStream, err := remoteConn.OpenStream()

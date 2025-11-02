@@ -25,7 +25,7 @@ func (t *testServe) newServe(
 	quicConfig *quic.Config,
 ) (
 	dutil.InFunc[StreamHandler, dutil.ErrorFunc],
-	func(context.Context, *quic.Config) (QuicConn, error),
+	func(context.Context, *quic.Config) (Conn, error),
 	dutil.ErrorFunc,
 ) {
 	pconn := t.RandomPacketConn()
@@ -51,7 +51,7 @@ func (t *testServe) newServe(
 
 			return w
 		},
-		func(ctx context.Context, quicConfig *quic.Config) (QuicConn, error) {
+		func(ctx context.Context, quicConfig *quic.Config) (Conn, error) {
 			return Dial(ctx, pconn.LocalAddr(), t.NewTLSConfig(), quicConfig)
 		},
 		func() error {

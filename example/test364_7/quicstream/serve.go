@@ -158,7 +158,7 @@ func serveConnection(
 	}
 }
 
-func exhaustDatagram(ctx context.Context, conn QuicConn) error {
+func exhaustDatagram(ctx context.Context, conn Conn) error {
 	var nerr *net.OpError
 	var aerr *quic.ApplicationError
 

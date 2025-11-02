@@ -115,7 +115,7 @@ func (t *BaseTest) ListenerAccept(ctx context.Context, l *quic.EarlyListener, f 
 	}
 }
 
-func (t *BaseTest) StreamsAccept(ctx context.Context, conn QuicConn, f func(*quic.Stream) error) {
+func (t *BaseTest) StreamsAccept(ctx context.Context, conn Conn, f func(*quic.Stream) error) {
 	for {
 		stream, err := conn.AcceptStream(ctx)
 		t.PrintIfErrCaller(err, 3, "AcceptStream")
@@ -135,8 +135,8 @@ func (t *BaseTest) NewDialPool(ctx context.Context, idleTimeout, cleanInterval t
 	return d, e
 }
 
-func (t *BaseTest) newConnPoolLockedMap() dutil.LockedMap[string, QuicConn] {
-	p, err := dutil.NewLockedMap[string, QuicConn](nil, 1<<9)
+func (t *BaseTest) newConnPoolLockedMap() dutil.LockedMap[string, Conn] {
+	p, err := dutil.NewLockedMap[string, Conn](nil, 1<<9)
 	t.IfErrPanic(err)
 
 	return p
