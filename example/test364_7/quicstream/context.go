@@ -30,12 +30,65 @@ func contextWithCancelCause(ctx context.Context) (context.Context, dutil.InError
 	}
 }
 
-func contextEnsureWait(ctx context.Context, f dutil.InErrorFunc[context.Context]) error {
+func contextDone(ctx context.Context) (
+	dutil.InErrorFunc[error],
+	dutil.ErrorFunc,
+) {
+	done := make(chan struct{})
+
+	var gerr atomic.Pointer[error]
+
+	return func(err error) error {
+			if gerr.CompareAndSwap(nil, &err) {
+				close(done)
+			}
+
+			return err
+		},
+		func() error {
+			select {
+			case <-done:
+				if i := gerr.Load(); i != nil {
+					return *i
+				}
+
+				return nil
+			case <-ctx.Done():
+				if i := gerr.Load(); i != nil {
+					return *i
+				}
+
+				return contextCause(ctx)
+			}
+		}
+}
+
+func contextDoneWithContext(ctx context.Context) (
+	context.Context,
+	dutil.InErrorFunc[error],
+	dutil.ErrorFunc,
+) {
+	cctx, cctxCancel := contextWithCancelCause(ctx)
+
+	done, wait := contextDone(cctx)
+
+	return cctx,
+		func(err error) error {
+			defer func() {
+				_ = cctxCancel(err)
+			}()
+
+			return done(err)
+		},
+		wait
+}
+
+func contextEnsure(ctx context.Context, f dutil.InErrorFunc[context.Context]) error {
 	if ctx.Err() != nil {
 		return contextCause(ctx)
 	}
 
-	done, wait := newContextDone(ctx)
+	done, wait := contextDone(ctx)
 	defer done(nil)
 
 	go func() {
@@ -45,14 +98,14 @@ func contextEnsureWait(ctx context.Context, f dutil.InErrorFunc[context.Context]
 	return wait()
 }
 
-func contextEnsureWaitT[T any](ctx context.Context, f func(context.Context) (T, error)) (T, error) {
+func contextEnsureT[T any](ctx context.Context, f func(context.Context) (T, error)) (T, error) {
 	var t T
 
 	if ctx.Err() != nil {
 		return t, contextCause(ctx)
 	}
 
-	done, wait := newContextDone(ctx)
+	done, wait := contextDone(ctx)
 	defer done(nil)
 
 	var p atomic.Pointer[T]
@@ -75,39 +128,6 @@ func contextEnsureWaitT[T any](ctx context.Context, f func(context.Context) (T, 
 	}
 
 	return t, nil
-}
-
-func newContextDone(ctx context.Context) (
-	dutil.InErrorFunc[error],
-	dutil.ErrorFunc,
-) {
-	done := make(chan struct{})
-
-	var gerr atomic.Pointer[error]
-
-	return func(err error) error {
-			if gerr.CompareAndSwap(nil, &err) {
-				close(done)
-			}
-
-			return err
-		},
-		func() error {
-			select {
-			case <-ctx.Done():
-				if i := gerr.Load(); i != nil {
-					return *i
-				}
-
-				return contextCause(ctx)
-			case <-done:
-				if i := gerr.Load(); i != nil {
-					return *i
-				}
-
-				return nil
-			}
-		}
 }
 
 type joinedContext struct {
