@@ -3,6 +3,7 @@ package frame
 import (
 	"encoding/binary"
 	"io"
+	"math"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -33,19 +34,26 @@ func readDataLength(r io.Reader) (int64, int, error) {
 	}
 }
 
-func WriteBytes(w io.Writer, b []byte) (int, error) {
-	bl := int64(len(b))
-	if _, err := writeDataLength(w, bl); err != nil {
-		return 0, err
+func WriteBytes(w io.Writer, b []byte) (n int, _ error) {
+	l := int64(len(b))
+	if l > int64(math.MaxUint32) {
+		return 0, errors.Errorf("length, %d is over max uint32", l)
 	}
 
-	if bl < 1 {
-		return 0, nil
+	switch i, err := writeDataLength(w, l); {
+	case err != nil:
+		return i, err
+	default:
+		n += i
 	}
 
-	_, err := w.Write(b)
+	if l < 1 {
+		return n, nil
+	}
 
-	return len(b), err
+	i, err := w.Write(b)
+
+	return n + i, err
 }
 
 func NewBytesReader(r io.Reader) (int64, io.Reader, error) {
@@ -65,6 +73,8 @@ func ReadBytes(r io.Reader) (int64, []byte, error) {
 		return 0, nil, err
 	case l < 1:
 		return l, nil, nil
+	case l > math.MaxUint32:
+		return 8, nil, errors.Errorf("length, %d is over max uint32", l)
 	default:
 		p := make([]byte, 0, l)
 		n, err := io.ReadFull(r, p[:cap(p)])

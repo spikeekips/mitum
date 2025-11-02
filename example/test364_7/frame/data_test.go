@@ -83,7 +83,7 @@ func (t *testRWBytes) TestCases() {
 				panic(err)
 			}
 
-			t.Equal(len(c.b), n)
+			t.Equal(len(c.b)+8, n)
 
 			l, lr, err := NewBytesReader(bytes.NewReader(buf.Bytes()))
 			t.NoError(err)
@@ -99,6 +99,38 @@ func (t *testRWBytes) TestCases() {
 			}
 		})
 	}
+}
+
+func (t *testRWBytes) TestWriteLengthOverUint32() {
+	buf := bytes.NewBuffer(nil)
+	defer buf.Reset()
+
+	l := math.MaxUint32 + 1
+	b := make([]byte, l)
+
+	n, err := WriteBytes(buf, b)
+	t.Equal(0, n)
+	t.ErrorContains(err, "over max uint32")
+}
+
+func (t *testRWBytes) TestReadLengthOverUint32() {
+	buf := bytes.NewBuffer(nil)
+	defer buf.Reset()
+
+	l := int64(math.MaxUint32 + 1)
+
+	_, err := writeDataLength(buf, l)
+	t.NoError(err)
+
+	_, err = buf.Write([]byte{0})
+	t.NoError(err)
+
+	r := bytes.NewReader(buf.Bytes())
+
+	rl, b, err := ReadBytes(r)
+	t.EqualValues(8, rl)
+	t.Empty(b)
+	t.ErrorContains(err, "over max uint32")
 }
 
 func TestRWBytes(t *testing.T) {
