@@ -209,10 +209,17 @@ func newFuncCloseStream(err error) func(Stream) error {
 }
 
 func closeStream(stream Stream, err error) error {
-	return newFuncCloseStream(err)(stream)
+	if err == nil {
+		return stream.Close()
+	}
+
+	stream.CancelRead(streamErrorCodeUnknown)
+	stream.CancelWrite(streamErrorCodeUnknown)
+
+	return nil
 }
 
-func closeStreams(streams []Stream, err error) (gerr error) {
+func closeStreams(streams []Stream, err error) error {
 	f := newFuncCloseStream(err)
 
 	switch len(streams) {
@@ -227,15 +234,13 @@ func closeStreams(streams []Stream, err error) (gerr error) {
 	}
 
 	var wg sync.WaitGroup
-	var e int64
+	var e atomic.Value
 
 	for stream := range slices.Values(streams) {
 		if stream != nil {
 			wg.Go(func() {
 				if err := f(stream); err != nil {
-					if atomic.CompareAndSwapInt64(&e, 0, 1) {
-						gerr = err
-					}
+					e.CompareAndSwap(nil, err)
 				}
 			})
 		}
@@ -243,5 +248,9 @@ func closeStreams(streams []Stream, err error) (gerr error) {
 
 	wg.Wait()
 
-	return gerr
+	if i := e.Load(); i != nil {
+		return i.(error)
+	}
+
+	return nil
 }
