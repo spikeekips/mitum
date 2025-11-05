@@ -3,7 +3,10 @@ package quicstream
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"net"
+	"os"
+	"runtime"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -19,15 +22,15 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-type testSubStreams struct {
+type testSubStreamsRequest struct {
 	BaseTest
 }
 
-func (t *testSubStreams) Run(a string, f func()) {
+func (t *testSubStreamsRequest) Run(a string, f func()) {
 	t.BaseTest.RunWithGoLeak(a, f)
 }
 
-func (t *testSubStreams) openConnections(
+func (t *testSubStreamsRequest) openConnections(
 	reqCtx, serveCtx context.Context,
 	reqQuicConfig, serveQuicConfig *quic.Config,
 ) (net.PacketConn, net.PacketConn, Conn, Conn, func()) {
@@ -72,7 +75,7 @@ func (t *testSubStreams) openConnections(
 	})
 }
 
-func (t *testSubStreams) openControlStreams(ctx context.Context, reqconn, serveconn Conn) (
+func (t *testSubStreamsRequest) openControlStreams(ctx context.Context, reqconn, serveconn Conn) (
 	Stream, Stream,
 	func(),
 ) {
@@ -122,14 +125,14 @@ func (t *testSubStreams) openControlStreams(ctx context.Context, reqconn, servec
 }
 
 type dummyStream struct {
-	w               *bytes.Buffer
-	ctx             context.Context
-	ctxCancel       func()
-	rerr            error
-	werr            error
-	onceCancelRead  sync.Once
+	w         *bytes.Buffer
+	ctx       context.Context
+	ctxCancel func()
+	rerr,
+	werr error
+	onceCancelRead,
 	onceCancelWrite sync.Once
-	isClosed        int64
+	isClosed int64
 }
 
 var _ Stream = &dummyStream{}
@@ -185,12 +188,13 @@ func (s *dummyStream) Write(b []byte) (int, error) {
 	return s.w.Write(b)
 }
 
-func (t *testSubStreams) rawRequest() (
+func (t *testSubStreamsRequest) rawRequest() (
 	context.Context, dutil.InErrorFunc[error],
 	context.Context, dutil.InErrorFunc[error],
 	context.Context, dutil.InErrorFunc[error],
+	Conn, Conn,
 	Stream, Stream,
-	func(time.Duration) requestSubStreamsFunc,
+	func(time.Duration) (subStremasPool, context.Context, requestSubStreamsFunc, dutil.InErrorFunc[error]),
 	openStreamFunc,
 	func(),
 ) {
@@ -205,17 +209,24 @@ func (t *testSubStreams) rawRequest() (
 	return ctx, ctxCancel,
 		rctx, rctxCancel,
 		sctx, sctxCancel,
+		rconn, sconn,
 		rcstream, scstream,
-		func(timeout time.Duration) requestSubStreamsFunc {
-			return defaultRequestSubStreams(
+		func(timeout time.Duration) (subStremasPool, context.Context, requestSubStreamsFunc, dutil.InErrorFunc[error]) {
+			pool := dutil.NewSingleLockedMap[subStreamsRequestUID, dutil.In2ErrorFunc[context.Context, Stream]]()
+
+			pctx, requestf, cancel := newRequestSubStreamsWithPool(
 				rctx,
 				func() (context.Context, openStreamFunc) {
-					return rctx, quicOpenStreamFunc(rconn.AcceptStream)
+					return rconn.Context(), t.newFuncOpenStream(rconn.AcceptStream)
 				},
 				timeout,
+				int64(runtime.GOMAXPROCS(0)),
+				pool,
 			)
+
+			return pool, pctx, requestf, cancel
 		},
-		quicOpenStreamFunc(sconn.OpenStreamSync),
+		t.newFuncOpenStream(sconn.OpenStreamSync),
 		func() {
 			ctxCancel(nil)
 			rctxCancel(nil)
@@ -226,7 +237,7 @@ func (t *testSubStreams) rawRequest() (
 		}
 }
 
-func (t *testSubStreams) serveOpenStream(
+func (t *testSubStreamsRequest) serveOpenStream(
 	ctx context.Context,
 	openStream openStreamFunc,
 	n uint64,
@@ -235,7 +246,7 @@ func (t *testSubStreams) serveOpenStream(
 ) (dutil.ErrorFunc, error) {
 	eg, ectx := errgroup.WithContext(ctx)
 
-	for range n {
+	for si := range n {
 		stream, err := openStream(ectx)
 		if err != nil {
 			return nil, err
@@ -246,14 +257,49 @@ func (t *testSubStreams) serveOpenStream(
 				return closeStream(stream, err)
 			}
 
-			return closeStream(stream, handler(ectx, stream))
+			gerr := handler(ectx, si, stream)
+			if err := closeStream(stream, gerr); err != nil {
+				return err
+			}
+
+			return gerr
 		})
 	}
 
 	return eg.Wait, nil
 }
 
-func (t *testSubStreams) TestRequest() {
+func (t *testSubStreamsRequest) initialServeSubStream(limit uint64, stream Stream) (uid subStreamsRequestUID, _ uint64, _ error) {
+	u, err := readSubStreamRequestUID(stream)
+	if err != nil {
+		return uid, 0, err
+	}
+	uid = u
+
+	n, _, err := frame.ReadUint64(stream)
+	if err != nil {
+		return uid, 0, err
+	}
+
+	nn := min(limit, n)
+
+	_, err = frame.WriteUint64(stream, nn)
+	if err != nil {
+		return uid, 0, err
+	}
+
+	return uid, nn, nil
+}
+
+func (t *testSubStreamsRequest) newFuncOpenStream(f func(context.Context) (*quic.Stream, error)) func(context.Context) (Stream, error) {
+	return func(ctx context.Context) (Stream, error) {
+		s, err := f(ctx)
+
+		return s, err
+	}
+}
+
+func (t *testSubStreamsRequest) TestOK() {
 	var gn uint64 = 3
 
 	sentb := make([]string, gn)
@@ -262,27 +308,17 @@ func (t *testSubStreams) TestRequest() {
 	}
 	slices.Sort(sentb)
 
-	t.Run("ok; n=3", func() {
+	t.Run("n=3", func() {
 		n := gn
 
-		_, _, rctx, rctxCancel, sctx, sctxCancel, rcstream, scstream, requestf, openStream, closef := t.rawRequest()
+		_, _, rctx, rctxCancel, sctx, sctxCancel, _, _, rcstream, scstream, requestf, openStream, closef := t.rawRequest()
 		defer closef()
 
-		request := requestf(time.Minute)
+		pool, _, request, _ := requestf(time.Minute)
 
 		go func() {
 			sctxCancel(contextEnsure(sctx, func(ctx context.Context) error {
-				uid, err := readSubStreamRequestUID(scstream)
-				if err != nil {
-					return err
-				}
-
-				n, _, err := frame.ReadUint64(scstream)
-				if err != nil {
-					return err
-				}
-
-				_, err = frame.WriteUint64(scstream, n)
+				uid, _, err := t.initialServeSubStream(n, scstream)
 				if err != nil {
 					return err
 				}
@@ -295,11 +331,8 @@ func (t *testSubStreams) TestRequest() {
 					return rerr
 				}
 
-				var i int64
-				swait, err := t.serveOpenStream(ctx, openStream, n, uid, func(_ context.Context, stream Stream) error {
-					j := atomic.AddInt64(&i, 1)
-
-					_, err := frame.WriteBytes(stream, []byte(sentb[j-1]))
+				swait, err := t.serveOpenStream(ctx, openStream, n, uid, func(_ context.Context, si uint64, stream Stream) error {
+					_, err := frame.WriteBytes(stream, []byte(sentb[si]))
 					return err
 				})
 				if err != nil {
@@ -335,7 +368,7 @@ func (t *testSubStreams) TestRequest() {
 
 			var l sync.Mutex
 
-			return func(_ context.Context, stream Stream) error {
+			return func(_ context.Context, _ uint64, stream Stream) error {
 					_, b, err := frame.ReadBytes(stream)
 					if err != nil {
 						return err
@@ -349,6 +382,7 @@ func (t *testSubStreams) TestRequest() {
 				},
 				nil
 		}))
+		t.Equal(0, pool.Len())
 		rctxCancel(nil)
 
 		slices.Sort(recvb)
@@ -362,13 +396,13 @@ func (t *testSubStreams) TestRequest() {
 		}
 	})
 
-	t.Run("ok; n > nn", func() {
+	t.Run("n > nn", func() {
 		var n, nn uint64 = 4, gn
 
-		_, _, rctx, rctxCancel, sctx, sctxCancel, rcstream, scstream, requestf, openStream, closef := t.rawRequest()
+		_, _, rctx, rctxCancel, sctx, sctxCancel, _, _, rcstream, scstream, requestf, openStream, closef := t.rawRequest()
 		defer closef()
 
-		request := requestf(time.Minute)
+		pool, _, request, _ := requestf(time.Minute)
 
 		go func() {
 			sctxCancel(contextEnsure(sctx, func(ctx context.Context) error {
@@ -398,11 +432,8 @@ func (t *testSubStreams) TestRequest() {
 					return rerr
 				}
 
-				var i int64
-				swait, err := t.serveOpenStream(ctx, openStream, nn, uid, func(_ context.Context, stream Stream) error {
-					j := atomic.AddInt64(&i, 1)
-
-					_, err := frame.WriteBytes(stream, []byte(sentb[j-1]))
+				swait, err := t.serveOpenStream(ctx, openStream, nn, uid, func(_ context.Context, si uint64, stream Stream) error {
+					_, err := frame.WriteBytes(stream, []byte(sentb[si]))
 					return err
 				})
 				if err != nil {
@@ -438,7 +469,7 @@ func (t *testSubStreams) TestRequest() {
 
 			var l sync.Mutex
 
-			return func(_ context.Context, stream Stream) error {
+			return func(_ context.Context, _ uint64, stream Stream) error {
 					_, b, err := frame.ReadBytes(stream)
 					if err != nil {
 						return err
@@ -452,6 +483,7 @@ func (t *testSubStreams) TestRequest() {
 				},
 				nil
 		}))
+		t.Equal(0, pool.Len())
 		rctxCancel(nil)
 
 		slices.Sort(recvb)
@@ -465,25 +497,16 @@ func (t *testSubStreams) TestRequest() {
 		}
 	})
 
-	t.Run("ok; n=0 || nn=0", func() {
-		t.Run("ok; n=0", func() {
+	t.Run("n=0 || nn=0", func() {
+		t.Run("n=0", func() {
 			var n uint64 = 0
 
-			_, _, rctx, rctxCancel, sctx, sctxCancel, rcstream, scstream, _, _, closef := t.rawRequest()
+			_, _, rctx, rctxCancel, sctx, sctxCancel, _, _, rcstream, scstream, _, _, closef := t.rawRequest()
 			defer closef()
 
 			go func() {
 				sctxCancel(contextEnsure(sctx, func(ctx context.Context) error {
-					if _, err := readSubStreamRequestUID(scstream); err != nil {
-						return err
-					}
-
-					n, _, err := frame.ReadUint64(scstream)
-					if err != nil {
-						return err
-					}
-
-					_, err = frame.WriteUint64(scstream, n)
+					_, _, err := t.initialServeSubStream(n, scstream)
 					if err != nil {
 						return err
 					}
@@ -500,14 +523,17 @@ func (t *testSubStreams) TestRequest() {
 				}))
 			}()
 
-			request := defaultRequestSubStreams(
+			pool := dutil.NewSingleLockedMap[subStreamsRequestUID, dutil.In2ErrorFunc[context.Context, Stream]]()
+			_, request, _ := newRequestSubStreamsWithPool(
 				rctx,
 				func() (context.Context, openStreamFunc) {
 					return rctx, func(context.Context) (Stream, error) {
-						return nil, errors.Errorf("request AcceptStream called")
+						return nil, errors.New("request AcceptStream called")
 					}
 				},
 				time.Minute,
+				3,
+				pool,
 			)
 
 			t.NoError(request(rctx, rcstream, n, func(nn uint64) (subStreamHandlerkFunc, error) {
@@ -517,6 +543,7 @@ func (t *testSubStreams) TestRequest() {
 
 				return nil, nil
 			}))
+			t.Equal(0, pool.Len())
 			rctxCancel(nil)
 
 			select {
@@ -527,10 +554,10 @@ func (t *testSubStreams) TestRequest() {
 			}
 		})
 
-		t.Run("ok; n=3 nn=0", func() {
+		t.Run("n=3 nn=0", func() {
 			var n, nn uint64 = gn, 0
 
-			_, _, rctx, rctxCancel, sctx, sctxCancel, rcstream, scstream, _, _, closef := t.rawRequest()
+			_, _, rctx, rctxCancel, sctx, sctxCancel, _, _, rcstream, scstream, _, _, closef := t.rawRequest()
 			defer closef()
 
 			go func() {
@@ -564,14 +591,17 @@ func (t *testSubStreams) TestRequest() {
 				}))
 			}()
 
-			request := defaultRequestSubStreams(
+			pool := dutil.NewSingleLockedMap[subStreamsRequestUID, dutil.In2ErrorFunc[context.Context, Stream]]()
+			_, request, _ := newRequestSubStreamsWithPool(
 				rctx,
 				func() (context.Context, openStreamFunc) {
 					return rctx, func(context.Context) (Stream, error) {
-						return nil, errors.Errorf("request AcceptStream called")
+						return nil, errors.New("request AcceptStream called")
 					}
 				},
 				time.Minute,
+				3,
+				pool,
 			)
 
 			t.NoError(request(rctx, rcstream, n, func(sn uint64) (subStreamHandlerkFunc, error) {
@@ -581,6 +611,7 @@ func (t *testSubStreams) TestRequest() {
 
 				return nil, nil
 			}))
+			t.Equal(0, pool.Len())
 			rctxCancel(nil)
 
 			select {
@@ -593,14 +624,1140 @@ func (t *testSubStreams) TestRequest() {
 	})
 }
 
-func TestSubStreams(t *testing.T) {
-	suite.Run(t, new(testSubStreams))
+func (t *testSubStreamsRequest) TestRequestConnClosed() {
+	t.Run("before new request", func() {
+		_, _, rctx, _, _, _, rconn, _, rcstream, _, requestf, _, closef := t.rawRequest()
+		defer closef()
+
+		closeConn, checkConnErr := t.closeConnWithError(rconn)
+		t.NoError(closeConn())
+
+		_, pctx, request, pctxCancel := requestf(time.Minute)
+		defer pctxCancel(nil)
+
+		err := request(rctx, rcstream, 3, nil)
+
+		t.NoError(checkConnErr(false, err))
+
+		select {
+		case <-time.After(time.Second):
+			t.Fail("wait request loop stopped")
+		case <-pctx.Done():
+			t.ErrorIs(pctx.Err(), context.Canceled)
+		}
+	})
+
+	t.Run("before serve", func() {
+		var n uint64 = 3
+
+		_, _, rctx, _, sctx, _, rconn, _, rcstream, _, requestf, _, closef := t.rawRequest()
+		defer closef()
+
+		closeConn, checkConnErr := t.closeConnWithError(rconn)
+
+		pool, pctx, request, _ := requestf(time.Minute)
+
+		go func() {
+			_ = contextEnsure(sctx, func(ctx context.Context) error {
+				t.IfErrPanicf(closeConn(), "close request conn")
+
+				return nil
+			})
+		}()
+
+		err := request(rctx, rcstream, n, func(nn uint64) (subStreamHandlerkFunc, error) {
+			if nn != n {
+				return nil, errors.Errorf("nn != n; %d != %d", nn, n)
+			}
+
+			return func(context.Context, uint64, Stream) error { return nil }, nil
+		})
+		t.Equal(0, pool.Len())
+		t.NoError(checkConnErr(false, err))
+
+		select {
+		case <-time.After(time.Second):
+			t.Fail("wait request loop stopped")
+		case <-pctx.Done():
+			t.ErrorIs(pctx.Err(), context.Canceled)
+		}
+	})
+
+	t.Run("before serve OpenStream", func() {
+		var n uint64 = 3
+
+		_, _, rctx, _, sctx, _, rconn, _, rcstream, scstream, requestf, _, closef := t.rawRequest()
+		defer closef()
+
+		pool, pctx, request, _ := requestf(time.Minute)
+
+		closeConn, checkConnErr := t.closeConnWithError(rconn)
+
+		go func() {
+			_ = contextEnsure(sctx, func(ctx context.Context) error {
+				_, _, err := t.initialServeSubStream(n, scstream)
+				if err != nil {
+					return err
+				}
+
+				rerr, err := readSubStreamError(scstream)
+				if err != nil {
+					return err
+				}
+				if rerr != nil {
+					return rerr
+				}
+
+				t.IfErrPanicf(closeConn(), "close request conn")
+
+				return nil
+			})
+		}()
+
+		var handlerCalled int64
+
+		err := request(rctx, rcstream, n, func(nn uint64) (subStreamHandlerkFunc, error) {
+			if nn != n {
+				return nil, errors.Errorf("nn != n; %d != %d", nn, n)
+			}
+
+			return func(context.Context, uint64, Stream) error {
+					atomic.AddInt64(&handlerCalled, 1)
+
+					return nil
+				},
+				nil
+		})
+		t.Equal(0, pool.Len())
+		checkConnErr(false, err)
+
+		t.EqualValues(0, atomic.LoadInt64(&handlerCalled))
+
+		select {
+		case <-time.After(time.Second):
+			t.Fail("wait request loop stopped")
+		case <-pctx.Done():
+			t.ErrorIs(pctx.Err(), context.Canceled)
+		}
+	})
+
+	t.Run("during serve OpenStream", func() {
+		var n uint64 = 3
+
+		_, _, rctx, _, sctx, _, rconn, _, rcstream, scstream, requestf, openStream, closef := t.rawRequest()
+		defer closef()
+
+		pool, pctx, request, _ := requestf(time.Minute)
+
+		closeConn, checkConnErr := t.closeConnWithError(rconn)
+
+		go func() {
+			_ = contextEnsure(sctx, func(ctx context.Context) error {
+				uid, nn, err := t.initialServeSubStream(n, scstream)
+				if err != nil {
+					return err
+				}
+
+				rerr, err := readSubStreamError(scstream)
+				if err != nil {
+					return err
+				}
+				if rerr != nil {
+					return rerr
+				}
+
+				var i int64
+				swait, err := t.serveOpenStream(ctx,
+					func(ctx context.Context) (Stream, error) {
+						if atomic.AddInt64(&i, 1) == 2 {
+							t.IfErrPanicf(closeConn(), "close request conn")
+						}
+
+						return openStream(ctx)
+					},
+					nn, uid,
+					func(context.Context, uint64, Stream) error {
+						return nil
+					})
+				if err != nil {
+					return err
+				}
+
+				err = func() error {
+					if err := swait(); err != nil {
+						return err
+					}
+
+					rerr, err = readSubStreamError(scstream)
+					if err != nil {
+						return err
+					}
+					if rerr != nil {
+						return rerr
+					}
+
+					return nil
+				}()
+
+				return writeSubStreamError(scstream, err)
+			})
+		}()
+
+		err := request(rctx, rcstream, n, func(nn uint64) (subStreamHandlerkFunc, error) {
+			if nn != n {
+				return nil, errors.Errorf("nn != n; %d != %d", nn, n)
+			}
+
+			return func(context.Context, uint64, Stream) error { return nil }, nil
+		})
+		t.Equal(0, pool.Len())
+		t.NoError(checkConnErr(false, err))
+
+		select {
+		case <-time.After(time.Second):
+			t.Fail("wait request loop stopped")
+		case <-pctx.Done():
+			t.ErrorIs(pctx.Err(), context.Canceled)
+		}
+	})
+
+	t.Run("before serve last response", func() {
+		var n uint64 = 3
+
+		_, _, rctx, _, sctx, _, rconn, _, rcstream, scstream, requestf, openStream, closef := t.rawRequest()
+		defer closef()
+
+		pool, pctx, request, _ := requestf(time.Minute)
+
+		closeConn, checkConnErr := t.closeConnWithError(rconn)
+
+		go func() {
+			_ = contextEnsure(sctx, func(ctx context.Context) error {
+				uid, nn, err := t.initialServeSubStream(n, scstream)
+				if err != nil {
+					return err
+				}
+
+				rerr, err := readSubStreamError(scstream)
+				if err != nil {
+					return err
+				}
+				if rerr != nil {
+					return rerr
+				}
+
+				swait, err := t.serveOpenStream(ctx, openStream, nn, uid, func(context.Context, uint64, Stream) error {
+					return nil
+				})
+				if err != nil {
+					return err
+				}
+
+				err = func() error {
+					if err := swait(); err != nil {
+						return err
+					}
+
+					rerr, err = readSubStreamError(scstream)
+					if err != nil {
+						return err
+					}
+					if rerr != nil {
+						return rerr
+					}
+
+					return nil
+				}()
+
+				t.IfErrPanicf(closeConn(), "close request conn")
+
+				return writeSubStreamError(scstream, err)
+			})
+		}()
+
+		var handlerCalled int64
+		err := request(rctx, rcstream, n, func(nn uint64) (subStreamHandlerkFunc, error) {
+			if nn != n {
+				return nil, errors.Errorf("nn != n; %d != %d", nn, n)
+			}
+
+			return func(context.Context, uint64, Stream) error {
+				atomic.AddInt64(&handlerCalled, 1)
+
+				return nil
+			}, nil
+		})
+		t.Equal(0, pool.Len())
+		t.NoError(checkConnErr(false, err))
+
+		t.EqualValues(n, atomic.LoadInt64(&handlerCalled))
+
+		select {
+		case <-time.After(time.Second):
+			t.Fail("wait request loop stopped")
+		case <-pctx.Done():
+			t.ErrorIs(pctx.Err(), context.Canceled)
+		}
+	})
+
+	t.Run("before requested", func() {
+		var n uint64 = 3
+
+		_, _, rctx, _, sctx, _, rconn, _, rcstream, scstream, requestf, openStream, closef := t.rawRequest()
+		defer closef()
+
+		pool, pctx, request, _ := requestf(time.Minute)
+
+		go func() {
+			_ = contextEnsure(sctx, func(ctx context.Context) error {
+				uid, nn, err := t.initialServeSubStream(n, scstream)
+				if err != nil {
+					return err
+				}
+
+				rerr, err := readSubStreamError(scstream)
+				if err != nil {
+					return err
+				}
+				if rerr != nil {
+					return rerr
+				}
+
+				swait, err := t.serveOpenStream(ctx, openStream, nn, uid, func(context.Context, uint64, Stream) error {
+					return nil
+				})
+				if err != nil {
+					return err
+				}
+
+				err = func() error {
+					if err := swait(); err != nil {
+						return err
+					}
+
+					rerr, err = readSubStreamError(scstream)
+					if err != nil {
+						return err
+					}
+					if rerr != nil {
+						return rerr
+					}
+
+					return nil
+				}()
+
+				return writeSubStreamError(scstream, err)
+			})
+		}()
+
+		var handlerCalled int64
+		t.NoError(request(rctx, rcstream, n, func(nn uint64) (subStreamHandlerkFunc, error) {
+			if nn != n {
+				return nil, errors.Errorf("nn != n; %d != %d", nn, n)
+			}
+
+			return func(context.Context, uint64, Stream) error {
+				atomic.AddInt64(&handlerCalled, 1)
+
+				return nil
+			}, nil
+		}))
+		t.EqualValues(n, atomic.LoadInt64(&handlerCalled))
+
+		t.NoError(pctx.Err())
+
+		closeConn, checkConnErr := t.closeConnWithError(rconn)
+		t.NoError(closeConn())
+
+		handlerCalled = 0
+		err := request(rctx, rcstream, n, func(nn uint64) (subStreamHandlerkFunc, error) {
+			if nn != n {
+				return nil, errors.Errorf("nn != n; %d != %d", nn, n)
+			}
+
+			return func(context.Context, uint64, Stream) error {
+				atomic.AddInt64(&handlerCalled, 1)
+
+				return nil
+			}, nil
+		})
+		t.Equal(0, pool.Len())
+		t.NoError(checkConnErr(false, err))
+
+		t.EqualValues(0, atomic.LoadInt64(&handlerCalled))
+
+		select {
+		case <-time.After(time.Second):
+			t.Fail("wait request loop stopped")
+		case <-pctx.Done():
+			t.ErrorIs(pctx.Err(), context.Canceled)
+		}
+	})
 }
 
-func quicOpenStreamFunc(f func(context.Context) (*quic.Stream, error)) func(context.Context) (Stream, error) {
-	return func(ctx context.Context) (Stream, error) {
-		s, err := f(ctx)
+func (t *testSubStreamsRequest) TestMainContextCanceled() {
+	t.Run("before new request", func() {
+		_, ctxCancel, rctx, _, _, _, _, _, rcstream, _, requestf, _, closef := t.rawRequest()
+		defer closef()
 
-		return s, err
+		_ = ctxCancel(nil)
+
+		_, pctx, request, _ := requestf(time.Minute)
+		t.ErrorIs(pctx.Err(), context.Canceled)
+
+		err := request(rctx, rcstream, 3, nil)
+		t.ErrorIs(err, context.Canceled)
+
+		select {
+		case <-time.After(time.Second):
+			t.Fail("wait request loop stopped")
+		case <-pctx.Done():
+			t.ErrorIs(pctx.Err(), context.Canceled)
+		}
+	})
+
+	t.Run("before serve", func() {
+		var n uint64 = 3
+
+		_, ctxCancel, rctx, _, sctx, _, _, _, rcstream, _, requestf, _, closef := t.rawRequest()
+		defer closef()
+
+		pool, pctx, request, _ := requestf(time.Minute)
+
+		go func() {
+			_ = contextEnsure(sctx, func(ctx context.Context) error {
+				_ = ctxCancel(nil)
+
+				return nil
+			})
+		}()
+
+		err := request(rctx, rcstream, n, func(nn uint64) (subStreamHandlerkFunc, error) {
+			if nn != n {
+				return nil, errors.Errorf("nn != n; %d != %d", nn, n)
+			}
+
+			return func(context.Context, uint64, Stream) error { return nil }, nil
+		})
+		t.Equal(0, pool.Len())
+		t.ErrorIs(err, context.Canceled)
+
+		select {
+		case <-time.After(time.Second):
+			t.Fail("wait request loop stopped")
+		case <-pctx.Done():
+			t.ErrorIs(pctx.Err(), context.Canceled)
+		}
+	})
+
+	t.Run("during serve", func() {
+		var n uint64 = 3
+
+		_, ctxCancel, rctx, _, sctx, _, _, _, rcstream, scstream, requestf, _, closef := t.rawRequest()
+		defer closef()
+
+		pool, pctx, request, _ := requestf(time.Minute)
+
+		go func() {
+			_ = contextEnsure(sctx, func(ctx context.Context) error {
+				_, _, err := t.initialServeSubStream(n, scstream)
+				if err != nil {
+					return err
+				}
+
+				rerr, err := readSubStreamError(scstream)
+				if err != nil {
+					return err
+				}
+				if rerr != nil {
+					return rerr
+				}
+
+				ctxCancel(nil)
+
+				return nil
+			})
+		}()
+
+		var handlerCalled int64
+
+		err := request(rctx, rcstream, n, func(nn uint64) (subStreamHandlerkFunc, error) {
+			if nn != n {
+				return nil, errors.Errorf("nn != n; %d != %d", nn, n)
+			}
+
+			return func(context.Context, uint64, Stream) error {
+					atomic.AddInt64(&handlerCalled, 1)
+
+					return nil
+				},
+				nil
+		})
+		t.Equal(0, pool.Len())
+		t.ErrorIs(err, context.Canceled)
+
+		t.EqualValues(0, atomic.LoadInt64(&handlerCalled))
+
+		select {
+		case <-time.After(time.Second):
+			t.Fail("wait request loop stopped")
+		case <-pctx.Done():
+			t.ErrorIs(pctx.Err(), context.Canceled)
+		}
+	})
+
+	t.Run("before requested", func() {
+		var n uint64 = 3
+
+		_, ctxCancel, rctx, _, sctx, _, _, _, rcstream, scstream, requestf, openStream, closef := t.rawRequest()
+		defer closef()
+
+		pool, pctx, request, _ := requestf(time.Minute)
+
+		go func() {
+			_ = contextEnsure(sctx, func(ctx context.Context) error {
+				uid, nn, err := t.initialServeSubStream(n, scstream)
+				if err != nil {
+					return err
+				}
+
+				rerr, err := readSubStreamError(scstream)
+				if err != nil {
+					return err
+				}
+				if rerr != nil {
+					return rerr
+				}
+
+				swait, err := t.serveOpenStream(ctx, openStream, nn, uid, func(context.Context, uint64, Stream) error {
+					return nil
+				})
+				if err != nil {
+					return err
+				}
+
+				err = func() error {
+					if err := swait(); err != nil {
+						return err
+					}
+
+					rerr, err = readSubStreamError(scstream)
+					if err != nil {
+						return err
+					}
+					if rerr != nil {
+						return rerr
+					}
+
+					return nil
+				}()
+
+				return writeSubStreamError(scstream, err)
+			})
+		}()
+
+		var handlerCalled int64
+		t.NoError(request(rctx, rcstream, n, func(nn uint64) (subStreamHandlerkFunc, error) {
+			if nn != n {
+				return nil, errors.Errorf("nn != n; %d != %d", nn, n)
+			}
+
+			return func(context.Context, uint64, Stream) error {
+				atomic.AddInt64(&handlerCalled, 1)
+
+				return nil
+			}, nil
+		}))
+		t.EqualValues(n, atomic.LoadInt64(&handlerCalled))
+
+		t.NoError(pctx.Err())
+
+		ctxCancel(nil)
+
+		handlerCalled = 0
+		err := request(rctx, rcstream, n, func(nn uint64) (subStreamHandlerkFunc, error) {
+			if nn != n {
+				return nil, errors.Errorf("nn != n; %d != %d", nn, n)
+			}
+
+			return func(context.Context, uint64, Stream) error {
+				atomic.AddInt64(&handlerCalled, 1)
+
+				return nil
+			}, nil
+		})
+		t.Equal(0, pool.Len())
+		t.ErrorIs(err, context.Canceled)
+
+		t.EqualValues(0, atomic.LoadInt64(&handlerCalled))
+
+		select {
+		case <-time.After(time.Second):
+			t.Fail("wait request loop stopped")
+		case <-pctx.Done():
+			t.ErrorIs(pctx.Err(), context.Canceled)
+		}
+	})
+}
+
+func (t *testSubStreamsRequest) TestContextCanceled() {
+	t.Run("before new request", func() {
+		_, _, rctx, rctxCancel, _, _, _, _, rcstream, _, requestf, _, closef := t.rawRequest()
+		defer closef()
+
+		_ = rctxCancel(nil)
+
+		_, pctx, request, _ := requestf(time.Minute)
+		t.ErrorIs(pctx.Err(), context.Canceled)
+
+		err := request(rctx, rcstream, 3, nil)
+		t.ErrorIs(err, context.Canceled)
+
+		select {
+		case <-time.After(time.Second):
+			t.Fail("wait request loop stopped")
+		case <-pctx.Done():
+			t.ErrorIs(pctx.Err(), context.Canceled)
+		}
+	})
+
+	t.Run("before serve", func() {
+		var n uint64 = 3
+
+		_, _, rctx, rctxCancel, sctx, _, _, _, rcstream, _, requestf, _, closef := t.rawRequest()
+		defer closef()
+
+		pool, pctx, request, _ := requestf(time.Minute)
+
+		go func() {
+			_ = contextEnsure(sctx, func(ctx context.Context) error {
+				_ = rctxCancel(nil)
+
+				return nil
+			})
+		}()
+
+		err := request(rctx, rcstream, n, func(nn uint64) (subStreamHandlerkFunc, error) {
+			if nn != n {
+				return nil, errors.Errorf("nn != n; %d != %d", nn, n)
+			}
+
+			return func(context.Context, uint64, Stream) error { return nil }, nil
+		})
+		t.Equal(0, pool.Len())
+		t.ErrorIs(err, context.Canceled)
+
+		select {
+		case <-time.After(time.Second):
+			t.Fail("wait request loop stopped")
+		case <-pctx.Done():
+			t.ErrorIs(pctx.Err(), context.Canceled)
+		}
+	})
+
+	t.Run("during serve", func() {
+		var n uint64 = 3
+
+		_, _, rctx, rctxCancel, sctx, _, _, _, rcstream, scstream, requestf, _, closef := t.rawRequest()
+		defer closef()
+
+		pool, pctx, request, _ := requestf(time.Minute)
+
+		go func() {
+			_ = contextEnsure(sctx, func(ctx context.Context) error {
+				_, _, err := t.initialServeSubStream(n, scstream)
+				if err != nil {
+					return err
+				}
+
+				rerr, err := readSubStreamError(scstream)
+				if err != nil {
+					return err
+				}
+				if rerr != nil {
+					return rerr
+				}
+
+				rctxCancel(nil)
+
+				return nil
+			})
+		}()
+
+		var handlerCalled int64
+
+		err := request(rctx, rcstream, n, func(nn uint64) (subStreamHandlerkFunc, error) {
+			if nn != n {
+				return nil, errors.Errorf("nn != n; %d != %d", nn, n)
+			}
+
+			return func(context.Context, uint64, Stream) error {
+					atomic.AddInt64(&handlerCalled, 1)
+
+					return nil
+				},
+				nil
+		})
+		t.Equal(0, pool.Len())
+		t.ErrorIs(err, context.Canceled)
+
+		t.EqualValues(0, atomic.LoadInt64(&handlerCalled))
+
+		select {
+		case <-time.After(time.Second):
+			t.Fail("wait request loop stopped")
+		case <-pctx.Done():
+			t.ErrorIs(pctx.Err(), context.Canceled)
+		}
+	})
+}
+
+func (t *testSubStreamsRequest) TestWriteError() {
+	t.Run("n callback error", func() {
+		var n uint64 = 3
+
+		_, _, rctx, _, sctx, sctxCancel, _, _, rcstream, scstream, requestf, _, closef := t.rawRequest()
+		defer closef()
+
+		_, pctx, request, _ := requestf(time.Minute)
+
+		errmsg := "showme"
+		var rerrmsg string
+
+		go func() {
+			err := contextEnsure(sctx, func(ctx context.Context) error {
+				_, _, err := t.initialServeSubStream(n, scstream)
+				if err != nil {
+					return err
+				}
+
+				rerr, err := readSubStreamError(scstream)
+				if err != nil {
+					return err
+				}
+				if rerr != nil {
+					rerrmsg = rerr.Error()
+
+					return rerr
+				}
+
+				_, _ = readSubStreamError(scstream)
+
+				return nil
+			})
+
+			sctxCancel(err)
+			writeSubStreamError(scstream, err)
+		}()
+
+		t.NoError(request(rctx, rcstream, n, func(uint64) (subStreamHandlerkFunc, error) {
+			return nil, errors.New(errmsg)
+		}))
+
+		select {
+		case <-time.After(time.Second * 3):
+			t.Fail("wait serve done")
+		case <-sctx.Done():
+			t.ErrorContains(contextCause(sctx), errmsg)
+		}
+
+		t.Equal(errmsg, rerrmsg)
+
+		select {
+		case <-time.After(time.Second):
+		case <-pctx.Done():
+			t.Fail("unexpected request loop stopped")
+		}
+	})
+
+	t.Run("handler error", func() {
+		var n uint64 = 3
+
+		_, _, rctx, _, sctx, sctxCancel, _, _, rcstream, scstream, requestf, openStream, closef := t.rawRequest()
+		defer closef()
+
+		_, pctx, request, _ := requestf(time.Minute)
+
+		errmsg := "showme"
+		var rerrmsg string
+
+		go func() {
+			err := contextEnsure(sctx, func(ctx context.Context) error {
+				uid, _, err := t.initialServeSubStream(n, scstream)
+				if err != nil {
+					return err
+				}
+
+				rerr, err := readSubStreamError(scstream)
+				if err != nil {
+					return err
+				}
+				if rerr != nil {
+					return rerr
+				}
+
+				swait, err := t.serveOpenStream(ctx, openStream, n, uid, func(context.Context, uint64, Stream) error {
+					return nil
+				})
+				if err != nil {
+					return err
+				}
+
+				if err := swait(); err != nil {
+					return err
+				}
+
+				rerr, err = readSubStreamError(scstream)
+				if err != nil {
+					return err
+				}
+
+				if rerr != nil {
+					rerrmsg = rerr.Error()
+					return rerr
+				}
+
+				return nil
+			})
+
+			sctxCancel(err)
+			writeSubStreamError(scstream, err)
+		}()
+
+		err := request(rctx, rcstream, n, func(nn uint64) (subStreamHandlerkFunc, error) {
+			return func(_ context.Context, i uint64, _ Stream) error {
+					if i == nn-1 {
+						return errors.New(errmsg)
+					}
+
+					return nil
+				},
+				nil
+		})
+		t.ErrorContains(err, errmsg)
+
+		select {
+		case <-time.After(time.Second * 3):
+			t.Fail("wait serve done")
+		case <-sctx.Done():
+			t.ErrorContains(contextCause(sctx), errmsg)
+		}
+
+		t.Equal(errmsg, rerrmsg)
+
+		select {
+		case <-time.After(time.Second):
+		case <-pctx.Done():
+			t.Fail("unexpected request loop stopped")
+		}
+	})
+}
+
+func (t *testSubStreamsRequest) TestServeError() {
+	t.Run("handler error", func() {
+		var n uint64 = 3
+
+		_, _, rctx, _, sctx, sctxCancel, _, _, rcstream, scstream, requestf, openStream, closef := t.rawRequest()
+		defer closef()
+
+		_, pctx, request, _ := requestf(time.Minute)
+
+		errmsg := "showme"
+
+		go func() {
+			err := contextEnsure(sctx, func(ctx context.Context) error {
+				uid, _, err := t.initialServeSubStream(n, scstream)
+				if err != nil {
+					return err
+				}
+
+				rerr, err := readSubStreamError(scstream)
+				if err != nil {
+					return err
+				}
+				if rerr != nil {
+					return rerr
+				}
+
+				swait, err := t.serveOpenStream(ctx, openStream, n, uid, func(_ context.Context, i uint64, _ Stream) error {
+					if i == n-1 {
+						return errors.New(errmsg)
+					}
+
+					return nil
+				})
+				if err != nil {
+					return err
+				}
+
+				if err := swait(); err != nil {
+					return err
+				}
+
+				rerr, err = readSubStreamError(scstream)
+				if err != nil {
+					return err
+				}
+
+				if rerr != nil {
+					return rerr
+				}
+
+				return nil
+			})
+
+			sctxCancel(err)
+			writeSubStreamError(scstream, err)
+		}()
+
+		err := request(rctx, rcstream, n, func(uint64) (subStreamHandlerkFunc, error) {
+			return func(context.Context, uint64, Stream) error { return nil }, nil
+		})
+		t.ErrorContains(err, errmsg)
+
+		select {
+		case <-time.After(time.Second * 3):
+			t.Fail("wait serve done")
+		case <-sctx.Done():
+			t.ErrorContains(contextCause(sctx), errmsg)
+		}
+
+		select {
+		case <-time.After(time.Second):
+		case <-pctx.Done():
+			t.Fail("unexpected request loop stopped")
+		}
+	})
+
+	t.Run("serve error", func() {
+		var n uint64 = 3
+
+		_, _, rctx, _, sctx, sctxCancel, _, _, rcstream, scstream, requestf, openStream, closef := t.rawRequest()
+		defer closef()
+
+		_, pctx, request, _ := requestf(time.Minute)
+
+		errmsg := "showme"
+
+		go func() {
+			err := contextEnsure(sctx, func(ctx context.Context) error {
+				uid, _, err := t.initialServeSubStream(n, scstream)
+				if err != nil {
+					return err
+				}
+
+				rerr, err := readSubStreamError(scstream)
+				if err != nil {
+					return err
+				}
+				if rerr != nil {
+					return rerr
+				}
+
+				swait, err := t.serveOpenStream(ctx, openStream, n, uid, func(_ context.Context, i uint64, _ Stream) error {
+					return nil
+				})
+				if err != nil {
+					return err
+				}
+
+				if err := swait(); err != nil {
+					return err
+				}
+
+				rerr, err = readSubStreamError(scstream)
+				if err != nil {
+					return err
+				}
+
+				if rerr != nil {
+					return rerr
+				}
+
+				return nil
+			})
+
+			sctxCancel(err)
+			writeSubStreamError(scstream, errors.New(errmsg))
+		}()
+
+		err := request(rctx, rcstream, n, func(uint64) (subStreamHandlerkFunc, error) {
+			return func(context.Context, uint64, Stream) error { return nil }, nil
+		})
+		t.ErrorContains(err, errmsg)
+
+		select {
+		case <-time.After(time.Second * 3):
+			t.Fail("wait serve done")
+		case <-sctx.Done():
+		}
+
+		select {
+		case <-time.After(time.Second):
+		case <-pctx.Done():
+			t.Fail("unexpected request loop stopped")
+		}
+	})
+}
+
+func (t *testSubStreamsRequest) TestN() {
+	serve := func(conn Conn, stream Stream, n uint64, sentb []string) error {
+		defer closeStream(stream, nil)
+
+		ctx := conn.Context()
+
+		uid, _, err := t.initialServeSubStream(n, stream)
+		if err != nil {
+			return err
+		}
+
+		rerr, err := readSubStreamError(stream)
+		if err != nil {
+			return err
+		}
+		if rerr != nil {
+			return rerr
+		}
+
+		swait, err := t.serveOpenStream(ctx,
+			t.newFuncOpenStream(conn.OpenStreamSync),
+			n, uid,
+			func(_ context.Context, i uint64, stream Stream) error {
+				if i%999 == 0 {
+					fmt.Fprintf(os.Stderr, "s%d ", i)
+				}
+
+				_, err := frame.WriteBytes(stream, []byte(sentb[i]))
+				return err
+			})
+		if err != nil {
+			return err
+		}
+
+		err = func() error {
+			if err := swait(); err != nil {
+				return err
+			}
+
+			rerr, err = readSubStreamError(stream)
+			if err != nil {
+				return err
+			}
+			if rerr != nil {
+				return rerr
+			}
+
+			return nil
+		}()
+
+		return writeSubStreamError(stream, err)
 	}
+
+	_, _, rconn, sconn, closef := t.openConnections(context.Background(), context.Background(), nil, nil)
+	defer closef()
+
+	_, request, _ := defaultRequestSubStreams(
+		rconn.Context(),
+		func() (context.Context, openStreamFunc) {
+			return rconn.Context(), t.newFuncOpenStream(rconn.AcceptStream)
+		},
+		time.Second*2,
+	)
+
+	run := func(ctx context.Context, si uint64, sentb []string, n uint64, rcstream, scstream Stream) error {
+		var opened uint64
+
+		defer func() func() {
+			t.Print("> request/serve: %d, n=%d", si, n)
+			return func() {
+				t.Print("< request/serve: %d, opened=%d", si, atomic.LoadUint64(&opened))
+			}
+		}()()
+
+		servech := make(chan error)
+		go func() {
+			servech <- serve(sconn, scstream, n, sentb)
+		}()
+
+		recvb := make([]string, 0, n)
+		defer clear(recvb)
+
+		if err := request(ctx, rcstream, n, func(nn uint64) (subStreamHandlerkFunc, error) {
+			if nn != n {
+				return nil, errors.Errorf("nn != n; %d != %d", nn, n)
+			}
+
+			var recvl sync.Mutex
+
+			return func(_ context.Context, i uint64, stream Stream) error {
+					atomic.AddUint64(&opened, 1)
+					if i%999 == 0 {
+						fmt.Fprintf(os.Stderr, "r%d ", i)
+					}
+
+					_, b, err := frame.ReadBytes(stream)
+					if err != nil {
+						return err
+					}
+
+					recvl.Lock()
+					recvb = append(recvb, string(b))
+					recvl.Unlock()
+
+					return nil
+				},
+				nil
+		}); err != nil {
+			return err
+		}
+
+		slices.Sort(recvb)
+		t.Equal(sentb, recvb)
+
+		select {
+		case err := <-servech:
+			return err
+		case <-ctx.Done():
+			return contextCause(ctx)
+		}
+	}
+
+	var sn, n uint64 = 3, 63333
+
+	sentb := make([]string, n)
+	defer clear(sentb)
+	for i := range sentb {
+		sentb[i] = string([]byte{byte(i)})
+	}
+	slices.Sort(sentb)
+
+	t.T().Logf("prepare: sn=%d", sn)
+	scstreams := make([]Stream, sn)
+	rcstreams := make([]Stream, sn)
+	defer func() {
+		closeStreams(rcstreams, nil)
+		closeStreams(scstreams, nil)
+
+		clear(rcstreams)
+		clear(scstreams)
+	}()
+
+	for i := range sn {
+		rcstreams[i], scstreams[i], _ = t.openControlStreams(context.Background(), rconn, sconn)
+	}
+
+	t.T().Logf("run: sn=%d n=%d", sn, n)
+	eg, ectx := errgroup.WithContext(context.Background())
+
+	for i := range sn {
+		eg.Go(func() error {
+			return run(ectx, i, sentb, n, rcstreams[i], scstreams[i])
+		})
+	}
+
+	t.NoError(eg.Wait())
+}
+
+func TestSubStreamsRequest(t *testing.T) {
+	suite.Run(t, new(testSubStreamsRequest))
 }

@@ -19,7 +19,7 @@ import (
 type subStreamsRequestUID [16]byte
 
 type (
-	subStreamHandlerkFunc             = func(context.Context, Stream) error
+	subStreamHandlerkFunc             = func(context.Context, uint64, Stream) error
 	openStreamFunc                    = func(context.Context) (Stream, error)
 	requestSubStreamCallbackFunc      = func(uint64) (subStreamHandlerkFunc, error)
 	requestSubStreamsFunc             = func(_ context.Context, controlStream Stream, n uint64, _ requestSubStreamCallbackFunc) error
@@ -31,7 +31,7 @@ func defaultRequestSubStreams(
 	ctx context.Context,
 	connf func() (context.Context, openStreamFunc),
 	acceptTimeout time.Duration,
-) requestSubStreamsFunc {
+) (context.Context, requestSubStreamsFunc, dutil.InErrorFunc[error]) {
 	pool := dutil.NewSingleLockedMap[subStreamsRequestUID, dutil.In2ErrorFunc[context.Context, Stream]]()
 
 	return newRequestSubStreamsWithPool(ctx, connf, acceptTimeout, int64(runtime.GOMAXPROCS(0)), pool)
@@ -43,12 +43,12 @@ func newRequestSubStreamsWithPool(
 	acceptTimeout time.Duration,
 	workSize int64,
 	pool subStremasPool,
-) requestSubStreamsFunc {
+) (context.Context, requestSubStreamsFunc, dutil.InErrorFunc[error]) {
 	log := dutil.LoadContextValueLogger(ctx)
 
 	cctx, acceptStream := connf()
 
-	pctx, pctxCancel := contextWithCancelCause(joinContext(ctx, cctx))
+	pctx, pctxCancel := joinContextWithCancelCause(ctx, cctx)
 
 	var cancelOnce sync.Once
 	cancel := func(err error) error {
@@ -67,66 +67,68 @@ func newRequestSubStreamsWithPool(
 		log.Trace().Err(err).Msg("request sub streams stopped")
 	}()
 
-	return func(ctx context.Context, cstream Stream, n uint64, f requestSubStreamCallbackFunc) error {
-		nctx := joinContext(pctx, ctx)
+	return pctx,
+		func(ctx context.Context, cstream Stream, n uint64, f requestSubStreamCallbackFunc) error {
+			nctx := joinContext(pctx, ctx)
 
-		var uid subStreamsRequestUID
-		var nn uint64
+			var uid subStreamsRequestUID
+			var nn uint64
 
-		if err := contextEnsure(nctx, func(context.Context) error {
-			switch u, i, err := initialRequestSubStreams(ctx, cstream, n); {
-			case err != nil:
+			if err := contextEnsure(nctx, func(context.Context) error {
+				switch u, i, err := initialRequestSubStreams(ctx, cstream, n); {
+				case err != nil:
+					return err
+				default:
+					uid = u
+					nn = i
+
+					return nil
+				}
+			}); err != nil {
 				return err
+			}
+
+			var done dutil.InErrorFunc[error]
+			var wait dutil.ErrorFunc
+
+			switch d, w, err := doRequestSubStreamHandlers(nctx, pool, cstream, f, nn, uid); {
+			case err != nil, nn < 1:
+				return writeSubStreamError(cstream, err)
 			default:
-				uid = u
-				nn = i
-
-				return nil
-			}
-		}); err != nil {
-			return err
-		}
-
-		var done dutil.InErrorFunc[error]
-		var wait dutil.ErrorFunc
-
-		switch d, w, err := doRequestSubStreamHandlers(nctx, pool, cstream, f, nn, uid); {
-		case err != nil, nn < 1:
-			return writeSubStreamError(cstream, err)
-		default:
-			done = d
-			wait = w
-		}
-
-		serrch := make(chan error)
-		go func() {
-			var gerr error
-
-			switch serr, err := readSubStreamError(cstream); {
-			case err != nil:
-				gerr = err
-			default:
-				gerr = serr
+				done = d
+				wait = w
 			}
 
-			if gerr != nil {
-				_ = done(gerr)
+			serrch := make(chan error, 1)
+			go func() {
+				var gerr error
+
+				switch serr, err := readSubStreamError(cstream); {
+				case err != nil:
+					gerr = err
+				default:
+					gerr = serr
+				}
+
+				if gerr != nil {
+					_ = done(gerr)
+				}
+
+				serrch <- gerr
+			}()
+
+			if err := writeSubStreamError(cstream, wait()); err != nil {
+				return err
 			}
 
-			serrch <- gerr
-		}()
-
-		if err := writeSubStreamError(cstream, wait()); err != nil {
-			return err
-		}
-
-		select {
-		case <-nctx.Done():
-			return contextCause(nctx)
-		case err := <-serrch:
-			return err
-		}
-	}
+			select {
+			case <-nctx.Done():
+				return contextCause(nctx)
+			case err := <-serrch:
+				return err
+			}
+		},
+		cancel
 }
 
 func acceptSubStream(ctx context.Context, accept openStreamFunc, timeout time.Duration) (
@@ -214,10 +216,6 @@ func doRequestSubStreamHandlers(
 	if f != nil {
 		switch i, err := f(n); {
 		case err != nil:
-			if cerr := writeSubStreamError(cstream, err); cerr != nil {
-				return nil, nil, cerr
-			}
-
 			return nil, nil, err
 		case n > 0:
 			rf = i
@@ -225,17 +223,13 @@ func doRequestSubStreamHandlers(
 	}
 
 	if n < 1 {
-		return func(err error) error {
-				return err
-			},
-			func() error {
-				return writeSubStreamError(cstream, nil)
-			},
+		return func(err error) error { return err },
+			func() error { return nil },
 			nil
 	}
 
 	if rf == nil {
-		rf = func(context.Context, Stream) error { return nil }
+		rf = func(context.Context, uint64, Stream) error { return nil }
 	}
 
 	rctx, d, wait := contextDoneWithContext(ctx)
@@ -245,24 +239,26 @@ func doRequestSubStreamHandlers(
 		return d(err)
 	}
 
-	var enough uint64
-
 	_, _ = pool.Set(uid, func(_ dutil.In2ErrorFunc[context.Context, Stream], found bool) (dutil.In2ErrorFunc[context.Context, Stream], error) {
 		if found {
 			return nil, dutil.ErrLockedSetIgnore
 		}
 
+		var enough, si uint64
+
 		return func(ctx context.Context, stream Stream) error {
+				defer func() {
+					if atomic.AddUint64(&enough, 1) == n {
+						_ = done(nil)
+					}
+				}()
+
 				if rctx.Err() != nil {
 					return contextCause(rctx)
 				}
 
-				if err := rf(joinContext(ctx, rctx), stream); err != nil {
+				if err := rf(joinContext(ctx, rctx), atomic.AddUint64(&si, 1)-1, stream); err != nil {
 					return done(err)
-				}
-
-				if c := atomic.AddUint64(&enough, 1); c == n {
-					_ = done(nil)
 				}
 
 				return nil

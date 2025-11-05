@@ -5,13 +5,17 @@ package quicstream
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/tls"
+	"math"
+	"math/big"
 	"net"
 	"slices"
 	"sync"
 	"time"
 
 	"github.com/madflojo/testcerts"
+	"github.com/pkg/errors"
 	"github.com/quic-go/quic-go"
 	"github.com/rs/zerolog"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
@@ -140,6 +144,48 @@ func (t *BaseTest) newConnPoolLockedMap() dutil.LockedMap[string, Conn] {
 	t.IfErrPanic(err)
 
 	return p
+}
+
+var maxApplicationErrorCode = big.NewInt(0).SetUint64(uint64(math.MaxUint32) - 1) // over 0, 0 measn no error
+
+func (t *BaseTest) newApplicationError() (errcode quic.ApplicationErrorCode, msg string, _ func(bool, error) error) {
+end:
+	for {
+		switch rnd, err := rand.Int(rand.Reader, maxApplicationErrorCode); {
+		case err != nil:
+		default:
+			errcode = quic.ApplicationErrorCode(rnd.Uint64())
+			break end
+		}
+	}
+
+	msg = util.UUID().String()
+
+	return errcode, msg, func(isRemote bool, err error) error {
+		var aerr *quic.ApplicationError
+
+		switch {
+		case !errors.As(err, &aerr):
+			return errors.Errorf("expected %T, but %T", aerr, err)
+		case aerr.Remote != isRemote:
+			return errors.Errorf("expected remote=%v, but %v", isRemote, aerr.Remote)
+		case aerr.ErrorCode != errcode:
+			return errors.Errorf("expected errcode=%d, but %d", errcode, aerr.ErrorCode)
+		case aerr.ErrorMessage != msg:
+			return errors.Errorf("expected msg=%q, but %q", msg, aerr.ErrorMessage)
+		}
+
+		return nil
+	}
+}
+
+func (t *BaseTest) closeConnWithError(conn Conn) (func() error, func(bool, error) error) {
+	errcode, msg, f := t.newApplicationError()
+
+	return func() error {
+			return conn.CloseWithError(errcode, msg)
+		},
+		f
 }
 
 func NewTestTLSConfig(serverName string) (*testcerts.KeyPair, *tls.Config) {
