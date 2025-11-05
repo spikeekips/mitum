@@ -30,6 +30,11 @@ func contextWithCancelCause(ctx context.Context) (context.Context, dutil.InError
 	}
 }
 
+func joinContextWithCancelCause(c0, c1 context.Context) (context.Context, dutil.InErrorFunc[error]) {
+	t, ctxCancel := contextWithCancelCause(c0)
+	return joinContext(c1, t), ctxCancel
+}
+
 func contextDone(ctx context.Context) (
 	dutil.InErrorFunc[error],
 	dutil.ErrorFunc,
@@ -131,8 +136,7 @@ func contextEnsureT[T any](ctx context.Context, f func(context.Context) (T, erro
 }
 
 type joinedContext struct {
-	c0 context.Context //nolint:containedctx
-	c1 context.Context //nolint:containedctx
+	c0, c1 context.Context
 }
 
 var _ context.Context = &joinedContext{}
