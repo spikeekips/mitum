@@ -25,6 +25,7 @@ var (
 
 const (
 	_ quic.StreamErrorCode = iota
+	streamErrorCodeOK
 	streamErrorCodeUnknown
 )
 

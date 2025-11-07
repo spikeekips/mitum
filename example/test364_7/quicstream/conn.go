@@ -193,28 +193,40 @@ func closeConnection(conn Conn, err error) error {
 }
 
 func newFuncCloseStream(err error) func(Stream) error {
-	switch {
-	case err != nil:
+	if err != nil {
 		return func(stream Stream) error {
+			if err := stream.Close(); err != nil {
+				return err
+			}
+
 			stream.CancelRead(streamErrorCodeUnknown)
 			stream.CancelWrite(streamErrorCodeUnknown)
 
 			return nil
 		}
-	default:
-		return func(stream Stream) error {
-			return stream.Close()
+	}
+
+	return func(stream Stream) error {
+		if err := stream.Close(); err != nil {
+			return err
 		}
+
+		stream.CancelRead(streamErrorCodeOK)
+
+		return nil
 	}
 }
 
 func closeStream(stream Stream, err error) error {
-	if err == nil {
-		return stream.Close()
+	if err := stream.Close(); err != nil {
+		return err
+	}
+
+	if err != nil {
+		stream.CancelWrite(streamErrorCodeUnknown)
 	}
 
 	stream.CancelRead(streamErrorCodeUnknown)
-	stream.CancelWrite(streamErrorCodeUnknown)
 
 	return nil
 }
