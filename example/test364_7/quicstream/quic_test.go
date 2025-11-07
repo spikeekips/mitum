@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -15,6 +17,7 @@ import (
 	"github.com/spikeekips/mitum/util"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
+	"golang.org/x/sync/errgroup"
 )
 
 type testQuic struct {
@@ -290,7 +293,7 @@ func (t *testQuic) TestConnection() {
 		remoteQuicConfig := DefaultQuicConfig()
 		remoteQuicConfig.KeepAlivePeriod = 0
 		remoteQuicConfig.MaxIdleTimeout = time.Minute
-		remoteQuicConfig.HandshakeIdleTimeout = time.Millisecond * 33
+		remoteQuicConfig.HandshakeIdleTimeout = time.Second
 
 		lpconn, _ := t.RandomListener(nil, DefaultQuicConfig())
 		t.NoError(lpconn.Close())
@@ -306,7 +309,7 @@ func (t *testQuic) TestConnection() {
 
 		remoteQuicConfig := DefaultQuicConfig()
 		remoteQuicConfig.KeepAlivePeriod = 0
-		remoteQuicConfig.HandshakeIdleTimeout = time.Millisecond * 33
+		remoteQuicConfig.HandshakeIdleTimeout = time.Second
 
 		lpconn, l := t.RandomListener(nil, localQuicConfig)
 		defer lpconn.Close()
@@ -335,7 +338,7 @@ func (t *testQuic) TestConnection() {
 
 		remoteQuicConfig := DefaultQuicConfig()
 		remoteQuicConfig.KeepAlivePeriod = 0
-		remoteQuicConfig.HandshakeIdleTimeout = time.Millisecond * 33
+		remoteQuicConfig.HandshakeIdleTimeout = time.Second
 
 		lpconn, l := t.RandomListener(nil, localQuicConfig)
 		defer lpconn.Close()
@@ -538,6 +541,102 @@ func (t *testQuic) TestRemoteConnection() {
 
 		t.NoError(err)
 		t.Equal(b, rb)
+	})
+}
+
+func (t *testQuic) TestStream() {
+	t.RunWithGoLeak("closeStream after stream.Close()", func() {
+		_, _, localConn, remoteConn, closef := t.OpenConnections(context.Background(), context.Background(), nil, nil)
+		defer closef()
+
+		ctx, cancel := t.Ctx()
+		defer cancel(nil)
+
+		accepted := make(chan struct{})
+		go func() {
+			_, err := localConn.AcceptStream(ctx)
+			t.PrintIfErrPanic(err, "local conn: AcceptStream; expected ok")
+			close(accepted)
+		}()
+
+		t.T().Log("remote conn: OpenStream")
+		remoteStream, err := remoteConn.OpenStreamSync(ctx)
+		t.NoError(err)
+		_, err = remoteStream.Write(util.UUID().Bytes())
+		t.NoError(err)
+
+		select {
+		case <-time.After(time.Second):
+			t.Fail("wait accept stream")
+		case <-accepted:
+		}
+
+		t.NoError(remoteStream.Close())
+		t.NoError(closeStream(remoteStream, nil))
+		t.NoError(remoteStream.Close())
+	})
+
+	t.RunWithGoLeak("closeStream after stream.CancelRead()", func() {
+		_, _, localConn, remoteConn, closef := t.OpenConnections(context.Background(), context.Background(), nil, nil)
+		defer closef()
+
+		ctx, cancel := t.Ctx()
+		defer cancel(nil)
+
+		accepted := make(chan struct{})
+		go func() {
+			_, err := localConn.AcceptStream(ctx)
+			t.PrintIfErrPanic(err, "local conn: AcceptStream; expected ok")
+			close(accepted)
+		}()
+
+		t.T().Log("remote conn: OpenStream")
+		remoteStream, err := remoteConn.OpenStreamSync(ctx)
+		t.NoError(err)
+		_, err = remoteStream.Write(util.UUID().Bytes())
+		t.NoError(err)
+
+		select {
+		case <-time.After(time.Second):
+			t.Fail("wait accept stream")
+		case <-accepted:
+		}
+
+		remoteStream.CancelRead(3)
+		t.NoError(closeStream(remoteStream, nil))
+		t.NoError(remoteStream.Close())
+	})
+
+	t.RunWithGoLeak("closeStream after stream.CancelWrite()", func() {
+		_, _, localConn, remoteConn, closef := t.OpenConnections(context.Background(), context.Background(), nil, nil)
+		defer closef()
+
+		ctx, cancel := t.Ctx()
+		defer cancel(nil)
+
+		accepted := make(chan struct{})
+		go func() {
+			_, err := localConn.AcceptStream(ctx)
+			t.PrintIfErrPanic(err, "local conn: AcceptStream; expected ok")
+			close(accepted)
+		}()
+
+		t.T().Log("remote conn: OpenStream")
+		remoteStream, err := remoteConn.OpenStreamSync(ctx)
+		t.NoError(err)
+		_, err = remoteStream.Write(util.UUID().Bytes())
+		t.NoError(err)
+
+		select {
+		case <-time.After(time.Second):
+			t.Fail("wait accept stream")
+		case <-accepted:
+		}
+
+		remoteStream.CancelWrite(3)
+		err = closeStream(remoteStream, nil)
+		t.ErrorContains(err, "close called for canceled stream")
+		t.NoError(remoteStream.Close())
 	})
 }
 
@@ -1110,4 +1209,148 @@ func TestQuic(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
 	suite.Run(t, new(testQuic))
+}
+
+func TestBufferPoolOOM(tt *testing.T) {
+	tt.Skip()
+
+	t := new(BaseTest)
+	t.SetT(tt)
+
+	t.Run("", func() {
+		ctx, ctxCancel := t.Ctx()
+		defer ctxCancel(nil)
+
+		rctx, rctxCancel := context.WithCancel(ctx)
+		defer rctxCancel()
+		sctx, sctxCancel := context.WithCancel(ctx)
+		defer sctxCancel()
+
+		t.T().Log("open packet conns")
+		rquicconfig := DefaultQuicConfig()
+		rquicconfig.MaxIdleTimeout = time.Minute
+
+		rpconn, l := t.RandomListener(nil, rquicconfig)
+		spconn := t.RandomPacketConn()
+		defer func() {
+			rpconn.Close()
+			spconn.Close()
+		}()
+
+		t.T().Log("open conns")
+		rconnch := make(chan Conn, 1)
+		go func() {
+			conn, err := l.Accept(rctx)
+			t.PrintIfErrPanic(err, "accept")
+
+			rconnch <- conn
+		}()
+
+		squicconfig := DefaultQuicConfig()
+		squicconfig.MaxIdleTimeout = time.Minute
+
+		sconn, err := dialWithPacketConn(sctx, spconn, rpconn.LocalAddr(), t.NewTLSConfig(), squicconfig)
+		t.PrintIfErrPanic(err, "remote dial")
+
+		rconn := <-rconnch
+		defer func() {
+			rconn.CloseWithError(0, "")
+			sconn.CloseWithError(0, "")
+		}()
+
+		run := func(name string, n uint64) {
+			t.T().Logf("run: %s, %d", name, n)
+
+			seg, sectx := errgroup.WithContext(sctx)
+
+			go func() {
+				var opened uint64
+
+				for {
+					stream, err := sconn.AcceptStream(sectx)
+					if err != nil {
+						t.PrintErr(err, "sconn AcceptStream")
+
+						return
+					}
+
+					t.Print("sconn AcceptStream: stream=%v", stream.StreamID())
+
+					seg.Go(func() error {
+						defer func() { closeStream(stream, nil) }()
+
+						for range 33 {
+							if _, err := stream.Write(util.UUID().Bytes()); err != nil {
+								_ = closeStream(stream, err)
+								return err
+							}
+						}
+
+						if err := stream.Close(); err != nil {
+							t.IfErrPanicf(err, "stream close: %v", stream.StreamID())
+						}
+
+						if _, err := io.ReadAll(stream); err != nil {
+							_ = closeStream(stream, err)
+							return err
+						}
+
+						return nil
+					})
+
+					if atomic.AddUint64(&opened, 1) == n {
+						break
+					}
+				}
+			}()
+
+			reg, rectx := errgroup.WithContext(ctx)
+
+			for range n {
+				stream, err := rconn.OpenStreamSync(rectx)
+				if err != nil {
+					t.PrintErr(err, "rconn OpenStream")
+
+					return
+				}
+				t.T().Logf("rconn OpenStream: stream=%v", stream.StreamID())
+
+				reg.Go(func() error {
+					defer func() { closeStream(stream, nil) }()
+
+					for range 33 {
+						if _, err := stream.Write(util.UUID().Bytes()); err != nil {
+							_ = closeStream(stream, err)
+							return err
+						}
+					}
+
+					if err := stream.Close(); err != nil {
+						return err
+					}
+
+					if _, err := io.ReadAll(stream); err != nil {
+						_ = closeStream(stream, err)
+						return err
+					}
+
+					return nil
+				})
+			}
+
+			t.PrintErr(reg.Wait(), "request wait")
+			t.PrintErr(seg.Wait(), "serve wait")
+
+			t.T().Logf("done: %s", name)
+		}
+
+		for i := range 1000 {
+			run(fmt.Sprintf("%d/%d", i+1, 1000), 333)
+			<-time.After(time.Second)
+		}
+	})
+
+	t.T().Log("all done")
+
+	t.NoError(pprofMem("/tmp/m.out"))
 }

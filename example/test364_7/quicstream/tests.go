@@ -10,6 +10,10 @@ import (
 	"math"
 	"math/big"
 	"net"
+	"os"
+	"path/filepath"
+	"runtime"
+	"runtime/pprof"
 	"slices"
 	"sync"
 	"time"
@@ -207,4 +211,22 @@ func NewTestTLSConfig(serverName string) (*testcerts.KeyPair, *tls.Config) {
 
 func RandomStatelessResetKey() *quic.StatelessResetKey {
 	return NewStatelessResetKey(util.UUID().Bytes())
+}
+
+func pprofMem(name string) error {
+	runtime.GC()
+
+	f, err := os.Create(filepath.Clean(name))
+	if err != nil {
+		return err
+	}
+
+	if err := pprof.WriteHeapProfile(f); err != nil {
+		_ = f.Close()
+		_ = os.Remove(filepath.Clean(name))
+
+		return err
+	}
+
+	return f.Close()
 }

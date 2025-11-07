@@ -145,7 +145,9 @@ func acceptSubStream(ctx context.Context, accept openStreamFunc, timeout time.Du
 		return func() (subStreamsRequestUID, Stream, error) {
 				uid, err := readSubStreamRequestUID(stream)
 				if err != nil {
-					_ = closeStream(stream, err)
+					if err := closeStream(stream, err); err != nil {
+						return uid, nil, err
+					}
 
 					return uid, nil, err
 				}

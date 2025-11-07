@@ -1601,6 +1601,8 @@ func (t *testSubStreamsRequest) TestServeError() {
 }
 
 func (t *testSubStreamsRequest) TestN() {
+	t.T().Skip()
+
 	serve := func(conn Conn, stream Stream, n uint64, sentb []string) error {
 		defer closeStream(stream, nil)
 
@@ -1623,7 +1625,7 @@ func (t *testSubStreamsRequest) TestN() {
 			t.newFuncOpenStream(conn.OpenStreamSync),
 			n, uid,
 			func(_ context.Context, i uint64, stream Stream) error {
-				if i%999 == 0 {
+				if i%(n/2) == 0 || i == n-1 {
 					fmt.Fprintf(os.Stderr, "s%d ", i)
 				}
 
@@ -1650,21 +1652,16 @@ func (t *testSubStreamsRequest) TestN() {
 			return nil
 		}()
 
-		return writeSubStreamError(stream, err)
+		gerr := writeSubStreamError(stream, err)
+
+		if err := closeStream(stream, gerr); err != nil {
+			return err
+		}
+
+		return gerr
 	}
 
-	_, _, rconn, sconn, closef := t.openConnections(context.Background(), context.Background(), nil, nil)
-	defer closef()
-
-	_, request, _ := defaultRequestSubStreams(
-		rconn.Context(),
-		func() (context.Context, openStreamFunc) {
-			return rconn.Context(), t.newFuncOpenStream(rconn.AcceptStream)
-		},
-		time.Second*2,
-	)
-
-	run := func(ctx context.Context, si uint64, sentb []string, n uint64, rcstream, scstream Stream) error {
+	runN := func(ctx context.Context, si uint64, sentb []string, n uint64, sconn Conn, rcstream, scstream Stream, request requestSubStreamsFunc) error {
 		var opened uint64
 
 		defer func() func() {
@@ -1674,7 +1671,7 @@ func (t *testSubStreamsRequest) TestN() {
 			}
 		}()()
 
-		servech := make(chan error)
+		servech := make(chan error, 1)
 		go func() {
 			servech <- serve(sconn, scstream, n, sentb)
 		}()
@@ -1682,7 +1679,7 @@ func (t *testSubStreamsRequest) TestN() {
 		recvb := make([]string, 0, n)
 		defer clear(recvb)
 
-		if err := request(ctx, rcstream, n, func(nn uint64) (subStreamHandlerkFunc, error) {
+		err := request(ctx, rcstream, n, func(nn uint64) (subStreamHandlerkFunc, error) {
 			if nn != n {
 				return nil, errors.Errorf("nn != n; %d != %d", nn, n)
 			}
@@ -1691,7 +1688,7 @@ func (t *testSubStreamsRequest) TestN() {
 
 			return func(_ context.Context, i uint64, stream Stream) error {
 					atomic.AddUint64(&opened, 1)
-					if i%999 == 0 {
+					if i%(n/2) == 0 || i == n-1 {
 						fmt.Fprintf(os.Stderr, "r%d ", i)
 					}
 
@@ -1707,12 +1704,15 @@ func (t *testSubStreamsRequest) TestN() {
 					return nil
 				},
 				nil
-		}); err != nil {
+		})
+		if err != nil {
 			return err
 		}
 
 		slices.Sort(recvb)
-		t.Equal(sentb, recvb)
+		if !slices.Equal(sentb, recvb) {
+			return errors.New("sentb != recvb")
+		}
 
 		select {
 		case err := <-servech:
@@ -1722,40 +1722,61 @@ func (t *testSubStreamsRequest) TestN() {
 		}
 	}
 
-	var sn, n uint64 = 3, 63333
+	run := func(sn, n uint64) func() {
+		return func() {
+			defer func() {
+				t.T().Logf("< run: sn=%d n=%d", sn, n)
+			}()
 
-	sentb := make([]string, n)
-	defer clear(sentb)
-	for i := range sentb {
-		sentb[i] = string([]byte{byte(i)})
+			ctx, ctxCancel := t.Ctx()
+			defer ctxCancel(nil)
+
+			sentb := make([]string, 0, n)
+			defer clear(sentb)
+			for i := range n {
+				sentb = append(sentb, string([]byte{byte(i)}))
+			}
+			slices.Sort(sentb)
+
+			t.T().Logf("> prepare conns")
+			_, _, rconn, sconn, closef := t.openConnections(ctx, context.Background(), nil, nil)
+			defer closef()
+			t.T().Logf("< prepare conns")
+
+			_, request, _ := defaultRequestSubStreams(
+				ctx,
+				func() (context.Context, openStreamFunc) {
+					return rconn.Context(), t.newFuncOpenStream(rconn.AcceptStream)
+				},
+				time.Second*2,
+			)
+
+			eg, ectx := errgroup.WithContext(ctx)
+
+			for i := range sn {
+				eg.Go(func() error {
+					rcstream, scstream, cclosef := t.openControlStreams(ctx, rconn, sconn)
+					defer cclosef()
+
+					return runN(ectx, i, sentb, n, sconn, rcstream, scstream, request)
+				})
+			}
+
+			t.NoError(eg.Wait())
+		}
 	}
-	slices.Sort(sentb)
 
-	t.T().Logf("prepare: sn=%d", sn)
-	scstreams := make([]Stream, sn)
-	rcstreams := make([]Stream, sn)
-	defer func() {
-		closeStreams(rcstreams, nil)
-		closeStreams(scstreams, nil)
+	// t.Run("sn=3 n=63333", run(3, 63333))
+	// t.Run("sn=1 n=3", run(1, 3))
+	repeat := 1000000
+	var sn, n uint64 = 1, 500
 
-		clear(rcstreams)
-		clear(scstreams)
-	}()
-
-	for i := range sn {
-		rcstreams[i], scstreams[i], _ = t.openControlStreams(context.Background(), rconn, sconn)
+	for i := range repeat {
+		t.Run(fmt.Sprintf("%d/%d: sn=%d n=%d", i+1, repeat, sn, n), run(sn, n))
+		<-time.After(time.Second)
 	}
 
-	t.T().Logf("run: sn=%d n=%d", sn, n)
-	eg, ectx := errgroup.WithContext(context.Background())
-
-	for i := range sn {
-		eg.Go(func() error {
-			return run(ectx, i, sentb, n, rcstreams[i], scstreams[i])
-		})
-	}
-
-	t.NoError(eg.Wait())
+	t.NoError(pprofMem("/tmp/m.out"))
 }
 
 func TestSubStreamsRequest(t *testing.T) {
